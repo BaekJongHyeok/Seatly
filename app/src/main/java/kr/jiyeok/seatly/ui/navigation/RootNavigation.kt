@@ -4,17 +4,21 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import kr.jiyeok.seatly.ui.screen.home.HomeScreen
+import kr.jiyeok.seatly.ui.screen.dashboard.DashboardScreen
+import kr.jiyeok.seatly.ui.screen.login.LoginScreen
 
 @Composable
 fun RootNavigation() {
     val navController = rememberNavController()
     NavHost(
         navController = navController,
-        startDestination = "home"
+        startDestination = "dashboard"
     ) {
-        composable("home") {
-            HomeScreen(navController = navController)
+        composable("dashboard") {
+            DashboardScreen(navController = navController)
+        }
+        composable("login") {
+            LoginScreen(navController = navController)
         }
     }
 }
