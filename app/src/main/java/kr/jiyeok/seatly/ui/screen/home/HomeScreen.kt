@@ -1,28 +1,603 @@
 package kr.jiyeok.seatly.ui.screen.home
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.hilt.navigation.compose.hiltViewModel
+import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.presentation.viewmodel.home.HomeViewModel
+
+data class CafeInfo(
+    val id: String,
+    val name: String,
+    val address: String,
+    val imageRes: Int,
+    val rating: Double = 4.8,
+    val reviewCount: Int = 128,
+    val isFavorite: Boolean = false,
+    val usageTime: String = "",
+    val price: Int = 0
+)
 
 @Composable
 fun HomeScreen(
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+    val userName = "김지욱"
+    val notificationCount = 1
+    val isUsingCafe = true
+    val currentCafe = CafeInfo(
+        id = "1",
+        name = "스터디카페 명지",
+        address = "서울시 강서구",
+        imageRes = R.drawable.icon_cafe_sample_1
+    )
+    val elapsedTime = "2시간 34분"
+    val progressValue = 0.75f
+    val favoriteCafes = listOf(
+        CafeInfo("1", "명지 스터디카페", "서울시 강서구", R.drawable.icon_cafe_sample_1),
+        CafeInfo("2", "강남 그린 램프", "서울시 강남구", R.drawable.icon_cafe_sample_1)
+    )
+    val recentCafes = listOf(
+        CafeInfo(
+            "1",
+            "명지 스터디카페",
+            "서울시 강서구",
+            R.drawable.icon_cafe_sample_1,
+            usageTime = "12월 15일 10:00 AM·4시간30분",
+            price = 13500
+        ),
+        CafeInfo(
+            "2",
+            "강남 그린 램프",
+            "서울시 강남구",
+            R.drawable.icon_cafe_sample_1,
+            usageTime = "12월 12일 02:00 PM·2시간",
+            price = 8000
+        )
+    ).take(3)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .verticalScroll(rememberScrollState())
+    ) {
+        TopBar(userName, notificationCount) { navController.navigate("notifications") }
+        WelcomeSection(userName)
+        if (isUsingCafe) {
+            CurrentUsageSection(currentCafe, elapsedTime, progressValue) {
+                navController.navigate("current_usage_detail")
+            }
+        }
+        CafeFindSection { navController.navigate("search") }
+        FavoritesCafeSection(favoriteCafes) { navController.navigate("favorites") }
+        RecentCafeSection(recentCafes) { navController.navigate("recent") }
+        Spacer(modifier = Modifier.height(20.dp))
+    }
+}
+
+@Composable
+fun TopBar(userName: String, notificationCount: Int, onNotificationClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Seatly Home",
-            style = MaterialTheme.typography.titleLarge
+            text = "Seatly",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
         )
+        Box(contentAlignment = Alignment.TopEnd) {
+            IconButton(onClick = onNotificationClick) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "Notifications",
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            if (notificationCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFFFF6B4A))
+                        .align(Alignment.TopEnd),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = notificationCount.toString(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WelcomeSection(userName: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = "안녕하세요, 홍길동님!",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "오늘도 열정적으로 공부하세요!",
+            fontSize = 14.sp,
+            color = Color(0xFFAAAAAA)
+        )
+    }
+}
+
+@Composable
+fun CurrentUsageSection(
+    cafe: CafeInfo,
+    elapsedTime: String,
+    progressValue: Float,
+    onViewDetail: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+    ) {
+        Text(
+            text = "현재 사용 중",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFFFBFAF8))
+                .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(18.dp))
+                .clickable {}
+                .padding(14.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFFD4C5B9)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = cafe.imageRes),
+                            contentDescription = cafe.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = cafe.name,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(1.dp))
+                        Text(
+                            text = cafe.address,
+                            fontSize = 12.sp,
+                            color = Color(0xFFA0A0A0)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "사용 중 2시간 34분",
+                            fontSize = 12.sp,
+                            color = Color(0xFFFF6B4A)
+                        )
+                    }
+                    Box(modifier = Modifier.size(80.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            progress = progressValue,
+                            modifier = Modifier.size(70.dp),
+                            color = Color(0xFFFF6B4A),
+                            trackColor = Color(0xFFF0F0F0),
+                            strokeWidth = 4.dp
+                        )
+                        Text(
+                            text = "75%",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onViewDetail,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B4A)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "연장하기",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                    }
+                    Button(
+                        onClick = {},
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(12.dp)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "이용 종료",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.Black
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CafeFindSection(onSearch: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFFFBFAF8))
+            .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(18.dp))
+            .clickable { onSearch() }
+            .padding(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.icon_search),
+                    contentDescription = "Search",
+                    tint = Color(0xFFFF6B4A),
+                    modifier = Modifier.size(24.dp)
+                )
+                Column {
+                    Text(
+                        text = "스터디카페 찾기",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "새로운 카페를 찾아보세요",
+                        fontSize = 12.sp,
+                        color = Color(0xFFA0A0A0)
+                    )
+                }
+            }
+            Text(
+                text = "›",
+                fontSize = 28.sp,
+                color = Color(0xFFCCCCCC)
+            )
+        }
+    }
+}
+
+@Composable
+fun FavoritesCafeSection(cafes: List<CafeInfo>, onViewAll: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "찜한 카페",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Text(
+                text = "더보기",
+                fontSize = 14.sp,
+                color = Color(0xFF999999),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable { onViewAll() }
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            cafes.forEach { cafe ->
+                CafeCardHorizontal(cafe)
+            }
+        }
+    }
+}
+
+@Composable
+fun CafeCardHorizontal(cafe: CafeInfo) {
+    Box(
+        modifier = Modifier
+            .width(155.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFFFBFAF8))
+            .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(18.dp))
+            .clickable {}
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFFFBFAF8))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(130.dp)
+                    .background(Color(0xFFD4C5B9))
+            ) {
+                Image(
+                    painter = painterResource(id = cafe.imageRes),
+                    contentDescription = cafe.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "❤️",
+                        fontSize = 16.sp
+                    )
+                }
+            }
+            Column(modifier = Modifier.padding(10.dp)) {
+                Text(
+                    text = cafe.name,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(1.dp))
+                Text(
+                    text = cafe.address,
+                    fontSize = 12.sp,
+                    color = Color(0xFFA0A0A0),
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "★",
+                        fontSize = 12.sp,
+                        color = Color(0xFFFF6B4A)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "${cafe.rating}",
+                        fontSize = 12.sp,
+                        color = Color.Black,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "(${cafe.reviewCount})",
+                        fontSize = 11.sp,
+                        color = Color(0xFF999999)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RecentCafeSection(cafes: List<CafeInfo>, onViewAll: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "최근 이용",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Text(
+                text = "더보기",
+                fontSize = 14.sp,
+                color = Color(0xFF999999),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable { onViewAll() }
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            cafes.forEach { cafe ->
+                CafeCardVertical(cafe)
+            }
+        }
+    }
+}
+
+@Composable
+fun CafeCardVertical(cafe: CafeInfo) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFFFBFAF8))
+            .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(18.dp))
+            .clickable {}
+            .padding(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFD4C5B9)),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = cafe.imageRes),
+                    contentDescription = cafe.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = cafe.name,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = cafe.usageTime,
+                    fontSize = 12.sp,
+                    color = Color(0xFFA0A0A0)
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${cafe.price}원",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFFF0F0F0)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "♡",
+                        fontSize = 14.sp,
+                        color = Color(0xFFD0D0D0)
+                    )
+                }
+            }
+        }
     }
 }

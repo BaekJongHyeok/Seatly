@@ -165,7 +165,7 @@ fun LoginScreen(navController: NavController) {
             text = "로그인",
             onClick = {
                 // Handle login
-                navController.navigate("dashboard") {
+                navController.navigate("home") {
                     popUpTo("login") { inclusive = true }
                 }
             }
