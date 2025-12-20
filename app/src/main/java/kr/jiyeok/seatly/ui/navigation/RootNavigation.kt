@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kr.jiyeok.seatly.ui.screen.signup.SignupScreen
 import kr.jiyeok.seatly.ui.components.BottomNavigationBar
 import kr.jiyeok.seatly.ui.screen.dashboard.DashboardScreen
 import kr.jiyeok.seatly.ui.screen.detail.CafeDetailScreen
@@ -63,6 +64,15 @@ fun RootNavigation() {
 
                 composable("login") {
                     LoginScreen(navController = navController)
+                }
+
+                composable("signup") {
+                    SignupScreen(
+                        onBack = { navController.popBackStack() },
+                        onNext = { email, password ->
+                           navController.navigate("login")
+                        }
+                    )
                 }
 
                 composable("home") {

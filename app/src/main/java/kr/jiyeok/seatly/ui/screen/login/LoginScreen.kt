@@ -2,6 +2,7 @@ package kr.jiyeok.seatly.ui.screen.login
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -255,7 +256,10 @@ fun LoginScreen(navController: NavController) {
                 text = "회원가입",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFFF6B4A)
+                color = Color(0xFFFF6B4A),
+                modifier = Modifier.clickable {
+                    navController.navigate("signup")
+                }
             )
         }
 
