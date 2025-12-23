@@ -28,6 +28,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,10 +37,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.presentation.viewmodel.home.HomeViewModel
 
@@ -59,9 +62,11 @@ fun HomeScreen(
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
-    val userName = "김지욱"
     val notificationCount = 1
-    val isUsingCafe = true
+
+    // 이용중 상태를 로컬 상태로 관리
+    val isUsingCafeState = remember { mutableStateOf(true) }
+
     val currentCafe = CafeInfo(
         id = "1",
         name = "스터디카페 명지",
@@ -92,28 +97,50 @@ fun HomeScreen(
             price = 8000
         )
     ).take(3)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
             .verticalScroll(rememberScrollState())
     ) {
-        TopBar(userName, notificationCount) { navController.navigate("notifications") }
-        WelcomeSection(userName)
-        if (isUsingCafe) {
-            CurrentUsageSection(currentCafe, elapsedTime, progressValue) {
-                navController.navigate("current_usage_detail")
-            }
+        // TopBar: 사용자 이름 제거 (앱 타이틀 + 알림만 표시)
+        TopBar(notificationCount) { navController.navigate("notifications") }
+
+        // 기존 WelcomeSection 유지
+        WelcomeSection()
+
+        // 현재 사용중 섹션 (원래 UI로 복구)
+        if (isUsingCafeState.value) {
+            CurrentUsageSection(
+                cafe = currentCafe,
+                elapsedTime = elapsedTime,
+                progressValue = progressValue,
+                onViewDetail = { navController.navigate("current_usage_detail") },
+                onEndUsage = { isUsingCafeState.value = false }
+            )
         }
+
         CafeFindSection { navController.navigate("search") }
-        FavoritesCafeSection(favoriteCafes) { navController.navigate("favorites") }
-        RecentCafeSection(recentCafes) { navController.navigate("recent") }
+
+        FavoritesCafeSection(
+            cafes = favoriteCafes,
+            onViewAll = { navController.navigate("favorites") },
+            onItemClick = { cafe -> navController.navigate("cafe_detail/${cafe.id}") }
+        )
+
+        RecentCafeSection(
+            cafes = recentCafes,
+            onViewAll = { navController.navigate("recent") },
+            onItemClick = { cafe -> navController.navigate("cafe_detail/${cafe.id}") }
+        )
+
         Spacer(modifier = Modifier.height(20.dp))
     }
 }
 
 @Composable
-fun TopBar(userName: String, notificationCount: Int, onNotificationClick: () -> Unit) {
+fun TopBar(notificationCount: Int, onNotificationClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -128,6 +155,7 @@ fun TopBar(userName: String, notificationCount: Int, onNotificationClick: () -> 
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
+
         Box(contentAlignment = Alignment.TopEnd) {
             IconButton(onClick = onNotificationClick) {
                 Icon(
@@ -159,7 +187,7 @@ fun TopBar(userName: String, notificationCount: Int, onNotificationClick: () -> 
 }
 
 @Composable
-fun WelcomeSection(userName: String) {
+fun WelcomeSection() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -167,7 +195,7 @@ fun WelcomeSection(userName: String) {
             .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         Text(
-            text = "안녕하세요, 홍길동님!",
+            text = "안녕하세요!",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black
@@ -181,12 +209,14 @@ fun WelcomeSection(userName: String) {
     }
 }
 
+// 원래의 CurrentUsageSection 레이아웃으로 복원
 @Composable
 fun CurrentUsageSection(
     cafe: CafeInfo,
     elapsedTime: String,
     progressValue: Float,
-    onViewDetail: () -> Unit
+    onViewDetail: () -> Unit,
+    onEndUsage: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -218,8 +248,8 @@ fun CurrentUsageSection(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(80.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFFD4C5B9)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -245,7 +275,7 @@ fun CurrentUsageSection(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "사용 중 2시간 34분",
+                            text = "사용 중 $elapsedTime",
                             fontSize = 12.sp,
                             color = Color(0xFFFF6B4A)
                         )
@@ -259,7 +289,7 @@ fun CurrentUsageSection(
                             strokeWidth = 4.dp
                         )
                         Text(
-                            text = "75%",
+                            text = "${(progressValue * 100).toInt()}%",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.Black
@@ -287,7 +317,7 @@ fun CurrentUsageSection(
                         )
                     }
                     Button(
-                        onClick = {},
+                        onClick = onEndUsage,
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
@@ -362,7 +392,7 @@ fun CafeFindSection(onSearch: () -> Unit) {
 }
 
 @Composable
-fun FavoritesCafeSection(cafes: List<CafeInfo>, onViewAll: () -> Unit) {
+fun FavoritesCafeSection(cafes: List<CafeInfo>, onViewAll: () -> Unit, onItemClick: (CafeInfo) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -399,21 +429,21 @@ fun FavoritesCafeSection(cafes: List<CafeInfo>, onViewAll: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             cafes.forEach { cafe ->
-                CafeCardHorizontal(cafe)
+                CafeCardHorizontal(cafe = cafe, onClick = onItemClick)
             }
         }
     }
 }
 
 @Composable
-fun CafeCardHorizontal(cafe: CafeInfo) {
+fun CafeCardHorizontal(cafe: CafeInfo, onClick: (CafeInfo) -> Unit) {
     Box(
         modifier = Modifier
             .width(155.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(Color(0xFFFBFAF8))
             .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(18.dp))
-            .clickable {}
+            .clickable { onClick(cafe) } // 클릭 시 전달된 람다 호출
     ) {
         Column(
             modifier = Modifier
@@ -454,14 +484,16 @@ fun CafeCardHorizontal(cafe: CafeInfo) {
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.Black,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(1.dp))
                 Text(
                     text = cafe.address,
                     fontSize = 12.sp,
                     color = Color(0xFFA0A0A0),
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -490,7 +522,7 @@ fun CafeCardHorizontal(cafe: CafeInfo) {
 }
 
 @Composable
-fun RecentCafeSection(cafes: List<CafeInfo>, onViewAll: () -> Unit) {
+fun RecentCafeSection(cafes: List<CafeInfo>, onViewAll: () -> Unit, onItemClick: (CafeInfo) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -526,21 +558,21 @@ fun RecentCafeSection(cafes: List<CafeInfo>, onViewAll: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             cafes.forEach { cafe ->
-                CafeCardVertical(cafe)
+                CafeCardVertical(cafe = cafe, onClick = onItemClick)
             }
         }
     }
 }
 
 @Composable
-fun CafeCardVertical(cafe: CafeInfo) {
+fun CafeCardVertical(cafe: CafeInfo, onClick: (CafeInfo) -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(Color(0xFFFBFAF8))
             .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(18.dp))
-            .clickable {}
+            .clickable { onClick(cafe) } // 클릭 시 전달된 람다 호출
             .padding(12.dp)
     ) {
         Row(
@@ -565,39 +597,29 @@ fun CafeCardVertical(cafe: CafeInfo) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = cafe.name,
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.Black
                 )
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(1.dp))
                 Text(
-                    text = cafe.usageTime,
+                    text = cafe.address,
                     fontSize = 12.sp,
                     color = Color(0xFFA0A0A0)
                 )
-            }
-            Column(horizontalAlignment = Alignment.End) {
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${cafe.price}원",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.Black
+                    text = cafe.usageTime.ifEmpty { "최근 이용 내역" },
+                    fontSize = 12.sp,
+                    color = Color(0xFF666666)
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                Box(
-                    modifier = Modifier
-                        .size(26.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color(0xFFF0F0F0)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "♡",
-                        fontSize = 14.sp,
-                        color = Color(0xFFD0D0D0)
-                    )
-                }
             }
+            Text(
+                text = "${cafe.price}원",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.Black
+            )
         }
     }
 }

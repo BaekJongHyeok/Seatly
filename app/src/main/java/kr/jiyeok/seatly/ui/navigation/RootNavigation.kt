@@ -6,120 +6,121 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import kr.jiyeok.seatly.presentation.viewmodel.password.PasswordRecoveryViewModel
 import kr.jiyeok.seatly.ui.components.BottomNavigationBar
+import kr.jiyeok.seatly.ui.components.OwnerBottomNavigationBar
 import kr.jiyeok.seatly.ui.screen.dashboard.DashboardScreen
 import kr.jiyeok.seatly.ui.screen.detail.CafeDetailScreen
 import kr.jiyeok.seatly.ui.screen.home.HomeScreen
+import kr.jiyeok.seatly.ui.screen.home.OwnerHomeScreen
 import kr.jiyeok.seatly.ui.screen.login.LoginScreen
-import kr.jiyeok.seatly.ui.screen.password.PasswordScreen_1
-import kr.jiyeok.seatly.ui.screen.password.PasswordScreen_2
-import kr.jiyeok.seatly.ui.screen.password.PasswordScreen_3
+import kr.jiyeok.seatly.ui.screen.manager.RegisterCafeScreen1
+import kr.jiyeok.seatly.ui.screen.manager.RegisterCafeScreen2
 import kr.jiyeok.seatly.ui.screen.search.SearchScreen
 import kr.jiyeok.seatly.ui.screen.signup.SignupScreen
+import kr.jiyeok.seatly.ui.screen.owner.SeatLayoutScreen
+import kr.jiyeok.seatly.ui.screen.owner.CurrentSeatScreen
+import kr.jiyeok.seatly.ui.screen.owner.ActivitiesScreen
+import androidx.compose.foundation.layout.Box as ComposeBox
 
 @Composable
-fun RootNavigation() {
+fun RootNavigation(isOwner: Boolean = true) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val showBottomNav = currentRoute in listOf("home", "search", "reservation", "mypage")
 
-    val passwordVm: PasswordRecoveryViewModel = viewModel()
+    var ownerState by remember { mutableStateOf(isOwner) }
+    var isAuthenticated by remember { mutableStateOf(false) }
+
+    val ownerBottomRoutes = listOf("dashboard", "home", "reservation_management", "payments", "settings")
+    val userBottomRoutes = listOf("home", "search", "reservation", "mypage")
+
+    val showBottomNav = if (ownerState) currentRoute in ownerBottomRoutes else currentRoute in userBottomRoutes
 
     Scaffold(
         bottomBar = {
             if (showBottomNav) {
-                BottomNavigationBar(
-                    currentRoute = currentRoute,
-                    onNavigate = { route ->
+                if (ownerState) {
+                    OwnerBottomNavigationBar(currentRoute = currentRoute, onNavigate = { route ->
                         navController.navigate(route) {
-                            popUpTo(navController.graph.startDestinationId) {
-                                saveState = true
-                            }
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
-                    }
-                )
+                    })
+                } else {
+                    BottomNavigationBar(currentRoute = currentRoute, onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    })
+                }
             }
         },
         modifier = Modifier.fillMaxSize()
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            NavHost(navController = navController, startDestination = "dashboard", modifier = Modifier.fillMaxSize()) {
-                composable("dashboard") {
-                    DashboardScreen(navController = navController)
-                }
-
-                composable("login") {
-                    LoginScreen(navController = navController)
-                }
-
+        ComposeBox(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            NavHost(navController = navController, startDestination = "login", modifier = Modifier.fillMaxSize()) {
+                composable("login") { LoginScreen(navController = navController) }
                 composable("signup") {
-                    SignupScreen(
-                        onBack = { navController.popBackStack() },
-                        onNext = { email, password ->
-                            navController.navigate("login")
-                        }
-                    )
+                    SignupScreen(onBack = { navController.popBackStack() }, onNext = { _, _ -> navController.navigate("login") })
                 }
-
-                composable("password_step1") {
-                    PasswordScreen_1(
-                        viewModel = passwordVm,
-                        onBack = { navController.popBackStack() },
-                        onNextNavigate = {
-                            navController.navigate("password_step2")
-                        }
-                    )
-                }
-
-                composable("password_step2") {
-                    PasswordScreen_2(
-                        viewModel = passwordVm,
-                        onBack = { nav_controller_pop(navController) },
-                        onVerifiedNavigate = {
-                            navController.navigate("password_step3")
-                        }
-                    )
-                }
-
-                composable("password_step3") {
-                    PasswordScreen_3(
-                        viewModel = passwordVm,
-                        onBack = { nav_controller_pop(navController) },
-                        onCompleteNavigate = {
-                            navController.navigate("login") {
-                                popUpTo("login") { inclusive = true }
-                            }
-                        }
-                    )
-                }
-
                 composable("home") {
-                    HomeScreen(navController = navController)
+                    if (ownerState) OwnerHomeScreen(navController = navController) else HomeScreen(navController = navController)
+                }
+                composable("dashboard") { if (ownerState) OwnerHomeScreen(navController = navController) else DashboardScreen(navController = navController) }
+                composable("search") { SearchScreen(navController = navController) }
+                composable("reservation") { ComposeBox(modifier = Modifier.fillMaxSize()) }
+                composable("mypage") { ComposeBox(modifier = Modifier.fillMaxSize()) }
+
+                // register cafe screen
+                composable("register_cafe_1") {
+                    RegisterCafeScreen1(navController = navController)
                 }
 
-                composable("search") {
-                    SearchScreen(navController = navController)
+                composable("register_cafe_2") {
+                    RegisterCafeScreen2(navController = navController)
                 }
 
-                composable("reservation") {
-                    Box(modifier = Modifier.fillMaxSize())
+                // seat editor (full screen)
+                composable("seat_management") {
+                    SeatLayoutScreen(onSave = { seats ->
+                        // TODO: persist seats
+                        navController.popBackStack()
+                    }, onBack = {
+                        navController.popBackStack()
+                    })
                 }
 
-                composable("mypage") {
-                    Box(modifier = Modifier.fillMaxSize())
+                // Current seat screen (owner -> "좌석 관리")
+                composable("current_seat") {
+                    CurrentSeatScreen(navController = navController, onBack = { navController.popBackStack() })
                 }
+
+                // Activities (full list) screen
+                composable("recent_activities") {
+                    ActivitiesScreen(navController = navController)
+                }
+
+                composable("reservation_management") { ComposeBox(modifier = Modifier.fillMaxSize()) }
+                composable("payments") { ComposeBox(modifier = Modifier.fillMaxSize()) }
+                composable("settings") { ComposeBox(modifier = Modifier.fillMaxSize()) }
+
+                composable("favorites") { ComposeBox(modifier = Modifier.fillMaxSize()) }
+                composable("recent") { ComposeBox(modifier = Modifier.fillMaxSize()) }
+                composable("notifications") { ComposeBox(modifier = Modifier.fillMaxSize()) }
+                composable("current_usage_detail") { ComposeBox(modifier = Modifier.fillMaxSize()) }
 
                 composable(route = "cafe_detail/{cafeId}", arguments = listOf(navArgument("cafeId") { type = NavType.StringType })) { backStackEntry ->
                     val cafeId = backStackEntry.arguments?.getString("cafeId")
@@ -128,9 +129,4 @@ fun RootNavigation() {
             }
         }
     }
-}
-
-// Small helper to keep code concise and explicit popBack behavior
-private fun nav_controller_pop(navController: androidx.navigation.NavHostController) {
-    navController.popBackStack()
 }
