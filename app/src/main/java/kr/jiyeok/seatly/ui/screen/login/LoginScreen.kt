@@ -151,11 +151,15 @@ fun LoginScreen(navController: NavController) {
                 )
             }
 
+            // 수정: 비밀번호 찾기 누르면 password_step1 로 이동
             Text(
                 text = "비밀번호 찾기",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFFFF6B4A)
+                color = Color(0xFFFF6B4A),
+                modifier = Modifier
+                    .clickable { navController.navigate("password_step1") }
+                    .padding(4.dp)
             )
         }
 
