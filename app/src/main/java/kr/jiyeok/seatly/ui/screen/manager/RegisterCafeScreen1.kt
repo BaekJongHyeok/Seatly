@@ -17,13 +17,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -68,57 +66,51 @@ import kr.jiyeok.seatly.ui.component.TimePicker
 /**
  * RegisterCafeScreen1.kt
  *
- * Updated to call the single-column TimePicker component correctly.
- * When user clicks the start or end read-only field, we set which target is being picked
- * and open the TimePicker with that field's current value as the initial value.
- * On confirm, we assign the returned single time to the appropriate field.
+ * Header TopBar has been extracted to RegisterCafeTopBar.kt and is used below.
  */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterCafeScreen1(
     navController: NavController,
     modifier: Modifier = Modifier
 ) {
-    // Theme colors
+    // Theme colors matching design
     val Primary = Color(0xFFe95321)
+    val PrimaryHover = Color(0xFFd14013)
     val BackgroundBase = Color(0xFFFFFFFF)
     val InputBg = Color(0xFFF8F8F8)
-    val BorderColor = Color(0xFFE5E5E5)
+    val BorderColor = Color(0xFFE8E8E8)
     val TextMain = Color(0xFF1A1A1A)
     val TextSub = Color(0xFF888888)
+    val StepBg = Color(0xFFfdede8)
+    val ChipSelectedBg = Color(0xFFFFF0EB)
+    val ChipUnselectedBg = InputBg
+    val ShadowColor = Color(0x22000000)
 
-    // form state
+    // Form state
     var cafeName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
-
-    // time values (displayed)
     var startTime by remember { mutableStateOf("09:00") }
     var endTime by remember { mutableStateOf("24:00") }
 
-    // whether to show the TimePicker sheet and which target we are picking ("start" or "end")
     var showTimePicker by remember { mutableStateOf(false) }
-    var pickingTarget by remember { mutableStateOf("start") } // "start" or "end"
+    var pickingTarget by remember { mutableStateOf("start") }
 
-    // Move "없음" to the front and default-select it
-    val weekdays = listOf("없음", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일")
-    var selectedWeekdays by remember { mutableStateOf(setOf("없음")) }
+    val weekdays = listOf("연중 무휴", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일")
+    var selectedWeekdays by remember { mutableStateOf(setOf("연중 무휴")) }
 
-    // images URIs (max 5)
     val images = remember { mutableStateListOf<Uri>() }
-
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    // Gallery launcher for multiple selection
-    val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
-    ) { uris: List<Uri> ->
+    // Gallery launcher
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         uris.forEach { uri ->
             if (images.size < 5) images.add(uri)
         }
     }
 
-    // Phone formatting helper (Korean rules: '02' special, else 3-4-4)
     fun formatKoreanPhoneFromDigits(digits: String): String {
         if (digits.isEmpty()) return ""
         return if (digits.startsWith("02")) {
@@ -138,7 +130,6 @@ fun RegisterCafeScreen1(
         }
     }
 
-    // Helper to decode Uri to ImageBitmap (safely on IO dispatcher)
     @Composable
     fun rememberBitmapForUri(uri: Uri): androidx.compose.ui.graphics.ImageBitmap? {
         var bitmap by remember(uri) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
@@ -157,7 +148,7 @@ fun RegisterCafeScreen1(
         return bitmap
     }
 
-    // Reusable custom BasicTextField wrapper to control focus visuals exactly
+    // Reusable AppTextField (modified height 52dp to match design)
     @Composable
     fun AppTextField(
         value: String,
@@ -173,17 +164,13 @@ fun RegisterCafeScreen1(
 
         val baseModifier = Modifier
             .fillMaxWidth()
-            .height(56.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(InputBg, RoundedCornerShape(10.dp))
-            .border(
-                BorderStroke(1.dp, if (focused || isErrorBorder) Primary else BorderColor),
-                RoundedCornerShape(10.dp)
-            )
-            .padding(horizontal = 8.dp)
+            .height(52.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(InputBg, RoundedCornerShape(12.dp))
+            .border(BorderStroke(1.dp, if (focused || isErrorBorder) Primary else BorderColor), RoundedCornerShape(12.dp))
+            .padding(start = 12.dp, end = 12.dp)
 
         if (readOnly && onClick != null) {
-            // Use a simple clickable layout for readOnly so clicks always reach it
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = baseModifier.clickable(
@@ -192,38 +179,31 @@ fun RegisterCafeScreen1(
                 ) { onClick() }
             ) {
                 if (leading != null) {
-                    Box(modifier = Modifier.padding(start = 6.dp, end = 6.dp)) { leading() }
+                    Box(modifier = Modifier.padding(end = 8.dp)) { leading() }
                 }
                 Box(modifier = Modifier.weight(1f)) {
-                    if (value.isEmpty()) {
-                        Text(text = placeholder, color = TextSub, fontSize = 16.sp)
-                    } else {
-                        Text(text = value, color = TextMain, fontSize = 16.sp)
-                    }
+                    if (value.isEmpty()) Text(text = placeholder, color = TextSub, fontSize = 15.sp)
+                    else Text(text = value, color = TextMain, fontSize = 15.sp)
                 }
             }
         } else {
-            // Editable BasicTextField version
             Row(verticalAlignment = Alignment.CenterVertically, modifier = baseModifier) {
                 if (leading != null) {
-                    Box(modifier = Modifier.padding(start = 6.dp, end = 6.dp)) { leading() }
+                    Box(modifier = Modifier.padding(end = 8.dp)) { leading() }
                 }
-
                 Box(modifier = Modifier.weight(1f)) {
                     BasicTextField(
                         value = value,
                         onValueChange = onValueChange,
                         singleLine = true,
-                        textStyle = TextStyle(color = TextMain, fontSize = 16.sp),
+                        textStyle = TextStyle(color = TextMain, fontSize = 15.sp),
                         cursorBrush = SolidColor(Primary),
                         keyboardOptions = keyboardOptions,
                         modifier = Modifier
                             .fillMaxWidth()
                             .onFocusChanged { state -> focused = state.isFocused }
                     ) { innerTextField ->
-                        if (value.isEmpty()) {
-                            Text(text = placeholder, color = TextSub, fontSize = 16.sp)
-                        }
+                        if (value.isEmpty()) Text(text = placeholder, color = TextSub, fontSize = 15.sp)
                         innerTextField()
                     }
                 }
@@ -233,88 +213,82 @@ fun RegisterCafeScreen1(
 
     Surface(modifier = modifier.fillMaxSize(), color = BackgroundBase) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-            ) {
-                // Header
+            // Content column (header, body, bottom bar positioned inside Box)
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header: use extracted TopBar component
+                Column(modifier = Modifier
+                    .fillMaxWidth()
+                    .background(BackgroundBase)
+                    .padding(top = 20.dp, bottom = 6.dp)
+                ) {
+                    // Use RegisterCafeTopBar with the larger title size used previously on Screen1
+                    RegisterCafeTopBar(
+                        navController = navController,
+                        title = "카페 등록",
+                        titleFontSize = 20.sp,
+                        titleColor = TextMain,
+                        onBack = { navController.popBackStack() },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // thin divider
+                    Box(modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color(0xFFF4F4F4))
+                    )
+                }
+
+                // Body - scrollable
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .background(BackgroundBase)
-                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 120.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        IconButton(onClick = { navController.popBackStack() }, modifier = Modifier.size(36.dp)) {
-                            MaterialSymbol(name = "arrow_back", size = 24.sp)
-                        }
-
+                    // Step pill + heading
+                    Box {
                         Text(
-                            text = "카페 등록",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextMain
+                            text = "Step 1/2",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Primary,
+                            modifier = Modifier
+                                .background(StepBg, RoundedCornerShape(12.dp))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
                         )
-
-                        Spacer(modifier = Modifier.width(36.dp))
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Step text ABOVE progress bar
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        Text("1/2", color = TextSub, fontSize = 12.sp)
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // progress bar exactly 50%
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFF0F0F0))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(0.5f) // exactly 50%
-                                .background(color = Primary, shape = RoundedCornerShape(12.dp))
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text("기본 정보 입력", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text("카페의 기본 정보를 입력해주세요", fontSize = 13.sp, color = TextSub)
-
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Text(
+                        text = "카페의 기본 정보를 입력해주세요",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMain,
+                        modifier = Modifier.padding(bottom = 18.dp)
+                    )
 
                     // Cafe name
-                    Text("카페명", fontSize = 13.sp, color = TextMain, fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("카페명", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
+                    Spacer(modifier = Modifier.height(8.dp))
                     AppTextField(
                         value = cafeName,
                         onValueChange = { cafeName = it },
                         placeholder = "예: 명지 스터디카페",
-                        leading = { MaterialSymbol(name = "domain", size = 18.sp, tint = TextMain) },
+                        leading = {
+                            MaterialSymbol(name = "domain", size = 18.sp, tint = TextSub)
+                        },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Phone field
-                    Text("대표 전화번호", fontSize = 13.sp, color = TextMain, fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(6.dp))
+                    // Phone
+                    Text("대표 전화번호", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
+                    Spacer(modifier = Modifier.height(8.dp))
                     AppTextField(
                         value = phone,
                         onValueChange = { raw ->
@@ -322,19 +296,18 @@ fun RegisterCafeScreen1(
                             phone = formatKoreanPhoneFromDigits(digits)
                         },
                         placeholder = "010-1234-5678",
-                        leading = { MaterialSymbol(name = "phone", size = 18.sp, tint = TextMain) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
-                        isErrorBorder = false
+                        leading = {
+                            MaterialSymbol(name = "phone", size = 18.sp, tint = TextSub)
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next)
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Business hours - open TimePicker when clicked
-                    Text("영업 시간", fontSize = 13.sp, color = TextMain, fontWeight = FontWeight.Medium)
+                    // Operating hours
+                    Text("영업 시간", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
                     Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        // Read-only field showing start time; clicking opens TimePicker for start
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(modifier = Modifier.weight(1f)) {
                             AppTextField(
                                 value = startTime,
@@ -348,13 +321,8 @@ fun RegisterCafeScreen1(
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(12.dp))
-
                         Text("~", color = TextSub, fontSize = 16.sp)
 
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        // Read-only field showing end time; clicking opens TimePicker for end
                         Box(modifier = Modifier.weight(1f)) {
                             AppTextField(
                                 value = endTime,
@@ -371,95 +339,104 @@ fun RegisterCafeScreen1(
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // Weekday chips
-                    Text("정기 휴무일", fontSize = 13.sp, color = TextMain, fontWeight = FontWeight.Medium)
+                    // Holiday chips
+                    Text("정기 휴무일", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
                     Spacer(modifier = Modifier.height(10.dp))
-
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         weekdays.forEach { day ->
                             val selected = selectedWeekdays.contains(day)
+                            val bg = if (selected) ChipSelectedBg else ChipUnselectedBg
+                            val borderCol = if (selected) Primary else BorderColor
+                            val textCol = if (selected) Primary else TextMain
                             Box(
                                 modifier = Modifier
-                                    .defaultMinSize(minHeight = 40.dp)
+                                    .defaultMinSize(minHeight = 44.dp)
                                     .clip(RoundedCornerShape(20.dp))
-                                    .background(if (selected) Primary else InputBg, shape = RoundedCornerShape(20.dp))
-                                    .border(BorderStroke(1.dp, if (selected) Primary else BorderColor), shape = RoundedCornerShape(20.dp))
+                                    .background(bg)
+                                    .border(BorderStroke(1.dp, borderCol), RoundedCornerShape(20.dp))
                                     .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
-                                        selectedWeekdays = if (day == "없음") {
-                                            setOf("없음")
+                                        selectedWeekdays = if (day == "연중 무휴") {
+                                            setOf("연중 무휴")
                                         } else {
                                             val mutable = selectedWeekdays.toMutableSet()
-                                            if (mutable.contains("없음")) mutable.remove("없음")
+                                            if (mutable.contains("연중 무휴")) mutable.remove("연중 무휴")
                                             if (mutable.contains(day)) mutable.remove(day) else mutable.add(day)
-                                            if (mutable.isEmpty()) mutable.add("없음")
+                                            if (mutable.isEmpty()) mutable.add("연중 무휴")
                                             mutable.toSet()
                                         }
                                     }
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(text = day, color = if (selected) Color.White else TextMain, fontSize = 14.sp)
+                                Text(
+                                    text = day,
+                                    color = textCol,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Photos section title + count
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("카페 사진 (최대 5장)", fontSize = 13.sp, color = TextMain, fontWeight = FontWeight.Medium)
-                        Text("${images.size}/5", fontSize = 13.sp, color = TextSub)
+                    // Photos
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("카페 사진 (최대 5장)", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
+                        Text("${images.size}/5", fontSize = 13.sp, color = TextMain)
                     }
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Thumbnails row - add tile opens gallery
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         item {
                             Box(
                                 modifier = Modifier
                                     .size(72.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .border(BorderStroke(1.dp, BorderColor), shape = RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(BorderStroke(1.dp, BorderColor), RoundedCornerShape(12.dp))
                                     .background(InputBg)
-                                    .clickable {
-                                        galleryLauncher.launch("image/*")
-                                    },
+                                    .clickable { galleryLauncher.launch("image/*") },
                                 contentAlignment = Alignment.Center
                             ) {
-                                MaterialSymbol(name = "add", size = 24.sp, tint = TextMain)
+                                MaterialSymbol(name = "add", size = 24.sp, tint = TextSub)
                             }
                         }
 
-                        // show selected images as thumbnails with close icons
                         items(images) { uri ->
                             val bmp = rememberBitmapForUri(uri)
                             Box(
                                 modifier = Modifier
                                     .size(72.dp)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(Color(0xFFF3E7DE)),
                                 contentAlignment = Alignment.TopEnd
                             ) {
                                 if (bmp != null) {
                                     Image(bitmap = bmp, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
                                 }
-                                IconButton(onClick = { images.remove(uri) }, modifier = Modifier.size(24.dp)) {
-                                    MaterialSymbol(name = "close", size = 14.sp, tint = Color.White)
+                                IconButton(
+                                    onClick = { images.remove(uri) },
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .padding(4.dp)
+                                        .background(Color(0x66000000), RoundedCornerShape(12.dp))
+                                ) {
+                                    MaterialSymbol(name = "close", size = 12.sp, tint = Color.White)
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = androidx.compose.ui.Modifier.height(96.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
 
-            // Bottom fixed bar
+            // Bottom fixed bar (aligned at bottom of Box)
             Surface(
                 tonalElevation = 4.dp,
                 shadowElevation = 4.dp,
@@ -475,14 +452,13 @@ fun RegisterCafeScreen1(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Make previous button wider and match corner radius of next button
                     OutlinedButton(
                         onClick = { navController.popBackStack() },
-                        border = BorderStroke(1.dp, Color(0xFFCCCCCC)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextMain),
-                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, BorderColor),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextMain, containerColor = Color.Transparent),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
-                            .weight(0.4f)
+                            .weight(1f)
                             .height(52.dp)
                     ) {
                         Text("이전", fontSize = 16.sp)
@@ -492,25 +468,25 @@ fun RegisterCafeScreen1(
                         onClick = { navController.navigate("register_cafe_2") },
                         colors = ButtonDefaults.buttonColors(containerColor = Primary, contentColor = Color.White),
                         modifier = Modifier
-                            .weight(0.6f)
+                            .weight(1f)
                             .height(52.dp),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("다음 (2/2)", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text("다음 (2/2)", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
-        }
 
-        // TimePicker sheet — open for whichever target was clicked
-        TimePicker(
-            visible = showTimePicker,
-            initial = if (pickingTarget == "start") startTime else endTime,
-            onDismiss = { showTimePicker = false },
-            onConfirm = { selected ->
-                if (pickingTarget == "start") startTime = selected else endTime = selected
-                showTimePicker = false
-            }
-        )
+            // TimePicker sheet
+            TimePicker(
+                visible = showTimePicker,
+                initial = if (pickingTarget == "start") startTime else endTime,
+                onDismiss = { showTimePicker = false },
+                onConfirm = { selected ->
+                    if (pickingTarget == "start") startTime = selected else endTime = selected
+                    showTimePicker = false
+                }
+            )
+        }
     }
 }

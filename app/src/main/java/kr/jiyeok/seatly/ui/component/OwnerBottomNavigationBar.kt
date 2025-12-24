@@ -1,91 +1,97 @@
 package kr.jiyeok.seatly.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chair
-import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kr.jiyeok.seatly.ui.component.MaterialSymbol
 
 private val Primary = Color(0xFFe95321)
 private val Unselected = Color(0xFFA0A0A0)
 private val Background = Color(0xFFFFFFFF)
 
 /**
- * Owner bottom navigation: only shows
- * - 대시보드 (dashboard)
- * - 좌석 관리 (seat_management)
- * - 마이페이   (payments)
+ * Owner bottom navigation reworked for balanced horizontal spacing and no clipped labels.
+ *
+ * - Uses three equally weighted items (대시보드 / 카페 관리 / 마이페이지)
+ * - Row height increased to avoid label clipping and provide comfortable touch targets
+ * - Each item uses Modifier.weight(1f) so left/right spacing is symmetric and natural
+ * - Top divider retained to match the design
  */
 @Composable
 fun OwnerBottomNavigationBar(
     currentRoute: String?,
     onNavigate: (String) -> Unit
 ) {
-    NavigationBar(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(68.dp)
-            .background(Background),
-        containerColor = Background,
-        contentColor = Color.Black,
-        tonalElevation = 8.dp
-    ) {
-        // Dashboard
-        NavigationBarItem(
-            icon = { Icon(imageVector = Icons.Default.Home, contentDescription = "대시보드", modifier = Modifier.size(24.dp)) },
-            label = { Text("대시보드", fontSize = 11.sp) },
-            selected = currentRoute == "dashboard" || currentRoute == "home",
-            onClick = { onNavigate("dashboard") },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Primary,
-                selectedTextColor = Primary,
-                unselectedIconColor = Unselected,
-                unselectedTextColor = Unselected,
-                indicatorColor = Color.Transparent
-            )
-        )
+    Surface(color = Background, modifier = Modifier.fillMaxWidth()) {
+        Divider(color = Color(0xFFF0F0F0), thickness = 1.dp)
 
-        // Seat management
-        NavigationBarItem(
-            icon = { Icon(imageVector = Icons.Default.Chair, contentDescription = "좌석 관리", modifier = Modifier.size(24.dp)) },
-            label = { Text("좌석 관리", fontSize = 11.sp) },
-            selected = currentRoute == "seat_management" || currentRoute == "current_seat",
-            onClick = { onNavigate("seat_management") },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Primary,
-                selectedTextColor = Primary,
-                unselectedIconColor = Unselected,
-                unselectedTextColor = Unselected,
-                indicatorColor = Color.Transparent
-            )
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(72.dp) // increased to avoid text clipping and to match design spacing
+                .background(Background),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Dashboard
+            val dashSelected = currentRoute == "dashboard" || currentRoute == "home"
+            val dashTint = if (dashSelected) Primary else Unselected
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onNavigate("dashboard") }
+                    .padding(top = 6.dp, bottom = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                MaterialSymbol(name = "home", size = 24.sp, tint = dashTint)
+                Text("대시보드", fontSize = 11.sp, color = dashTint, modifier = Modifier.padding(top = 4.dp))
+            }
 
-        // MyPay (payments)
-        NavigationBarItem(
-            icon = { Icon(imageVector = Icons.Default.CreditCard, contentDescription = "마이페이", modifier = Modifier.size(24.dp)) },
-            label = { Text("마이페이", fontSize = 11.sp) },
-            selected = currentRoute == "payments" || currentRoute == "mypay",
-            onClick = { onNavigate("payments") },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Primary,
-                selectedTextColor = Primary,
-                unselectedIconColor = Unselected,
-                unselectedTextColor = Unselected,
-                indicatorColor = Color.Transparent
-            )
-        )
+            // Cafe management (center)
+            val cafeSelected = currentRoute == "cafe_list" || currentRoute == "cafe_management"
+            val cafeTint = if (cafeSelected) Primary else Unselected
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onNavigate("cafe_list") }
+                    .padding(top = 6.dp, bottom = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                MaterialSymbol(name = "storefront", size = 24.sp, tint = cafeTint)
+                Text("카페 관리", fontSize = 11.sp, color = cafeTint, modifier = Modifier.padding(top = 4.dp))
+            }
+
+            // My page
+            val mySelected = currentRoute == "mypage" || currentRoute == "profile"
+            val myTint = if (mySelected) Primary else Unselected
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onNavigate("mypage") }
+                    .padding(top = 6.dp, bottom = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                MaterialSymbol(name = "person", size = 24.sp, tint = myTint)
+                Text("마이페이지", fontSize = 11.sp, color = myTint, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
     }
 }

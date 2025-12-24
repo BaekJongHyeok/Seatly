@@ -25,6 +25,7 @@ import kr.jiyeok.seatly.ui.screen.home.OwnerHomeScreen
 import kr.jiyeok.seatly.ui.screen.login.LoginScreen
 import kr.jiyeok.seatly.ui.screen.manager.RegisterCafeScreen1
 import kr.jiyeok.seatly.ui.screen.manager.RegisterCafeScreen2
+import kr.jiyeok.seatly.ui.screen.manager.StudyCafeListScreen
 import kr.jiyeok.seatly.ui.screen.search.SearchScreen
 import kr.jiyeok.seatly.ui.screen.signup.SignupScreen
 import kr.jiyeok.seatly.ui.screen.owner.SeatLayoutScreen
@@ -83,6 +84,12 @@ fun RootNavigation(isOwner: Boolean = true) {
                 composable("search") { SearchScreen(navController = navController) }
                 composable("reservation") { ComposeBox(modifier = Modifier.fillMaxSize()) }
                 composable("mypage") { ComposeBox(modifier = Modifier.fillMaxSize()) }
+
+
+                // registered cafe list
+                composable("cafe_list") {
+                    StudyCafeListScreen(navController = navController)
+                }
 
                 // register cafe screen
                 composable("register_cafe_1") {
