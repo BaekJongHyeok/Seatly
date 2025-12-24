@@ -1,8 +1,10 @@
-package kr.jiyeok.seatly.ui.screen.detail
+package kr.jiyeok.seatly.ui.screen.user
 
+import android.R
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +27,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
@@ -67,6 +71,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
@@ -133,8 +138,9 @@ fun CafeDetailScreen(navController: NavHostController?, cafeId: String?) {
         Triple("8시간", 32000, 0)
     )
     val facilities = listOf("wifi", "electrical_services", "local_cafe", "local_parking", "local_printshop", "wc")
-    val usedSeats = 24
-    val totalSeats = 60
+    // Example used/total — you can replace with real values
+    val usedSeats = 14
+    val totalSeats = 56
 
     val listState = rememberLazyListState()
     val currentPage by remember { derivedStateOf { listState.firstVisibleItemIndex.coerceIn(0, maxOf(0, gallery.size - 1)) } }
@@ -248,8 +254,8 @@ fun CafeDetailScreen(navController: NavHostController?, cafeId: String?) {
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxWidth().height(imageHeight),
                                 contentScale = ContentScale.Crop,
-                                placeholder = painterResource(id = android.R.drawable.ic_menu_report_image),
-                                error = painterResource(id = android.R.drawable.ic_menu_report_image)
+                                placeholder = painterResource(id = R.drawable.ic_menu_report_image),
+                                error = painterResource(id = R.drawable.ic_menu_report_image)
                             )
 
                             // top gradient for icon visibility
@@ -280,7 +286,7 @@ fun CafeDetailScreen(navController: NavHostController?, cafeId: String?) {
                         Box(
                             modifier = Modifier
                                 .height(28.dp)
-                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(14.dp))
                                 .background(ThemeColors.Primary),
                             contentAlignment = Alignment.Center
                         ) {
@@ -317,7 +323,7 @@ fun CafeDetailScreen(navController: NavHostController?, cafeId: String?) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .offset(y = (-20).dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
+                    .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
                 color = ThemeColors.Background
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
@@ -444,20 +450,34 @@ fun CafeDetailScreen(navController: NavHostController?, cafeId: String?) {
                     Divider(color = ThemeColors.Border)
                     Spacer(modifier = Modifier.height(DividerGap))
 
-                    // Amenities
-                    Text(text = "편의시설", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ThemeColors.TextPrimary)
+                    // =========================
+                    // 좌석 현황 섹션 — 링과 레전드를 카드 중앙으로 더 가깝게 정렬
+                    // =========================
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "좌석 현황", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ThemeColors.TextPrimary)
+                        Text(
+                            text = "좌석 관리 >",
+                            fontSize = 13.sp,
+                            color = ThemeColors.Primary,
+                            modifier = Modifier.clickable {
+                                Toast.makeText(context, "좌석 관리 (미구현)", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    FacilitiesGridCompact(facilities = facilities)
+                    SeatStatusCardCentered(used = usedSeats, total = totalSeats)
 
                     Spacer(modifier = Modifier.height(DividerGap))
                     Divider(color = ThemeColors.Border)
                     Spacer(modifier = Modifier.height(DividerGap))
 
-                    // Seat status
-                    Text(text = "좌석 현황", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ThemeColors.TextPrimary)
+                    // Amenities (편의시설)
+                    Text(text = "편의시설", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ThemeColors.TextPrimary)
                     Spacer(modifier = Modifier.height(8.dp))
-                    SeatProgressWithAvailable(used = usedSeats, total = totalSeats)
+
+                    FacilitiesGridCompact(facilities = facilities)
 
                     Spacer(modifier = Modifier.height(DividerGap))
                     Divider(color = ThemeColors.Border)
@@ -536,7 +556,7 @@ fun CafeDetailScreen(navController: NavHostController?, cafeId: String?) {
 
 @Composable
 private fun HtmlOutlinedButtonColored(text: String, width: Dp, onClick: () -> Unit) {
-    androidx.compose.material3.Surface(
+    Surface(
         modifier = Modifier
             .width(width)
             .height(36.dp)
@@ -681,8 +701,94 @@ private fun FacilityChipCompact(key: String, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * 중앙 정렬된 좌석 상태 카드: 링 + 레전드를 카드 중앙에 가깝게 배치
+ */
+@Composable
+private fun SeatStatusCardCentered(used: Int, total: Int) {
+    val avail = (total - used).coerceAtLeast(0)
+    val usedFraction = if (total > 0) (used.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0f
+
+    Card(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        // 전체 Row를 중앙 정렬로 바꿔 링과 레전드를 카드 중앙으로 이동
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            // Left: circular progress + center text (좀 더 작게 해서 중앙에 가깝게)
+            val circleSize = 84.dp
+            Box(modifier = Modifier.size(circleSize), contentAlignment = Alignment.Center) {
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    val stroke = 8.dp.toPx()
+                    // background ring
+                    drawArc(
+                        color = ThemeColors.Gray200,
+                        startAngle = 0f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = StrokeCap.Round)
+                    )
+                    // used arc (orange)
+                    drawArc(
+                        color = ThemeColors.Primary,
+                        startAngle = -90f,
+                        sweepAngle = 360f * usedFraction,
+                        useCenter = false,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = StrokeCap.Round)
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "$avail", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = ThemeColors.TextPrimary)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(text = "잔여석", fontSize = 12.sp, color = ThemeColors.TextSecondary)
+                }
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            // Right: legend (wrap content, 카드 중앙에 가깝게 위치)
+            Column(
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.Start,
+                modifier = Modifier.wrapContentHeight()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(ThemeColors.Primary)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "사용 중: ${used}석", fontSize = 14.sp, color = ThemeColors.TextPrimary)
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(ThemeColors.Gray200)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "사용 가능: ${avail}석", fontSize = 14.sp, color = ThemeColors.TextSecondary)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun SeatProgressWithAvailable(used: Int, total: Int) {
+    // 기존 구현은 보존 (다른 곳에서 참조될 수 있으므로), 하지만 이제 메인 화면에서는 SeatStatusCardCentered를 사용합니다.
     val usedPerc = (used.toFloat() / total.toFloat()).coerceIn(0f, 1f)
     val avail = total - used
     val availPerc = (avail.toFloat() / total.toFloat()).coerceIn(0f, 1f)
@@ -716,11 +822,11 @@ private fun MapPreviewStyled(mapImageUrl: String, onOpenMap: () -> Unit) {
                 contentDescription = null,
                 modifier = Modifier.fillMaxWidth().height(160.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)),
                 contentScale = ContentScale.Crop,
-                placeholder = painterResource(id = android.R.drawable.ic_menu_report_image),
-                error = painterResource(id = android.R.drawable.ic_menu_report_image)
+                placeholder = painterResource(id = R.drawable.ic_menu_report_image),
+                error = painterResource(id = R.drawable.ic_menu_report_image)
             )
 
-            Box(modifier = Modifier.align(Alignment.Center).size(56.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.White.copy(alpha = 0.95f)).shadow(8.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.align(Alignment.Center).size(56.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.95f)).shadow(8.dp), contentAlignment = Alignment.Center) {
                 Icon(imageVector = Icons.Filled.LocationOn, contentDescription = null, tint = ThemeColors.Primary, modifier = Modifier.size(32.dp))
             }
 

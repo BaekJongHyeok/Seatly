@@ -1,4 +1,4 @@
-package kr.jiyeok.seatly.ui.screen.owner
+package kr.jiyeok.seatly.ui.screen.admin.seat
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.Offset
 import androidx.navigation.NavController
 import kotlin.math.roundToInt
 import kr.jiyeok.seatly.ui.component.MaterialSymbol
@@ -170,10 +171,10 @@ fun CurrentSeatScreen(
                         val h = size.height
                         val color = Color(0x0F000000)
                         for (x in 0..(w / step).toInt() + 1) {
-                            drawLine(color = color, start = androidx.compose.ui.geometry.Offset(x * step, 0f), end = androidx.compose.ui.geometry.Offset(x * step, h), strokeWidth = 1f)
+                            drawLine(color = color, start = Offset(x * step, 0f), end = Offset(x * step, h), strokeWidth = 1f)
                         }
                         for (y in 0..(h / step).toInt() + 1) {
-                            drawLine(color = color, start = androidx.compose.ui.geometry.Offset(0f, y * step), end = androidx.compose.ui.geometry.Offset(w, y * step), strokeWidth = 1f)
+                            drawLine(color = color, start = Offset(0f, y * step), end = Offset(w, y * step), strokeWidth = 1f)
                         }
                     }
 
@@ -310,7 +311,7 @@ fun CurrentSeatScreen(
                         Button(onClick = { /* navigate to editor */ }, modifier = Modifier.weight(1f).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Primary), shape = RoundedCornerShape(16.dp)) {
                             Text("좌석 관리", color = Color.White, fontWeight = FontWeight.Bold)
                         }
-                        androidx.compose.material3.OutlinedButton(onClick = { /* reservations */ }, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(16.dp)) {
+                        OutlinedButton(onClick = { /* reservations */ }, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(16.dp)) {
                             Text("예약 현황", color = TextMain)
                         }
                     }

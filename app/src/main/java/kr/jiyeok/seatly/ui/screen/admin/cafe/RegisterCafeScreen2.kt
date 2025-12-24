@@ -1,10 +1,9 @@
-package kr.jiyeok.seatly.ui.screen.manager
+package kr.jiyeok.seatly.ui.screen.admin.cafe
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,55 +25,116 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kr.jiyeok.seatly.ui.component.MaterialSymbol
+import kr.jiyeok.seatly.ui.component.common.AppTextField
+import kr.jiyeok.seatly.ui.screen.manager.RegisterCafeTopBar
 import androidx.compose.foundation.lazy.grid.items as gridItems
-import androidx.compose.foundation.layout.padding
 
 /**
- * RegisterCafeScreen2.kt
+ * RegisterCafeScreen2 (updated to persist mock-registered cafes in a shared in-memory store)
  *
- * Precise spacing adjustments so that:
- * - gap between step pill and heading
- * - gap between heading and first label ("주소")
- * - horizontal inset (20.dp) and label/field alignment
- *
- * now exactly mirror RegisterCafeScreen1:
- *  - body top spacing = 18.dp (same)
- *  - step pill then Spacer(12.dp) then heading with Modifier.padding(bottom = 18.dp)
- *    (this mirrors Screen1 where heading had bottom padding)
- *  - label followed by Spacer(8.dp) then AppTextField (same as Screen1)
+ * - Uses a shared InMemoryCafeStore so that the mock registration performed here is visible
+ *   to other screens (e.g., StudyCafeListScreen) that read from the same store.
+ * - When a real backend is available you can replace the repository implementation to call the real API.
  */
+
+/** Shared in-memory store for mock data; replace with persistent storage or network-backed repo later. */
+object InMemoryCafeStore {
+    private val _cafes = mutableStateListOf<StudyCafeListItem>()
+
+    fun getAll(): List<StudyCafeListItem> = _cafes.toList()
+
+    fun addCafe(item: StudyCafeListItem) {
+        // prepend to list so newest appears top
+        _cafes.add(0, item)
+    }
+
+    fun clear() = _cafes.clear()
+
+    // helper to seed sample data for dev if needed
+    fun seed(sample: List<StudyCafeListItem>) {
+        _cafes.clear()
+        _cafes.addAll(sample)
+    }
+}
+
+/** Lightweight model used for listing */
+data class StudyCafeListItem(
+    val id: String,
+    val title: String,
+    val address: String,
+    val imageUrl: String?,
+    val status: String // "OPEN", "REVIEW", "REJECT"
+)
+
+/** Request model for cafe registration */
+data class CafeRegistrationRequest(
+    val name: String,
+    val phone: String,
+    val startTime: String,
+    val endTime: String,
+    val weekdays: List<String>,
+    val imageUris: List<String>,
+    val address: String,
+    val detailAddress: String,
+    val facilities: List<String>
+)
+
+typealias RepoResult = Pair<Boolean, String?>
+
+interface CafeRepository {
+    suspend fun registerCafe(req: CafeRegistrationRequest): RepoResult
+}
+
+/** Mock repository that writes to InMemoryCafeStore on success */
+class MockCafeRepository : CafeRepository {
+    override suspend fun registerCafe(req: CafeRegistrationRequest): RepoResult {
+        // simulate latency
+        delay(700)
+        return if (req.name.contains("fail", ignoreCase = true)) {
+            Pair(false, "서버: 등록에 실패했습니다. (mock)")
+        } else {
+            // create an item and add to in-memory store
+            val id = "cafe_${System.currentTimeMillis()}"
+            val imageUrl = req.imageUris.firstOrNull()
+            val status = "REVIEW" // new registrations under review in mock
+            val item = StudyCafeListItem(
+                id = id,
+                title = req.name,
+                address = "${req.address} ${req.detailAddress}".trim(),
+                imageUrl = imageUrl,
+                status = status
+            )
+            InMemoryCafeStore.addCafe(item)
+            Pair(true, "등록 성공 (mock)")
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterCafeScreen2(
     navController: NavController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    repository: CafeRepository = MockCafeRepository() // replace with real impl later
 ) {
-    // Colors + tokens matching design
     val Primary = Color(0xFFe95321)
     val BackgroundBase = Color(0xFFFFFFFF)
     val InputBg = Color(0xFFF8F8F8)
@@ -82,12 +143,10 @@ fun RegisterCafeScreen2(
     val TextSub = Color(0xFF888888)
     val StepBg = Color(0xFFfdede8)
 
-    // Form state
     var postalCode by remember { mutableStateOf("") }
-    var addressSelected by remember { mutableStateOf("서울시 강서구 화곡로 123") } // sample
+    var addressSelected by remember { mutableStateOf("") }
     var detailAddress by remember { mutableStateOf("") }
 
-    // facility list (label to icon name)
     val facilityList = listOf(
         "와이파이" to "wifi",
         "콘센트" to "power",
@@ -100,59 +159,18 @@ fun RegisterCafeScreen2(
     )
     var selectedFacilities by remember { mutableStateOf(setOf("와이파이")) }
 
-    // Reusable AppTextField used in this screen (compact, 52dp height)
-    @Composable
-    fun AppTextField(
-        value: String,
-        onValueChange: (String) -> Unit,
-        placeholder: String = "",
-        readOnly: Boolean = false,
-        leading: (@Composable () -> Unit)? = null,
-        trailing: (@Composable () -> Unit)? = null,
-        keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-        highlight: Boolean = false
-    ) {
-        var focused by remember { mutableStateOf(false) }
-        val borderCol = if (focused || highlight) Primary else BorderColor
+    var isSubmitting by remember { mutableStateOf(false) }
+    var serverError by remember { mutableStateOf<String?>(null) }
 
-        val base = Modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(InputBg)
-            .border(BorderStroke(1.dp, borderCol), RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp)
+    var addressError by remember { mutableStateOf<String?>(null) }
 
-        if (readOnly && trailing == null) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = base) {
-                if (leading != null) {
-                    androidx.compose.foundation.layout.Box(modifier = Modifier.padding(end = 8.dp)) { leading() }
-                }
-                Text(text = value.ifEmpty { placeholder }, color = if (value.isEmpty()) TextSub else TextMain, fontSize = 15.sp)
-            }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = base) {
-                if (leading != null) {
-                    androidx.compose.foundation.layout.Box(modifier = Modifier.padding(end = 8.dp)) { leading() }
-                }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    singleLine = true,
-                    textStyle = TextStyle(color = TextMain, fontSize = 15.sp),
-                    cursorBrush = SolidColor(Primary),
-                    keyboardOptions = keyboardOptions,
-                    modifier = Modifier
-                        .weight(1f)
-                        .onFocusChanged { focused = it.isFocused }
-                ) { inner ->
-                    if (value.isEmpty()) Text(text = placeholder, color = TextSub, fontSize = 15.sp)
-                    inner()
-                }
-                if (trailing != null) {
-                    androidx.compose.foundation.layout.Box(modifier = Modifier.padding(start = 8.dp)) { trailing() }
-                }
-            }
+    val scope = rememberCoroutineScope()
+
+    // If the previous screen saved an address in savedStateHandle under reg_address, pick it up
+    LaunchedEffect(Unit) {
+        val prevHandle = navController.previousBackStackEntry?.savedStateHandle
+        prevHandle?.get<String>("reg_address")?.let {
+            addressSelected = it
         }
     }
 
@@ -180,30 +198,81 @@ fun RegisterCafeScreen2(
                     }
 
                     Button(
-                        onClick = { /* register complete */ },
+                        onClick = {
+                            // Build full request from savedStateHandle (first try previous entry where Screen1 saved data)
+                            val prevHandle = navController.previousBackStackEntry?.savedStateHandle
+                            val currHandle = navController.currentBackStackEntry?.savedStateHandle
+
+                            val name = prevHandle?.get<String>("reg_cafe_name") ?: currHandle?.get<String>("reg_cafe_name") ?: ""
+                            val phone = prevHandle?.get<String>("reg_phone") ?: currHandle?.get<String>("reg_phone") ?: ""
+                            val start = prevHandle?.get<String>("reg_start") ?: currHandle?.get<String>("reg_start") ?: "09:00"
+                            val end = prevHandle?.get<String>("reg_end") ?: currHandle?.get<String>("reg_end") ?: "24:00"
+                            val weekdays = prevHandle?.get<List<String>>("reg_weekdays") ?: currHandle?.get<List<String>>("reg_weekdays") ?: listOf("연중 무휴")
+                            val images = prevHandle?.get<List<String>>("reg_images") ?: currHandle?.get<List<String>>("reg_images") ?: emptyList()
+
+                            if (name.isBlank()) {
+                                serverError = "카페명이 비어있습니다."
+                                return@Button
+                            }
+                            if (addressSelected.isBlank()) {
+                                addressError = "주소를 선택해주세요."
+                                return@Button
+                            } else {
+                                addressError = null
+                            }
+
+                            val req = CafeRegistrationRequest(
+                                name = name,
+                                phone = phone,
+                                startTime = start,
+                                endTime = end,
+                                weekdays = weekdays,
+                                imageUris = images,
+                                address = addressSelected,
+                                detailAddress = detailAddress,
+                                facilities = selectedFacilities.toList()
+                            )
+
+                            scope.launch {
+                                isSubmitting = true
+                                serverError = null
+                                try {
+                                    val (success, message) = repository.registerCafe(req)
+                                    isSubmitting = false
+                                    if (success) {
+                                        // after successful registration navigate to cafe list
+                                        navController.navigate("cafe_list") {
+                                            popUpTo("admin_home") { inclusive = false }
+                                        }
+                                    } else {
+                                        serverError = message ?: "카페 등록에 실패했습니다."
+                                    }
+                                } catch (e: Exception) {
+                                    isSubmitting = false
+                                    serverError = e.message ?: "등록 중 오류가 발생했습니다."
+                                }
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = Primary, contentColor = Color.White),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .weight(1f)
-                            .height(54.dp)
+                            .height(54.dp),
+                        enabled = !isSubmitting
                     ) {
-                        Text("등록 완료", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (isSubmitting) "등록 중..." else "등록 완료", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         }
     ) { innerPadding ->
-        // Place header wrapper outside LazyColumn so it can be full-width (no side padding),
-        // and make the body (LazyColumn) use the same horizontal inset as Screen1 (20.dp).
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header wrapper identical to Screen1
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(BackgroundBase)
                     .padding(top = 20.dp, bottom = 6.dp)
             ) {
-                // TopBar with same visual params as Screen1
                 RegisterCafeTopBar(
                     navController = navController,
                     title = "카페 등록",
@@ -215,7 +284,6 @@ fun RegisterCafeScreen2(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // thin divider
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -224,7 +292,6 @@ fun RegisterCafeScreen2(
                 )
             }
 
-            // Body - uses LazyColumn with horizontal padding = 20.dp to match Screen1 body inset
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -234,10 +301,8 @@ fun RegisterCafeScreen2(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    // Make top spacing identical to Screen1: body top padding = 18.dp
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // Step pill
                     Box {
                         Text(
                             text = "Step 2/2",
@@ -252,10 +317,9 @@ fun RegisterCafeScreen2(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Heading: use the same modifier.padding(bottom = 18.dp) as in Screen1
                     Text(
                         text = "위치 및 시설 정보를 확인해주세요",
-                        fontSize = 22.sp, // match Screen1's main heading size
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextMain,
                         modifier = Modifier.padding(bottom = 4.dp)
@@ -263,23 +327,28 @@ fun RegisterCafeScreen2(
                 }
 
                 item {
-                    // Address label - style and spacing matched to Screen1's "카페명" label
                     Text("주소", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Address row: read-only field + 검색 button
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(modifier = Modifier.weight(1f)) {
                             AppTextField(
                                 value = addressSelected,
-                                onValueChange = { addressSelected = it },
+                                onValueChange = {
+                                    addressSelected = it
+                                    addressError = null
+                                },
                                 placeholder = "도로명, 건물명 등을 입력하세요",
                                 readOnly = true
                             )
                         }
 
                         Button(
-                            onClick = { /* search action */ },
+                            onClick = {
+                                // mock address selection
+                                addressSelected = "서울시 강남구 테헤란로 123"
+                                addressError = null
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = Primary, contentColor = Color.White),
                             modifier = Modifier
                                 .height(52.dp)
@@ -292,9 +361,10 @@ fun RegisterCafeScreen2(
                         }
                     }
 
+                    addressError?.let { Text(text = it, color = Color(0xFFFF453A), modifier = Modifier.padding(top = 6.dp), fontSize = 12.sp) }
+
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Detail address input - matches AppTextField usage in Screen1
                     AppTextField(
                         value = detailAddress,
                         onValueChange = { detailAddress = it },
@@ -303,7 +373,6 @@ fun RegisterCafeScreen2(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Map placeholder
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -319,12 +388,10 @@ fun RegisterCafeScreen2(
                 }
 
                 item {
-                    // Facilities header
                     Text("편의시설", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
                 }
 
                 item {
-                    // 4-column grid to match the design
                     val cols = 4
                     val itemHeight = 84.dp
                     val rowSpacing = 12.dp
@@ -350,7 +417,9 @@ fun RegisterCafeScreen2(
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(if (selected) Color(0xFFFFF6F3) else Color.White)
                                         .border(BorderStroke(1.dp, if (selected) Primary else BorderColor), RoundedCornerShape(12.dp))
-                                        .clickable { selectedFacilities = if (selected) selectedFacilities - label else selectedFacilities + label },
+                                        .clickable {
+                                            selectedFacilities = if (selected) selectedFacilities - label else selectedFacilities + label
+                                        },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -373,6 +442,12 @@ fun RegisterCafeScreen2(
                     )
 
                     Spacer(modifier = Modifier.height(36.dp))
+                }
+
+                item {
+                    serverError?.let {
+                        Text(text = it, color = Color(0xFFFF453A), modifier = Modifier.padding(vertical = 6.dp))
+                    }
                 }
             }
         }

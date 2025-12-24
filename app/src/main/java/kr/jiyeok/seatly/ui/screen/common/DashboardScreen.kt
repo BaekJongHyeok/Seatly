@@ -1,4 +1,4 @@
-package kr.jiyeok.seatly.ui.screen.dashboard
+package kr.jiyeok.seatly.ui.screen.common
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background

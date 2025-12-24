@@ -1,10 +1,11 @@
-package kr.jiyeok.seatly.ui.screen.password
+package kr.jiyeok.seatly.ui.screen.common.password
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -13,7 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,6 +22,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kr.jiyeok.seatly.ui.component.AuthButton
 import kr.jiyeok.seatly.ui.component.PasswordInputField
 import kr.jiyeok.seatly.presentation.viewmodel.password.PasswordRecoveryViewModel
+import kr.jiyeok.seatly.ui.component.common.AppTopBar
 
 @Composable
 fun PasswordScreen_3(
@@ -67,15 +69,37 @@ fun PasswordScreen_3(
     val isMatch = password.isNotEmpty() && password == confirm
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 60.dp, bottom = 8.dp, start = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(modifier = Modifier.clickable { onBack() }.padding(8.dp), text = "〈", fontSize = 24.sp, color = Color(0xFF1A1A1A))
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Text(text = "비밀번호 찾기", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1A1A1A))
-            }
-            Spacer(modifier = Modifier.width(44.dp))
-        }
+        // AppTopBar for consistent header
+        AppTopBar(
+            title = "비밀번호 찾기",
+            leftContent = {
+                Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "뒤로", tint = Color(0xFF1A1A1A))
+            },
+            onLeftClick = onBack,
+            titleTextStyle = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1A1A1A)),
+            backgroundColor = Color.White,
+            verticalPadding = 18.dp,
+            buttonContainerSize = 44.dp,
+            minHeight = 64.dp
+        )
 
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).weight(1f).padding(top = 24.dp), verticalArrangement = Arrangement.Top) {
+        // divider + spacing to separate topbar from content
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color(0xFFEEEEEE))
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .weight(1f)
+                .padding(top = 8.dp),
+            verticalArrangement = Arrangement.Top
+        ) {
             Text(text = "새 비밀번호 설정", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A1A1A))
             Spacer(modifier = Modifier.height(6.dp))
             Text(text = "새로운 비밀번호를 설정해주세요", fontSize = 12.sp, color = Color(0xFF888888))
@@ -84,7 +108,14 @@ fun PasswordScreen_3(
 
             Text(text = "계정 이메일", fontSize = 14.sp, color = Color(0xFF1A1A1A))
             Spacer(modifier = Modifier.height(8.dp))
-            Box(modifier = Modifier.fillMaxWidth().height(56.dp).background(color = Color(0xFFF5F5F5), shape = RoundedCornerShape(12.dp)).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .background(color = Color(0xFFF5F5F5), shape = RoundedCornerShape(12.dp))
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
                 Text(text = viewModel.email.ifBlank { emailArg ?: "example@email.com" }, fontSize = 16.sp, color = Color(0xFF1A1A1A))
             }
 

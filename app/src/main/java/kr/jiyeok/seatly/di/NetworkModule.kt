@@ -1,53 +1,51 @@
 package kr.jiyeok.seatly.di
 
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import kr.jiyeok.seatly.data.remote.ApiService
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import kr.jiyeok.seatly.data.remote.ApiService
+import kr.jiyeok.seatly.data.remote.mock.MockInterceptor
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-    @Provides
-    @Singleton
-    fun provideGson(): Gson = GsonBuilder().create()
+    private const val USE_MOCK = true
 
-    @Provides
     @Singleton
-    fun provideHttpLoggingInterceptor(): HttpLoggingInterceptor =
-        HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+    @Provides
+    fun provideOkHttpClient(): OkHttpClient {
+        val builder = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+
+        // Mock 개발 모드일 때 MockInterceptor 추가
+        if (USE_MOCK) {
+            builder.addInterceptor(MockInterceptor())
         }
 
-    @Provides
-    @Singleton
-    fun provideOkHttpClient(
-        httpLoggingInterceptor: HttpLoggingInterceptor
-    ): OkHttpClient = OkHttpClient.Builder()
-        .addInterceptor(httpLoggingInterceptor)
-        .build()
+        return builder.build()
+    }
 
-    @Provides
     @Singleton
-    fun provideRetrofit(
-        okHttpClient: OkHttpClient,
-        gson: Gson
-    ): Retrofit = Retrofit.Builder()
-        .baseUrl("https://api.example.com/")
-        .client(okHttpClient)
-        .addConverterFactory(GsonConverterFactory.create(gson))
-        .build()
+    @Provides
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://api.seatly.com/")  // 실제 서버 URL
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
 
-    @Provides
     @Singleton
-    fun provideApiService(retrofit: Retrofit): ApiService =
-        retrofit.create(ApiService::class.java)
+    @Provides
+    fun provideApiService(retrofit: Retrofit): ApiService {
+        return retrofit.create(ApiService::class.java)
+    }
 }

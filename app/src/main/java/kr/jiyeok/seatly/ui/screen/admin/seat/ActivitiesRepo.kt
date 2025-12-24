@@ -1,4 +1,4 @@
-package kr.jiyeok.seatly.ui.screen.owner
+package kr.jiyeok.seatly.ui.screen.admin.seat
 
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList

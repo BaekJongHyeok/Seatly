@@ -1,4 +1,4 @@
-package kr.jiyeok.seatly.ui.screen.manager
+package kr.jiyeok.seatly.ui.screen.admin.cafe
 
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -31,7 +31,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -48,8 +47,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -62,14 +63,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kr.jiyeok.seatly.ui.component.MaterialSymbol
 import kr.jiyeok.seatly.ui.component.TimePicker
+import kr.jiyeok.seatly.ui.screen.manager.RegisterCafeTopBar
+import kotlin.math.min
 
 /**
- * RegisterCafeScreen1.kt
+ * RegisterCafeScreen1
  *
- * Header TopBar has been extracted to RegisterCafeTopBar.kt and is used below.
+ * UI restored to the original layout with the following added behavior:
+ * - Field-level validation errors are shown inline under each relevant section (카페명, 전화번호).
+ * - Errors clear when user edits the corresponding field.
+ * - On "다음 (2/2)" click, validations run and only when passing the data is saved to savedStateHandle and navigation occurs.
  */
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterCafeScreen1(
     navController: NavController,
@@ -77,7 +82,6 @@ fun RegisterCafeScreen1(
 ) {
     // Theme colors matching design
     val Primary = Color(0xFFe95321)
-    val PrimaryHover = Color(0xFFd14013)
     val BackgroundBase = Color(0xFFFFFFFF)
     val InputBg = Color(0xFFF8F8F8)
     val BorderColor = Color(0xFFE8E8E8)
@@ -86,7 +90,6 @@ fun RegisterCafeScreen1(
     val StepBg = Color(0xFFfdede8)
     val ChipSelectedBg = Color(0xFFFFF0EB)
     val ChipUnselectedBg = InputBg
-    val ShadowColor = Color(0x22000000)
 
     // Form state
     var cafeName by remember { mutableStateOf("") }
@@ -111,6 +114,10 @@ fun RegisterCafeScreen1(
         }
     }
 
+    // Field-level error states (null = no error)
+    var cafeNameError by remember { mutableStateOf<String?>(null) }
+    var phoneError by remember { mutableStateOf<String?>(null) }
+
     fun formatKoreanPhoneFromDigits(digits: String): String {
         if (digits.isEmpty()) return ""
         return if (digits.startsWith("02")) {
@@ -118,7 +125,9 @@ fun RegisterCafeScreen1(
                 digits.length <= 2 -> digits
                 digits.length <= 5 -> digits.substring(0, 2) + "-" + digits.substring(2)
                 digits.length <= 9 -> digits.substring(0, 2) + "-" + digits.substring(2, digits.length - 4) + "-" + digits.takeLast(4)
-                else -> digits.substring(0, 2) + "-" + digits.substring(2, 6) + "-" + digits.substring(6, kotlin.math.min(10, digits.length))
+                else -> digits.substring(0, 2) + "-" + digits.substring(2, 6) + "-" + digits.substring(6,
+                    min(10, digits.length)
+                )
             }
         } else {
             when {
@@ -131,8 +140,8 @@ fun RegisterCafeScreen1(
     }
 
     @Composable
-    fun rememberBitmapForUri(uri: Uri): androidx.compose.ui.graphics.ImageBitmap? {
-        var bitmap by remember(uri) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    fun rememberBitmapForUri(uri: Uri): ImageBitmap? {
+        var bitmap by remember(uri) { mutableStateOf<ImageBitmap?>(null) }
         LaunchedEffect(uri) {
             val bmp = try {
                 withContext(Dispatchers.IO) {
@@ -148,7 +157,7 @@ fun RegisterCafeScreen1(
         return bitmap
     }
 
-    // Reusable AppTextField (modified height 52dp to match design)
+    // Local AppTextField (kept as original)
     @Composable
     fun AppTextField(
         value: String,
@@ -213,15 +222,13 @@ fun RegisterCafeScreen1(
 
     Surface(modifier = modifier.fillMaxSize(), color = BackgroundBase) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Content column (header, body, bottom bar positioned inside Box)
             Column(modifier = Modifier.fillMaxSize()) {
-                // Header: use extracted TopBar component
+                // Header
                 Column(modifier = Modifier
                     .fillMaxWidth()
                     .background(BackgroundBase)
                     .padding(top = 20.dp, bottom = 6.dp)
                 ) {
-                    // Use RegisterCafeTopBar with the larger title size used previously on Screen1
                     RegisterCafeTopBar(
                         navController = navController,
                         title = "카페 등록",
@@ -233,7 +240,6 @@ fun RegisterCafeScreen1(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // thin divider
                     Box(modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
@@ -276,13 +282,19 @@ fun RegisterCafeScreen1(
                     Spacer(modifier = Modifier.height(8.dp))
                     AppTextField(
                         value = cafeName,
-                        onValueChange = { cafeName = it },
+                        onValueChange = {
+                            cafeName = it
+                            cafeNameError = null // clear error on edit
+                        },
                         placeholder = "예: 명지 스터디카페",
                         leading = {
                             MaterialSymbol(name = "domain", size = 18.sp, tint = TextSub)
                         },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        isErrorBorder = cafeNameError != null
                     )
+                    // inline error for cafe name
+                    cafeNameError?.let { Text(text = it, color = Color(0xFFFF453A), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -294,13 +306,17 @@ fun RegisterCafeScreen1(
                         onValueChange = { raw ->
                             val digits = raw.filter { it.isDigit() }
                             phone = formatKoreanPhoneFromDigits(digits)
+                            phoneError = null // clear error on edit
                         },
                         placeholder = "010-1234-5678",
                         leading = {
                             MaterialSymbol(name = "phone", size = 18.sp, tint = TextSub)
                         },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                        isErrorBorder = phoneError != null
                     )
+                    // inline error for phone
+                    phoneError?.let { Text(text = it, color = Color(0xFFFF453A), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -417,7 +433,7 @@ fun RegisterCafeScreen1(
                                 contentAlignment = Alignment.TopEnd
                             ) {
                                 if (bmp != null) {
-                                    Image(bitmap = bmp, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                                    Image(bitmap = bmp, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                 }
                                 IconButton(
                                     onClick = { images.remove(uri) },
@@ -433,10 +449,12 @@ fun RegisterCafeScreen1(
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
+
+                    // keep UI original: no in-body "다음" here; bottom fixed bar will contain Previous/Next
                 }
             }
 
-            // Bottom fixed bar (aligned at bottom of Box)
+            // Bottom fixed bar (original UI) with Previous / Next
             Surface(
                 tonalElevation = 4.dp,
                 shadowElevation = 4.dp,
@@ -465,7 +483,43 @@ fun RegisterCafeScreen1(
                     }
 
                     Button(
-                        onClick = { navController.navigate("register_cafe_2") },
+                        onClick = {
+                            // Validate fields and set inline errors if any
+                            var ok = true
+                            if (cafeName.isBlank()) {
+                                cafeNameError = "카페명을 입력해주세요."
+                                ok = false
+                            } else {
+                                cafeNameError = null
+                            }
+
+                            if (phone.isBlank()) {
+                                phoneError = "전화번호를 입력해주세요."
+                                ok = false
+                            } else {
+                                // basic pattern check: at least 9 digits overall
+                                val digits = phone.filter { it.isDigit() }
+                                if (digits.length < 9) {
+                                    phoneError = "유효한 전화번호를 입력해주세요."
+                                    ok = false
+                                } else {
+                                    phoneError = null
+                                }
+                            }
+
+                            if (!ok) return@Button
+
+                            // save to savedStateHandle for screen2
+                            val handle = navController.currentBackStackEntry?.savedStateHandle
+                            handle?.set("reg_cafe_name", cafeName)
+                            handle?.set("reg_phone", phone)
+                            handle?.set("reg_start", startTime)
+                            handle?.set("reg_end", endTime)
+                            handle?.set("reg_weekdays", selectedWeekdays.toList())
+                            handle?.set("reg_images", images.map { it.toString() })
+                            // navigate
+                            navController.navigate("register_cafe_2")
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = Primary, contentColor = Color.White),
                         modifier = Modifier
                             .weight(1f)

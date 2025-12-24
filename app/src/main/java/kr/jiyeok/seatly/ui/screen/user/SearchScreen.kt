@@ -1,12 +1,13 @@
-package kr.jiyeok.seatly.ui.screen.search
+package kr.jiyeok.seatly.ui.screen.user
 
-import androidx.compose.foundation.Image
+import android.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -17,8 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -27,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
@@ -56,7 +56,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,6 +63,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -240,14 +240,14 @@ fun SearchScreen(navController: NavHostController) {
                     modifier = Modifier.size(20.dp)
                 )
 
-                androidx.compose.foundation.text.BasicTextField(
+                BasicTextField(
                     value = searchQuery.value,
                     onValueChange = { searchQuery.value = it },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .padding(start = 8.dp),
-                    textStyle = androidx.compose.ui.text.TextStyle(
+                    textStyle = TextStyle(
                         fontSize = 14.sp,
                         color = Colors.TEXT_PRIMARY
                     ),
@@ -293,7 +293,7 @@ fun SearchScreen(navController: NavHostController) {
                     .background(Colors.BACKGROUND_LIGHT)
                     .padding(vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 items(filters) { filter ->
@@ -348,7 +348,7 @@ fun SearchScreen(navController: NavHostController) {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Colors.BACKGROUND_LIGHT),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(cafeList) { cafe ->
@@ -429,7 +429,7 @@ fun SearchScreen(navController: NavHostController) {
                         val locList = listOf("현재 위치", "강서구", "마포구")
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp)
+                            contentPadding = PaddingValues(horizontal = 0.dp)
                         ) {
                             itemsIndexed(locList) { idx, label ->
                                 val selected = selectedLocationChip.value == idx
@@ -502,7 +502,7 @@ fun SearchScreen(navController: NavHostController) {
                         val priceLabels = listOf("5천원 이하", "5-10천원", "10천원 이상")
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp)
+                            contentPadding = PaddingValues(horizontal = 0.dp)
                         ) {
                             itemsIndexed(priceLabels) { idx, label ->
                                 val selected = selectedPriceChip.value == idx
@@ -755,8 +755,8 @@ fun CafeCardItem(
                         .clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop,
                     // use a safe built-in placeholder so build won't fail; replace later if desired
-                    placeholder = painterResource(id = android.R.drawable.ic_menu_report_image),
-                    error = painterResource(id = android.R.drawable.ic_menu_report_image)
+                    placeholder = painterResource(id = R.drawable.ic_menu_report_image),
+                    error = painterResource(id = R.drawable.ic_menu_report_image)
                 )
 
                 if (cafe.status.isNotEmpty()) {
