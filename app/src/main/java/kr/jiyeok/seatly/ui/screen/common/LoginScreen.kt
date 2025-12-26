@@ -30,16 +30,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import kr.jiyeok.seatly.R
-import kr.jiyeok.seatly.presentation.viewmodel.auth.LoginState
-import kr.jiyeok.seatly.presentation.viewmodel.auth.LoginViewModel
+import kr.jiyeok.seatly.data.remote.request.LoginRequest
+import kr.jiyeok.seatly.presentation.viewmodel.AuthUiState
+import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.ui.component.AuthButton
 import kr.jiyeok.seatly.ui.component.EmailInputField
 import kr.jiyeok.seatly.ui.component.PasswordInputField
@@ -47,7 +48,7 @@ import kr.jiyeok.seatly.ui.component.PasswordInputField
 @Composable
 fun LoginScreen(
     navController: NavController,
-    viewModel: LoginViewModel = hiltViewModel()
+    viewModel: AuthViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
 
@@ -59,7 +60,9 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var isAutoLogin by remember { mutableStateOf(false) }
 
-    val loginState by viewModel.loginState.collectAsState()
+    val authState by viewModel.authState.collectAsState()
+    // Keep a copy of latest login data if needed
+    val loginData by viewModel.loginData.collectAsState()
 
     // Try auto-login if enabled
     LaunchedEffect(Unit) {
@@ -71,7 +74,7 @@ fun LoginScreen(
                 email = savedEmail
                 password = savedPassword
                 isAutoLogin = true
-                viewModel.login(savedEmail, savedPassword)
+                viewModel.login(LoginRequest(savedEmail, savedPassword))
             } else {
                 prefs.edit().putBoolean("auto_login", false).apply()
             }
@@ -79,8 +82,8 @@ fun LoginScreen(
     }
 
     // On success, persist/clear auto-login and navigate
-    LaunchedEffect(loginState) {
-        if (loginState is LoginState.Success) {
+    LaunchedEffect(authState) {
+        if (authState is AuthUiState.Success) {
             if (isAutoLogin) {
                 prefs.edit()
                     .putBoolean("auto_login", true)
@@ -255,9 +258,9 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Error message (no background, orange text)
-            if (loginState is LoginState.Error) {
+            if (authState is AuthUiState.Error) {
                 Text(
-                    text = (loginState as LoginState.Error).message,
+                    text = (authState as AuthUiState.Error).message,
                     color = Color(0xFFFF6B4A),
                     fontSize = 13.sp,
                     modifier = Modifier
@@ -270,9 +273,9 @@ fun LoginScreen(
 
             // Login button (compact)
             AuthButton(
-                text = if (loginState is LoginState.Loading) "로그인 중..." else "로그인",
-                onClick = { viewModel.login(email, password) },
-                enabled = loginState !is LoginState.Loading,
+                text = if (authState is AuthUiState.Loading) "로그인 중..." else "로그인",
+                onClick = { viewModel.login(LoginRequest(email, password)) },
+                enabled = authState !is AuthUiState.Loading,
             )
 
             // 로그인 버튼과 "-또는-" 사이 공백을 20.dp 줄이기 위해 Spacer를 작게 유지

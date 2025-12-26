@@ -1,0 +1,165 @@
+package kr.jiyeok.seatly.presentation.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import kr.jiyeok.seatly.data.remote.request.*
+import kr.jiyeok.seatly.data.remote.response.LoginResponseDTO
+import kr.jiyeok.seatly.data.repository.ApiResult
+import kr.jiyeok.seatly.domain.usecase.auth.*
+import javax.inject.Inject
+
+/**
+ * ViewModel for authentication flows:
+ * - login / logout
+ * - register (normal / social)
+ * - password reset flow (request code / verify / reset)
+ *
+ * Exposes StateFlows for UI consumption and a one-shot event channel for transient messages.
+ */
+
+sealed interface AuthUiState {
+    object Idle : AuthUiState
+    object Loading : AuthUiState
+    data class Success(val data: Any? = null) : AuthUiState
+    data class Error(val message: String) : AuthUiState
+}
+
+@HiltViewModel
+class AuthViewModel @Inject constructor(
+    private val loginUseCase: LoginUseCase,
+    private val logoutUseCase: LogoutUseCase,
+    private val registerUseCase: RegisterUseCase,
+    private val socialRegisterUseCase: SocialRegisterUseCase,
+    private val requestPasswordResetUseCase: RequestPasswordResetUseCase,
+    private val verifyPasswordResetCodeUseCase: VerifyPasswordResetCodeUseCase,
+    private val resetPasswordUseCase: ResetPasswordUseCase
+) : ViewModel() {
+
+    private val _authState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
+    val authState: StateFlow<AuthUiState> = _authState.asStateFlow()
+
+    private val _loginData = MutableStateFlow<LoginResponseDTO?>(null)
+    val loginData: StateFlow<LoginResponseDTO?> = _loginData.asStateFlow()
+
+    // One-shot events (toasts, navigation commands)
+    private val _events = Channel<String>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
+
+    fun login(request: LoginRequest) {
+        viewModelScope.launch {
+            _authState.value = AuthUiState.Loading
+            when (val result = loginUseCase(request)) {
+                is ApiResult.Success -> {
+                    _loginData.value = result.data
+                    _authState.value = AuthUiState.Success(result.data)
+                    result.data?.let { _events.send("로그인 성공") }
+                }
+                is ApiResult.Failure -> {
+                    _authState.value = AuthUiState.Error(result.message ?: "로그인 실패")
+                    _events.send(result.message ?: "로그인 실패")
+                }
+            }
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            _authState.value = AuthUiState.Loading
+            when (val result = logoutUseCase()) {
+                is ApiResult.Success -> {
+                    _loginData.value = null
+                    _authState.value = AuthUiState.Success(Unit)
+                    _events.send("로그아웃 되었습니다.")
+                }
+                is ApiResult.Failure -> {
+                    _authState.value = AuthUiState.Error(result.message ?: "로그아웃 실패")
+                    _events.send(result.message ?: "로그아웃 실패")
+                }
+            }
+        }
+    }
+
+    fun register(request: RegisterRequest) {
+        viewModelScope.launch {
+            _authState.value = AuthUiState.Loading
+            when (val result = registerUseCase(request)) {
+                is ApiResult.Success -> {
+                    _authState.value = AuthUiState.Success(result.data)
+                    _events.send("회원가입 완료")
+                }
+                is ApiResult.Failure -> {
+                    _authState.value = AuthUiState.Error(result.message ?: "회원가입 실패")
+                    _events.send(result.message ?: "회원가입 실패")
+                }
+            }
+        }
+    }
+
+    fun socialRegister(request: SocialRegisterRequest) {
+        viewModelScope.launch {
+            _authState.value = AuthUiState.Loading
+            when (val result = socialRegisterUseCase(request)) {
+                is ApiResult.Success -> {
+                    _authState.value = AuthUiState.Success(result.data)
+                    _events.send("소셜 회원가입 완료")
+                }
+                is ApiResult.Failure -> {
+                    _authState.value = AuthUiState.Error(result.message ?: "소셜 회원가입 실패")
+                    _events.send(result.message ?: "소셜 회원가입 실패")
+                }
+            }
+        }
+    }
+
+    fun requestPasswordReset(request: ForgotPasswordRequest) {
+        viewModelScope.launch {
+            _authState.value = AuthUiState.Loading
+            when (val result = requestPasswordResetUseCase(request)) {
+                is ApiResult.Success -> {
+                    _authState.value = AuthUiState.Success(Unit)
+                    _events.send("보안 코드가 발송됐습니다.")
+                }
+                is ApiResult.Failure -> {
+                    _authState.value = AuthUiState.Error(result.message ?: "이메일 전송 실패")
+                    _events.send(result.message ?: "이메일 전송 실패")
+                }
+            }
+        }
+    }
+
+    fun verifyPasswordResetCode(request: VerifyCodeRequest) {
+        viewModelScope.launch {
+            _authState.value = AuthUiState.Loading
+            when (val result = verifyPasswordResetCodeUseCase(request)) {
+                is ApiResult.Success -> {
+                    _authState.value = AuthUiState.Success(Unit)
+                    _events.send("보안 코드 확인 완료")
+                }
+                is ApiResult.Failure -> {
+                    _authState.value = AuthUiState.Error(result.message ?: "코드 검증 실패")
+                    _events.send(result.message ?: "코드 검증 실패")
+                }
+            }
+        }
+    }
+
+    fun resetPassword(request: ResetPasswordRequest) {
+        viewModelScope.launch {
+            _authState.value = AuthUiState.Loading
+            when (val result = resetPasswordUseCase(request)) {
+                is ApiResult.Success -> {
+                    _authState.value = AuthUiState.Success(Unit)
+                    _events.send("비밀번호가 변경되었습니다.")
+                }
+                is ApiResult.Failure -> {
+                    _authState.value = AuthUiState.Error(result.message ?: "비밀번호 변경 실패")
+                    _events.send(result.message ?: "비밀번호 변경 실패")
+                }
+            }
+        }
+    }
+}

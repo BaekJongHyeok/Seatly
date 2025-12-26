@@ -18,6 +18,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Replace with your real backend base URL for build variants as needed.
+        buildConfigField("String", "SEATLY_BASE_URL", "\"https://api.seatly.example/\"")
     }
 
     buildTypes {
@@ -40,7 +43,13 @@ android {
     }
 
     buildFeatures {
+        // Compose is already enabled; enable BuildConfig generation too
         compose = true
+        buildConfig = true
+    }
+
+    composeOptions {
+        // Optionally set kotlinCompilerExtensionVersion if needed.
     }
 }
 

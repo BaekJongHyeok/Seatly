@@ -34,15 +34,15 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import kr.jiyeok.seatly.presentation.viewmodel.password.PasswordRecoveryViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import kr.jiyeok.seatly.presentation.viewmodel.PasswordRecoveryViewModel
 import kr.jiyeok.seatly.ui.component.AuthButton
 import kr.jiyeok.seatly.ui.component.EmailInputField
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 
 @Composable
 fun PasswordScreen_1(
-    viewModel: PasswordRecoveryViewModel = viewModel(),
+    viewModel: PasswordRecoveryViewModel = hiltViewModel(),
     onBack: () -> Unit,
     onNextNavigate: () -> Unit
 ) {
@@ -51,7 +51,6 @@ fun PasswordScreen_1(
 
     LaunchedEffect(localEmail) {
         if (localEmail != viewModel.email) {
-            // 이전에 setEmail(...)를 썼던 부분을 updateEmail(...)로 변경
             viewModel.updateEmail(localEmail)
         }
     }
@@ -154,11 +153,9 @@ fun PasswordScreen_1(
                     AuthButton(
                         text = if (viewModel.isLoading) "전송 중..." else "보안 코드 전송",
                         onClick = {
-                            // set email in viewModel and request
                             viewModel.updateEmail(localEmail)
                             viewModel.requestSecurityCode(
                                 onSuccess = {
-                                    // navigate to step2
                                     onNextNavigate()
                                 }
                             )

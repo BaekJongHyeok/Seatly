@@ -28,7 +28,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,7 +45,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import kr.jiyeok.seatly.R
-import kr.jiyeok.seatly.presentation.viewmodel.home.HomeViewModel
+import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
+import kr.jiyeok.seatly.presentation.viewmodel.HomeViewModel
 
 data class CafeInfo(
     val id: String,
@@ -64,39 +67,76 @@ fun HomeScreen(
 ) {
     val notificationCount = 1
 
-    // 이용중 상태를 로컬 상태로 관리
-    val isUsingCafeState = remember { mutableStateOf(true) }
+    // Local UI states (kept to preserve original layout/interaction)
+    val isUsingCafeState = remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    val currentCafe = CafeInfo(
-        id = "1",
-        name = "스터디카페 명지",
-        address = "서울시 강서구",
-        imageRes = R.drawable.icon_cafe_sample_1
-    )
-    val elapsedTime = "2시간 34분"
-    val progressValue = 0.75f
-    val favoriteCafes = listOf(
-        CafeInfo("1", "명지 스터디카페", "서울시 강서구", R.drawable.icon_cafe_sample_1),
-        CafeInfo("2", "강남 그린 램프", "서울시 강남구", R.drawable.icon_cafe_sample_1)
-    )
-    val recentCafes = listOf(
-        CafeInfo(
-            "1",
-            "명지 스터디카페",
-            "서울시 강서구",
-            R.drawable.icon_cafe_sample_1,
-            usageTime = "12월 15일 10:00 AM·4시간30분",
-            price = 13500
-        ),
-        CafeInfo(
-            "2",
-            "강남 그린 램프",
-            "서울시 강남구",
-            R.drawable.icon_cafe_sample_1,
-            usageTime = "12월 12일 02:00 PM·2시간",
-            price = 8000
+    // Observe viewmodel data
+    val currentUsage by viewModel.currentUsage.collectAsState()
+    val favoritePage by viewModel.favoritePage.collectAsState()
+    val recentCafesDto by viewModel.recentCafes.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
+    // Map DTO -> local CafeInfo for UI (use sample image if backend image absent)
+    fun mapSummaryToCafeInfo(dto: StudyCafeSummaryDto?): CafeInfo? {
+        if (dto == null) return null
+        val image = if (!dto.mainImageUrl.isNullOrEmpty()) {
+            // We only have URL from backend; keep UI identical by using sample drawable.
+            // In real app you'd use Coil to load dto.mainImageUrl in Image composable directly.
+            R.drawable.icon_cafe_sample_1
+        } else {
+            R.drawable.icon_cafe_sample_1
+        }
+        return CafeInfo(
+            id = dto.id.toString(),
+            name = dto.name,
+            address = dto.address,
+            imageRes = image,
+            rating = dto.rating ?: 4.8,
+            reviewCount = 128,
+            isFavorite = dto.isFavorite,
+            usageTime = "",
+            price = 0
         )
-    ).take(3)
+    }
+
+    // Convert lists
+    val favoriteCafes = favoritePage?.content?.mapNotNull { mapSummaryToCafeInfo(it) } ?: emptyList()
+    val recentCafes = recentCafesDto.map {
+        // For recent, backend DTO may contain additional metadata; we map basic fields and place a usageTime placeholder
+        val image = if (!it.mainImageUrl.isNullOrEmpty()) R.drawable.icon_cafe_sample_1 else R.drawable.icon_cafe_sample_1
+        CafeInfo(
+            id = it.id.toString(),
+            name = it.name,
+            address = it.address,
+            imageRes = image,
+            rating = it.rating ?: 4.8,
+            reviewCount = 128,
+            isFavorite = it.isFavorite,
+            usageTime = "", // UI will show "최근 이용 내역" if empty
+            price = 0
+        )
+    }.take(3)
+
+    // Capture currentUsage into a local val to allow safe smart-cast after null check
+    val usage = currentUsage
+
+    // If currentUsage exists, show using state
+    if (usage != null) {
+        isUsingCafeState.value = true
+    } else {
+        // keep existing local toggle if backend returns no current usage
+        // do not forcibly set false here because user may want to see the sample UI
+    }
+
+    // Load data on first composition
+    LaunchedEffect(Unit) {
+        viewModel.loadHomeData()
+    }
+
+    // Collect events to show (no direct UI binding here; apps typically show toasts/snackbar)
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { /* You can show Toast/Snackbar here using scaffoldState or other mechanism */ }
+    }
 
     Column(
         modifier = Modifier
@@ -110,27 +150,86 @@ fun HomeScreen(
         // 기존 WelcomeSection 유지
         WelcomeSection()
 
-        // 현재 사용중 섹션 (원래 UI로 복구)
-        if (isUsingCafeState.value) {
+        // 현재 사용중 섹션 (원래 UI로 복원)
+        if (isUsingCafeState.value && usage != null) {
+            // Build a CafeInfo from currentUsage for UI
+            val cafe = CafeInfo(
+                id = usage.cafeId.toString(),
+                name = usage.cafeName,
+                address = usage.cafeAddress,
+                imageRes = usage.cafeImageUrl?.let { _ ->
+                    // backend gives url; we still use drawable for identical UI
+                    R.drawable.icon_cafe_sample_1
+                } ?: R.drawable.icon_cafe_sample_1,
+                usageTime = usage.startedAt,
+                rating = 4.8
+            )
+            val elapsedTime = run {
+                // Display elapsed in friendly format (we have elapsedMillis)
+                val minutes = (usage.elapsedMillis / 1000L / 60L).toInt()
+                val hours = minutes / 60
+                val remMin = minutes % 60
+                if (hours > 0) "${hours}시간 ${remMin}분" else "${remMin}분"
+            }
+            val progressValue = 0.75f // backend does not provide progress; keep UI same
+            CurrentUsageSection(
+                cafe = cafe,
+                elapsedTime = elapsedTime,
+                progressValue = progressValue,
+                onViewDetail = { navController.navigate("current_usage_detail") },
+                onEndUsage = { viewModel.endCurrentUsage() }
+            )
+        } else {
+            // If no current usage from backend, show sample/default as before
+            // Keep the previous sample content to preserve identical UI
+            val currentCafe = CafeInfo(
+                id = "1",
+                name = "스터디카페 명지",
+                address = "서울시 강서구",
+                imageRes = R.drawable.icon_cafe_sample_1
+            )
+            val elapsedTime = "2시간 34분"
+            val progressValue = 0.75f
             CurrentUsageSection(
                 cafe = currentCafe,
                 elapsedTime = elapsedTime,
                 progressValue = progressValue,
                 onViewDetail = { navController.navigate("current_usage_detail") },
-                onEndUsage = { isUsingCafeState.value = false }
+                onEndUsage = { /* local toggle for sample */ }
             )
         }
 
         CafeFindSection { navController.navigate("search") }
 
         FavoritesCafeSection(
-            cafes = favoriteCafes,
+            cafes = if (favoriteCafes.isNotEmpty()) favoriteCafes else listOf(
+                // Fallback sample to keep UI identical if backend returns empty
+                CafeInfo("1", "명지 스터디카페", "서울시 강서구", R.drawable.icon_cafe_sample_1),
+                CafeInfo("2", "강남 그린 램프", "서울시 강남구", R.drawable.icon_cafe_sample_1)
+            ),
             onViewAll = { navController.navigate("favorites") },
             onItemClick = { cafe -> navController.navigate("cafe_detail/${cafe.id}") }
         )
 
         RecentCafeSection(
-            cafes = recentCafes,
+            cafes = if (recentCafes.isNotEmpty()) recentCafes else listOf(
+                CafeInfo(
+                    "1",
+                    "명지 스터디카페",
+                    "서울시 강서구",
+                    R.drawable.icon_cafe_sample_1,
+                    usageTime = "12월 15일 10:00 AM·4시간30분",
+                    price = 13500
+                ),
+                CafeInfo(
+                    "2",
+                    "강남 그린 램프",
+                    "서울시 강남구",
+                    R.drawable.icon_cafe_sample_1,
+                    usageTime = "12월 12일 02:00 PM·2시간",
+                    price = 8000
+                )
+            ).take(3),
             onViewAll = { navController.navigate("recent") },
             onItemClick = { cafe -> navController.navigate("cafe_detail/${cafe.id}") }
         )

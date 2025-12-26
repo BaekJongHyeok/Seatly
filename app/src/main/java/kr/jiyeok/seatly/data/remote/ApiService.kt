@@ -1,140 +1,184 @@
 package kr.jiyeok.seatly.data.remote
 
-import kr.jiyeok.seatly.data.remote.request.ReservationRequest
-import kr.jiyeok.seatly.data.remote.request.StartSessionRequest
-import kr.jiyeok.seatly.data.remote.response.LoginResponseDTO
-import kr.jiyeok.seatly.data.remote.response.SeatResponseDto
-import kr.jiyeok.seatly.data.remote.response.SessionResponseDto
-import kr.jiyeok.seatly.data.remote.response.StudyCafeResponseDto
-import kr.jiyeok.seatly.data.remote.response.UserResponseDto
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.PATCH
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.PartMap
+import kotlin.jvm.JvmSuppressWildcards
+import kr.jiyeok.seatly.data.remote.request.*
+import kr.jiyeok.seatly.data.remote.response.*
 
 interface ApiService {
 
-    // =========== 로그인 ===========
-    /**
-     * 로그인
-     */
+    // Authentication
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): ApiResponse<LoginResponseDTO>
 
+    @POST("auth/logout")
+    suspend fun logout(): ApiResponse<Unit>
 
-    // =========== 유저 관련 ===========
-    /**
-     * 사용자 기본 정보 + 스터디 카페 목록
-     */
+    @POST("auth/register")
+    suspend fun register(@Body request: RegisterRequest): ApiResponse<UserResponseDto>
+
+    @POST("auth/register/social")
+    suspend fun socialRegister(@Body request: SocialRegisterRequest): ApiResponse<UserResponseDto>
+
+    @POST("auth/password/forgot")
+    suspend fun requestPasswordReset(@Body request: ForgotPasswordRequest): ApiResponse<Unit>
+
+    @POST("auth/password/verify-code")
+    suspend fun verifyPasswordResetCode(@Body request: VerifyCodeRequest): ApiResponse<Unit>
+
+    @POST("auth/password/reset")
+    suspend fun resetPassword(@Body request: ResetPasswordRequest): ApiResponse<Unit>
+
+    // User
+    @GET("users/me")
+    suspend fun getCurrentUser(): ApiResponse<UserResponseDto>
+
     @GET("user-info")
     suspend fun getUserInfo(): ApiResponse<UserResponseDto>
 
+    @PUT("users/me")
+    suspend fun updateUser(@Body request: UpdateUserRequest): ApiResponse<UserResponseDto>
 
-    // =========== 카페 관련 ===========
-    /**
-     * 스터디 카페 목록
-     */
+    @PATCH("users/me/password")
+    suspend fun changePassword(@Body request: ChangePasswordRequest): ApiResponse<Unit>
+
+    @DELETE("users/me")
+    suspend fun deleteAccount(): ApiResponse<Unit>
+
+    @GET("users/me/current-cafe")
+    suspend fun getCurrentCafeUsage(): ApiResponse<CurrentCafeUsageDto>
+
+    // Favorites & Recent
+    @GET("users/me/favorites")
+    suspend fun getFavoriteCafes(
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 20
+    ): ApiResponse<PageResponse<StudyCafeSummaryDto>>
+
+    @POST("users/me/favorites/{cafeId}")
+    suspend fun addFavoriteCafe(@Path("cafeId") cafeId: Long): ApiResponse<Unit>
+
+    @DELETE("users/me/favorites/{cafeId}")
+    suspend fun removeFavoriteCafe(@Path("cafeId") cafeId: Long): ApiResponse<Unit>
+
+    @GET("users/me/recent-cafes")
+    suspend fun getRecentCafes(
+        @Query("limit") limit: Int = 10
+    ): ApiResponse<List<StudyCafeSummaryDto>>
+
+    // Study Cafes
     @GET("study-cafes")
-    suspend fun getStudyCafes(): ApiResponse<List<StudyCafeResponseDto>>
+    suspend fun getStudyCafes(
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 20,
+        @Query("search") search: String? = null,
+        @Query("amenities") amenities: String? = null,
+        @Query("openNow") openNow: Boolean? = null,
+        @Query("sort") sort: String? = null,
+        @Query("lat") lat: Double? = null,
+        @Query("lng") lng: Double? = null
+    ): ApiResponse<PageResponse<StudyCafeSummaryDto>>
 
-    /**
-     * 스터디 카페 좌석 목록
-     */
+    @GET("study-cafes/{id}/summary")
+    suspend fun getCafeSummary(@Path("id") cafeId: Long): ApiResponse<StudyCafeSummaryDto>
+
+    @GET("study-cafes/{id}")
+    suspend fun getCafeDetail(@Path("id") cafeId: Long): ApiResponse<StudyCafeDetailDto>
+
+    // Seats
     @GET("study-cafes/{id}/seats")
-    suspend fun getCafeSeats(@Path("id") cafeId: Long): ApiResponse<List<SeatResponseDto>>
+    suspend fun getCafeSeats(
+        @Path("id") cafeId: Long,
+        @Query("status") status: String? = null
+    ): ApiResponse<List<SeatResponseDto>>
 
-
-    // =========== 좌석 관련 ===========
-    /**
-     * 좌석 자동 배정
-     */
     @POST("study-cafes/{id}/seats/auto-assign")
     suspend fun autoAssignSeat(@Path("id") cafeId: Long): ApiResponse<SessionResponseDto>
 
-    /**
-     * 좌석 선택
-     */
     @POST("study-cafes/{id}/seats/reservation")
     suspend fun reserveSeat(
         @Path("id") cafeId: Long,
         @Body request: ReservationRequest
     ): ApiResponse<SessionResponseDto>
 
-    /**
-     * 현재 좌석 이용 현황 조회
-     * @param studyCafeId 스터디 카페 아이디
-     */
+    // Sessions
+    @POST("sessions/start")
+    suspend fun startSession(@Body request: StartSessionRequest): ApiResponse<SessionResponseDto>
+
+    @POST("sessions/{id}/end")
+    suspend fun endSession(@Path("id") sessionId: Long): ApiResponse<SessionResponseDto>
+
     @GET("sessions")
     suspend fun getCurrentSessions(
         @Query("study_cafe_id") studyCafeId: Long? = null
     ): ApiResponse<List<SessionResponseDto>>
 
+    // Admin
+    @GET("admin/study-cafes")
+    suspend fun getAdminCafes(
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 20,
+        @Query("search") search: String? = null
+    ): ApiResponse<PageResponse<StudyCafeSummaryDto>>
 
-    // =========== 세션 관련 ===========
-    /**
-     * 이용 시작
-     */
-    @POST("sessions/start")
-    suspend fun startSession(@Body request: StartSessionRequest): ApiResponse<SessionResponseDto>
+    @GET("admin/study-cafes/{id}")
+    suspend fun getAdminCafeDetail(@Path("id") cafeId: Long): ApiResponse<StudyCafeDetailDto>
 
-    /**
-     * 이용 종료
-     */
-    @POST("sessions/{id}/end")
-    suspend fun endSession(@Path("id") sessionId: Long): ApiResponse<SessionResponseDto>
+    @Multipart
+    @POST("admin/study-cafes")
+    suspend fun createCafe(
+        @PartMap parts: Map<String, @JvmSuppressWildcards RequestBody>,
+        @Part images: List<MultipartBody.Part> = emptyList()
+    ): ApiResponse<StudyCafeDetailDto>
 
+    @Multipart
+    @PUT("admin/study-cafes/{id}")
+    suspend fun updateCafe(
+        @Path("id") cafeId: Long,
+        @PartMap parts: Map<String, @JvmSuppressWildcards RequestBody>,
+        @Part images: List<MultipartBody.Part> = emptyList()
+    ): ApiResponse<StudyCafeDetailDto>
 
-    // =========== 관리자 전용 ===========
-    /**
-     * 좌석 추가
-     * @param request 좌석 정보
-     */
-    @POST("study-cafes/{id}/seats")
+    @DELETE("admin/study-cafes/{id}")
+    suspend fun deleteCafe(@Path("id") cafeId: Long): ApiResponse<Unit>
+
+    @POST("admin/study-cafes/{id}/seats")
     suspend fun addSeat(
         @Path("id") cafeId: Long,
         @Body request: AddSeatRequest
     ): ApiResponse<SeatResponseDto>
 
-    /**
-     * 좌석 삭제
-     */
-    @DELETE("study-cafes/{cafeId}/seats/{seatId}")
+    @PUT("admin/study-cafes/{cafeId}/seats/{seatId}")
+    suspend fun editSeat(
+        @Path("cafeId") cafeId: Long,
+        @Path("seatId") seatId: Long,
+        @Body request: EditSeatRequest
+    ): ApiResponse<SeatResponseDto>
+
+    @DELETE("admin/study-cafes/{cafeId}/seats/{seatId}")
     suspend fun deleteSeat(
         @Path("cafeId") cafeId: Long,
         @Path("seatId") seatId: Long
     ): ApiResponse<Unit>
 
-    /**
-     * 강제 종료
-     */
-    @DELETE("sessions/{id}")
+    @DELETE("admin/sessions/{id}")
     suspend fun forceEndSession(@Path("id") sessionId: Long): ApiResponse<Unit>
 
-    /**
-     * 회원 탈퇴
-     */
-    @DELETE("study-cafes/{cafeId}/users/{userId}")
-    suspend fun deleteUser(
+    @DELETE("admin/study-cafes/{cafeId}/users/{userId}")
+    suspend fun deleteUserFromCafe(
         @Path("cafeId") cafeId: Long,
         @Path("userId") userId: Long
     ): ApiResponse<Unit>
 }
-
-data class ApiResponse<T>(
-    val success: Boolean,
-    val message: String,
-    val data: T?
-)
-
-data class LoginRequest(
-    val email: String,
-    val password: String
-)
-
-data class AddSeatRequest(
-    val seat_number: Int,
-    val position: String,
-    val type: String? = null
-)

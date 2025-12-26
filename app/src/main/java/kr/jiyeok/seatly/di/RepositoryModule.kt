@@ -1,47 +1,34 @@
-package kr.jiyeok.seatly.data.di
+package kr.jiyeok.seatly.di
 
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import kr.jiyeok.seatly.data.repository.AdminRepository
-import kr.jiyeok.seatly.data.repository.AdminRepositoryImpl
-import kr.jiyeok.seatly.data.repository.LoginRepository
-import kr.jiyeok.seatly.data.repository.LoginRepositoryImpl
-import kr.jiyeok.seatly.data.repository.ReservationRepository
-import kr.jiyeok.seatly.data.repository.ReservationRepositoryImpl
-import kr.jiyeok.seatly.data.repository.SessionRepository
-import kr.jiyeok.seatly.data.repository.SessionRepositoryImpl
-import kr.jiyeok.seatly.data.repository.StudyCafeRepository
-import kr.jiyeok.seatly.data.repository.StudyCafeRepositoryImpl
-import kr.jiyeok.seatly.data.repository.UserRepository
-import kr.jiyeok.seatly.data.repository.UserRepositoryImpl
+import kr.jiyeok.seatly.data.repository.SeatlyRepository
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kr.jiyeok.seatly.data.repository.SeatlyRepositoryImpl
+import javax.inject.Qualifier
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
-    @Binds
-    @Singleton
-    abstract fun bindAdminRepository(impl: AdminRepositoryImpl): AdminRepository
 
     @Binds
     @Singleton
-    abstract fun bindLoginRepository(impl: LoginRepositoryImpl): LoginRepository
+    abstract fun bindSeatlyRepository(
+        impl: SeatlyRepositoryImpl
+    ): SeatlyRepository
 
-    @Binds
-    @Singleton
-    abstract fun bindReservationRepository(impl: ReservationRepositoryImpl): ReservationRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindSessionRepository(impl: SessionRepositoryImpl): SessionRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindStudyCafeRepository(impl: StudyCafeRepositoryImpl): StudyCafeRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
+    companion object {
+        @Provides
+        @IoDispatcher
+        fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
+    }
 }
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class IoDispatcher
