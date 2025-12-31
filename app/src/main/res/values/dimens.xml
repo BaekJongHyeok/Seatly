@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Login Screen Dimensions -->
+    <dimen name="login_horizontal_padding">20dp</dimen>
+    <dimen name="login_top_spacer">60dp</dimen>
+    <dimen name="login_logo_size">80dp</dimen>
+    <dimen name="login_logo_corner_radius">14dp</dimen>
+    <dimen name="login_logo_icon_size">60dp</dimen>
+    <dimen name="login_logo_title_spacing">6dp</dimen>
+    <dimen name="login_title_subtitle_spacing">2dp</dimen>
+    <dimen name="login_section_spacing">24dp</dimen>
+    <dimen name="login_field_spacing">10dp</dimen>
+    <dimen name="login_label_spacing">6dp</dimen>
+    <dimen name="login_options_spacing">12dp</dimen>
+    <dimen name="login_error_spacing">8dp</dimen>
+    <dimen name="login_button_spacing">20dp</dimen>
+    <dimen name="login_divider_height">40dp</dimen>
+    <dimen name="login_divider_line_height">1dp</dimen>
+    <dimen name="login_divider_padding">12dp</dimen>
+    <dimen name="login_social_button_spacing">12dp</dimen>
+    <dimen name="login_social_button_size">48dp</dimen>
+    <dimen name="login_social_icon_size_google">20dp</dimen>
+    <dimen name="login_social_icon_size_kakao">22dp</dimen>
+    <dimen name="login_signup_spacing">20dp</dimen>
+    <dimen name="login_checkbox_size">18dp</dimen>
+    <dimen name="login_checkbox_text_padding">8dp</dimen>
+    <dimen name="login_forgot_password_padding">4dp</dimen>
+    <dimen name="login_bottom_padding">12dp</dimen>
+    <dimen name="login_vertical_padding">4dp</dimen>
+    <dimen name="login_error_horizontal_padding">4dp</dimen>
+    
+    <!-- Text Sizes -->
+    <dimen name="login_title_text_size">26sp</dimen>
+    <dimen name="login_subtitle_text_size">12sp</dimen>
+    <dimen name="login_label_text_size">13sp</dimen>
+    <dimen name="login_field_text_size">14sp</dimen>
+    <dimen name="login_button_text_size">16sp</dimen>
+    <dimen name="login_divider_text_size">12sp</dimen>
+    <dimen name="login_social_naver_text_size">24sp</dimen>
+    <dimen name="login_signup_text_size">13sp</dimen>
+    
+    <!-- Input Field Dimensions -->
+    <dimen name="input_field_height">56dp</dimen>
+    <dimen name="input_field_corner_radius">12dp</dimen>
+    <dimen name="input_field_border_width">1dp</dimen>
+    <dimen name="input_field_horizontal_padding">16dp</dimen>
+    <dimen name="input_field_icon_padding">8dp</dimen>
+    
+    <!-- Social Button Dimensions -->
+    <dimen name="social_button_border_width">1dp</dimen>
+</resources>
