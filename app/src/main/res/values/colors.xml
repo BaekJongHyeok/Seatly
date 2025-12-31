@@ -7,4 +7,22 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    
+    <!-- Login Screen Colors -->
+    <color name="login_background">#FFFFFFFF</color>
+    <color name="login_primary">#FFFF6B4A</color>
+    <color name="login_text_primary">#FF2C2C2C</color>
+    <color name="login_text_secondary">#FF999999</color>
+    <color name="login_text_tertiary">#FF666666</color>
+    <color name="login_divider">#FFDDDDDD</color>
+    <color name="login_kakao_bg">#FFFFEB00</color>
+    <color name="login_naver_bg">#FF00C73C</color>
+    <color name="login_social_border">#FFDDDDDD</color>
+    
+    <!-- Input Field Colors -->
+    <color name="input_background">#FFF5F5F5</color>
+    <color name="input_border">#FFE5E5E5</color>
+    <color name="input_text">#FF2C2C2C</color>
+    <color name="input_placeholder">#FFCCCCCC</color>
+    <color name="input_icon">#FF999999</color>
 </resources>

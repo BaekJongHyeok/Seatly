@@ -1,3 +1,28 @@
 <resources>
     <string name="app_name">Seatly</string>
+    
+    <!-- Login Screen -->
+    <string name="login_app_name">Seatly</string>
+    <string name="login_tagline">당신의 집중을 위한 공간</string>
+    <string name="login_email_label">이메일</string>
+    <string name="login_email_placeholder">email@example.com</string>
+    <string name="login_password_label">비밀번호</string>
+    <string name="login_password_placeholder">••••••••</string>
+    <string name="login_auto_login">자동 로그인</string>
+    <string name="login_forgot_password">비밀번호 찾기</string>
+    <string name="login_button">로그인</string>
+    <string name="login_loading">로그인 중…</string>
+    <string name="login_divider_or">또는</string>
+    <string name="login_no_account">계정이 없으신가요? </string>
+    <string name="login_signup">회원가입</string>
+    <string name="login_google_content_desc">Google</string>
+    <string name="login_kakao_content_desc">Kakao</string>
+    <string name="login_naver_text">N</string>
+    <string name="login_logo_content_desc">Seatly Logo</string>
+    
+    <!-- SharedPreferences Keys -->
+    <string name="prefs_name">seatly_prefs</string>
+    <string name="prefs_auto_login">auto_login</string>
+    <string name="prefs_saved_email">saved_email</string>
+    <string name="prefs_saved_password">saved_password</string>
 </resources>
