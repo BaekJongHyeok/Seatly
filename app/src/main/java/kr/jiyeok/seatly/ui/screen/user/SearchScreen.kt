@@ -261,7 +261,7 @@ fun SearchScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "검색 결과: ${cafeList.size}개",
+                    text = "검색 결과: ${cafes.size}개",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     color = Colors.TEXT_PRIMARY
