@@ -65,8 +65,14 @@ class AuthViewModel @Inject constructor(
             when (val result = loginUseCase(request)) {
                 is ApiResult.Success -> {
                     _loginData.value = result.data
-                    // Fetch user data to determine role
-                    fetchUserData()
+                    // Extract user data and role from login response
+                    val user = result.data?.user
+                    _userData.value = user
+                    // Determine role from user data in login response
+                    val isAdmin = user?.roles?.let { ERole.isAdmin(it) } ?: false
+                    _userRole.value = if (isAdmin) ERole.ADMIN else ERole.USER
+                    _authState.value = AuthUiState.Success(user)
+                    _events.send("로그인 성공")
                 }
                 is ApiResult.Failure -> {
                     _authState.value = AuthUiState.Error(result.message ?: "로그인 실패")

@@ -91,9 +91,29 @@ class DebugMockInterceptor : Interceptor {
 
         // GET /users/me or /user/me
         if (method == "GET" && (path.contains("/users/me") || path.contains("/user/me") || path.contains("/auth/me"))) {
-            // Default to USER role for /users/me endpoint
-            // In a real scenario, this would be determined by the access token
-            val json = """
+            // Determine role based on access token
+            val authHeader = req.header("Authorization") ?: ""
+            val isAdmin = authHeader.contains("fake-admin-access-token")
+            
+            val json = if (isAdmin) {
+                """
+                {
+                  "success": true,
+                  "message": null,
+                  "data": {
+                    "id": 2,
+                    "email": "admin@test.com",
+                    "name": "관리자",
+                    "phone": "010-1234-5678",
+                    "imageUrl": null,
+                    "joinedAt": "2025-01-01T00:00:00Z",
+                    "roles": ["ADMIN"],
+                    "favoritesCount": 0
+                  }
+                }
+                """.trimIndent()
+            } else {
+                """
                 {
                   "success": true,
                   "message": null,
@@ -108,7 +128,8 @@ class DebugMockInterceptor : Interceptor {
                     "favoritesCount": 0
                   }
                 }
-            """.trimIndent()
+                """.trimIndent()
+            }
 
             return Response.Builder()
                 .request(req)
