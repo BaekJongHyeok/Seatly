@@ -138,6 +138,13 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         viewModel.loadHomeData()
     }
+    
+    // Fetch user data if not available (e.g., after navigation cleared previous ViewModel)
+    LaunchedEffect(Unit) {
+        if (userData == null) {
+            authViewModel.fetchUserData()
+        }
+    }
 
     // Collect events to show (no direct UI binding here; apps typically show toasts/snackbar)
     LaunchedEffect(Unit) {

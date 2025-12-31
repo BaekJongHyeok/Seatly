@@ -82,22 +82,20 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    private suspend fun fetchUserData() {
-        when (val userResult = getCurrentUserUseCase()) {
-            is ApiResult.Success -> {
-                val user = userResult.data
-                _userData.value = user
-                // Determine role from user data
-                val isAdmin = user?.roles?.let { ERole.isAdmin(it) } ?: false
-                _userRole.value = if (isAdmin) ERole.ADMIN else ERole.USER
-                _authState.value = AuthUiState.Success(user)
-                _events.send("로그인 성공")
-            }
-            is ApiResult.Failure -> {
-                // If user data fetch fails, default to USER role but still mark as success
-                _userRole.value = ERole.USER
-                _authState.value = AuthUiState.Success(_loginData.value)
-                _events.send("로그인 성공")
+    fun fetchUserData() {
+        viewModelScope.launch {
+            when (val userResult = getCurrentUserUseCase()) {
+                is ApiResult.Success -> {
+                    val user = userResult.data
+                    _userData.value = user
+                    // Determine role from user data
+                    val isAdmin = user?.roles?.let { ERole.isAdmin(it) } ?: false
+                    _userRole.value = if (isAdmin) ERole.ADMIN else ERole.USER
+                }
+                is ApiResult.Failure -> {
+                    // If user data fetch fails, default to USER role
+                    _userRole.value = ERole.USER
+                }
             }
         }
     }
