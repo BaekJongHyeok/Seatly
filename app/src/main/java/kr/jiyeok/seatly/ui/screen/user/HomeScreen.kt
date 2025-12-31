@@ -31,7 +31,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -145,6 +147,17 @@ fun HomeScreen(
             authViewModel.fetchUserData()
         }
     }
+    
+    // Update elapsed time every minute for active sessions
+    var timeUpdateTrigger by remember { mutableStateOf(0) }
+    LaunchedEffect(usage) {
+        if (usage != null) {
+            while (true) {
+                kotlinx.coroutines.delay(60000L) // Update every minute
+                timeUpdateTrigger++
+            }
+        }
+    }
 
     // Collect events to show (no direct UI binding here; apps typically show toasts/snackbar)
     LaunchedEffect(Unit) {
@@ -177,13 +190,26 @@ fun HomeScreen(
                 usageTime = usage.startedAt ?: "",
                 rating = 4.8
             )
-            val elapsedTime = run {
-                // Display elapsed in friendly format (we have elapsedMillis)
-                val minutes = (usage.elapsedMillis / 1000L / 60L).toInt()
-                val hours = minutes / 60
-                val remMin = minutes % 60
-                if (hours > 0) "${hours}시간 ${remMin}분" else "${remMin}분"
+            
+            // Calculate elapsed time dynamically from startedAt, updates every minute
+            val elapsedTime = remember(usage.startedAt, timeUpdateTrigger) {
+                try {
+                    if (usage.startedAt != null) {
+                        val startTime = java.time.Instant.parse(usage.startedAt)
+                        val now = java.time.Instant.now()
+                        val elapsedMillis = java.time.Duration.between(startTime, now).toMillis()
+                        val minutes = (elapsedMillis / 1000L / 60L).toInt()
+                        val hours = minutes / 60
+                        val remMin = minutes % 60
+                        if (hours > 0) "${hours}시간 ${remMin}분" else "${remMin}분"
+                    } else {
+                        "0분"
+                    }
+                } catch (e: Exception) {
+                    "0분"
+                }
             }
+            
             val progressValue = 0.75f // backend does not provide progress; keep UI same
             CurrentUsageSection(
                 cafe = cafe,
