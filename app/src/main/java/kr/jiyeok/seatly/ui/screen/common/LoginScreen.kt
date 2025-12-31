@@ -512,4 +512,3 @@ private fun SignUpSection(onSignUpClick: () -> Unit) {
         )
     }
 }
-}
