@@ -47,6 +47,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
+import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.presentation.viewmodel.HomeViewModel
 
 data class CafeInfo(
@@ -64,7 +65,8 @@ data class CafeInfo(
 @Composable
 fun HomeScreen(
     navController: NavController,
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val notificationCount = 1
 
@@ -76,6 +78,9 @@ fun HomeScreen(
     val favoritePage by viewModel.favoritePage.collectAsState()
     val recentCafesDto by viewModel.recentCafes.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    
+    // Get user data from AuthViewModel
+    val userData by authViewModel.userData.collectAsState()
 
     // Map DTO -> local CafeInfo for UI (use sample image if backend image absent)
     fun mapSummaryToCafeInfo(dto: StudyCafeSummaryDto?): CafeInfo? {
@@ -148,8 +153,8 @@ fun HomeScreen(
         // TopBar: 사용자 이름 제거 (앱 타이틀 + 알림만 표시)
         TopBar(notificationCount) { navController.navigate("notifications") }
 
-        // 기존 WelcomeSection 유지
-        WelcomeSection()
+        // 기존 WelcomeSection 유지 - 사용자 이름 표시
+        WelcomeSection(userName = userData?.name)
 
         // 현재 사용중 섹션 (원래 UI로 복원)
         if (isUsingCafeState.value && usage != null) {
@@ -190,11 +195,7 @@ fun HomeScreen(
         CafeFindSection { navController.navigate("search") }
 
         FavoritesCafeSection(
-            cafes = if (favoriteCafes.isNotEmpty()) favoriteCafes else listOf(
-                // Fallback sample to keep UI identical if backend returns empty
-                CafeInfo("1", "명지 스터디카페", "서울시 강서구", R.drawable.icon_cafe_sample_1),
-                CafeInfo("2", "강남 그린 램프", "서울시 강남구", R.drawable.icon_cafe_sample_1)
-            ),
+            cafes = favoriteCafes,
             onViewAll = { navController.navigate("favorites") },
             onItemClick = { cafe -> navController.navigate("cafe_detail/${cafe.id}") }
         )
@@ -274,7 +275,7 @@ fun TopBar(notificationCount: Int, onNotificationClick: () -> Unit) {
 }
 
 @Composable
-fun WelcomeSection() {
+fun WelcomeSection(userName: String? = null) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -282,7 +283,7 @@ fun WelcomeSection() {
             .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         Text(
-            text = "안녕하세요!",
+            text = if (userName != null) "안녕하세요! ${userName}님" else "안녕하세요!",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black
@@ -499,24 +500,66 @@ fun FavoritesCafeSection(cafes: List<CafeInfo>, onViewAll: () -> Unit, onItemCli
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
-            Text(
-                text = "더보기",
-                fontSize = 14.sp,
-                color = Color(0xFF999999),
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable { onViewAll() }
-            )
+            if (cafes.isNotEmpty()) {
+                Text(
+                    text = "더보기",
+                    fontSize = 14.sp,
+                    color = Color(0xFF999999),
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable { onViewAll() }
+                )
+            }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            cafes.forEach { cafe ->
-                CafeCardHorizontal(cafe = cafe, onClick = onItemClick)
+        
+        if (cafes.isEmpty()) {
+            // Show guide when no favorites
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFFFBFAF8))
+                    .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(18.dp))
+                    .padding(vertical = 32.dp, horizontal = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.icon_search),
+                        contentDescription = "No favorites",
+                        tint = Color(0xFFCCCCCC),
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Text(
+                        text = "찜한 카페가 없습니다",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF666666),
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "마음에 드는 카페를 즐겨찾기 해보세요",
+                        fontSize = 12.sp,
+                        color = Color(0xFF999999),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                cafes.forEach { cafe ->
+                    CafeCardHorizontal(cafe = cafe, onClick = onItemClick)
+                }
             }
         }
     }
