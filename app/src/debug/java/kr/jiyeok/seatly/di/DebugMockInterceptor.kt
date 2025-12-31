@@ -203,6 +203,41 @@ class DebugMockInterceptor : Interceptor {
                 .build()
         }
 
+        // GET /sessions - Mock active sessions for logged-in user
+        if (method == "GET" && path.contains("/sessions")) {
+            // Check if user has an active session based on access token
+            val authHeader = req.header("Authorization") ?: ""
+            val isAdmin = authHeader.contains("fake-admin-access-token")
+            
+            // Return active session for demo purposes (can be toggled based on user)
+            val json = """
+                {
+                  "success": true,
+                  "message": null,
+                  "data": [
+                    {
+                      "id": 1,
+                      "userId": ${if (isAdmin) 2 else 1},
+                      "studyCafeId": 1,
+                      "seatId": 5,
+                      "seatName": "A-5",
+                      "startedAt": "2025-12-31T14:30:00Z",
+                      "endedAt": null,
+                      "status": "IN_USE"
+                    }
+                  ]
+                }
+            """.trimIndent()
+
+            return Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(json.toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                .build()
+        }
+
         // POST /auth/refresh (토큰 리프레시 시뮬레이션)
         if (method == "POST" && path.contains("/auth/refresh")) {
             val json = """

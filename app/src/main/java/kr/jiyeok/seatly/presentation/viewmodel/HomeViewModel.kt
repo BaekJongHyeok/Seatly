@@ -52,15 +52,49 @@ class HomeViewModel @Inject constructor(
 
     /**
      * Load all data needed by the Home screen.
+     * Fetches current sessions to determine if user has an active cafe usage.
      */
     fun loadHomeData() {
         viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
 
-            // current usage
-            when (val r = getCurrentCafeUsageUseCase()) {
-                is ApiResult.Success -> _currentUsage.value = r.data
-                is ApiResult.Failure -> _events.send(r.message ?: "현재 이용 정보 조회 실패")
+            // Fetch current sessions to check if user has an active session
+            when (val sessionsResult = getCurrentSessionsUseCase()) {
+                is ApiResult.Success -> {
+                    val sessions = sessionsResult.data ?: emptyList()
+                    // Find the first active session (IN_USE or ASSIGNED status)
+                    val activeSession = sessions.firstOrNull { 
+                        it.status.equals("IN_USE", ignoreCase = true) || 
+                        it.status.equals("ASSIGNED", ignoreCase = true)
+                    }
+                    
+                    if (activeSession != null) {
+                        // Convert session to CurrentCafeUsageDto
+                        val elapsedMillis = try {
+                            val startTime = java.time.Instant.parse(activeSession.startedAt)
+                            val now = java.time.Instant.now()
+                            java.time.Duration.between(startTime, now).toMillis()
+                        } catch (e: Exception) {
+                            0L // Default to 0 if parsing fails
+                        }
+                        
+                        _currentUsage.value = CurrentCafeUsageDto(
+                            cafeId = activeSession.studyCafeId,
+                            cafeName = "스터디카페", // Will be enriched with actual cafe data in real implementation
+                            cafeImageUrl = null,
+                            cafeAddress = "서울시",
+                            seatName = activeSession.seatName,
+                            startedAt = activeSession.startedAt,
+                            elapsedMillis = elapsedMillis
+                        )
+                    } else {
+                        _currentUsage.value = null
+                    }
+                }
+                is ApiResult.Failure -> {
+                    _currentUsage.value = null
+                    _events.send(sessionsResult.message ?: "세션 정보 조회 실패")
+                }
             }
 
             // favorites (small page)

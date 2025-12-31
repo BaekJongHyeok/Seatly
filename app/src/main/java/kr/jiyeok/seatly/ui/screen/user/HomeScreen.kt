@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -180,22 +181,9 @@ fun HomeScreen(
                 onEndUsage = { viewModel.endCurrentUsage() }
             )
         } else {
-            // If no current usage from backend, show sample/default as before
-            // Keep the previous sample content to preserve identical UI
-            val currentCafe = CafeInfo(
-                id = "1",
-                name = "스터디카페 명지",
-                address = "서울시 강서구",
-                imageRes = R.drawable.icon_cafe_sample_1
-            )
-            val elapsedTime = "2시간 34분"
-            val progressValue = 0.75f
-            CurrentUsageSection(
-                cafe = currentCafe,
-                elapsedTime = elapsedTime,
-                progressValue = progressValue,
-                onViewDetail = { navController.navigate("current_usage_detail") },
-                onEndUsage = { /* local toggle for sample */ }
+            // Show guide when user has no active session
+            NoActiveSessionGuide(
+                onFindCafe = { navController.navigate("search") }
             )
         }
 
@@ -719,6 +707,74 @@ fun CafeCardVertical(cafe: CafeInfo, onClick: (CafeInfo) -> Unit) {
                 fontWeight = FontWeight.SemiBold,
                 color = Color.Black
             )
+        }
+    }
+}
+
+@Composable
+fun NoActiveSessionGuide(onFindCafe: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+    ) {
+        Text(
+            text = "현재 사용 중",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFFFBFAF8))
+                .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(18.dp))
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.icon_search),
+                    contentDescription = "No active session",
+                    tint = Color(0xFFCCCCCC),
+                    modifier = Modifier.size(48.dp)
+                )
+                Text(
+                    text = "현재 이용 중인 좌석이 없습니다",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF666666),
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "새로운 스터디카페를 찾아보세요",
+                    fontSize = 12.sp,
+                    color = Color(0xFF999999),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = onFindCafe,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B4A)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "카페 찾기",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
+            }
         }
     }
 }
