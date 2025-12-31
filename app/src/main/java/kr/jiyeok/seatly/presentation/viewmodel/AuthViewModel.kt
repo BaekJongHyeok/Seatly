@@ -40,7 +40,8 @@ class AuthViewModel @Inject constructor(
     private val requestPasswordResetUseCase: RequestPasswordResetUseCase,
     private val verifyPasswordResetCodeUseCase: VerifyPasswordResetCodeUseCase,
     private val resetPasswordUseCase: ResetPasswordUseCase,
-    private val getCurrentUserUseCase: GetCurrentUserUseCase
+    private val getCurrentUserUseCase: GetCurrentUserUseCase,
+    private val favoriteManager: kr.jiyeok.seatly.domain.manager.FavoriteManager
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
@@ -55,10 +56,8 @@ class AuthViewModel @Inject constructor(
     private val _userData = MutableStateFlow<UserResponseDto?>(null)
     val userData: StateFlow<UserResponseDto?> = _userData.asStateFlow()
 
-    // Expose favorite cafe IDs as a separate flow for easier observation
-    val favoriteCafeIds: StateFlow<List<Long>> = userData
-        .map { it?.favoriteCafeIds ?: emptyList() }
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    // Expose favorite cafe IDs from FavoriteManager
+    val favoriteCafeIds: StateFlow<List<Long>> = favoriteManager.favoriteCafeIds
 
     // One-shot events (toasts, navigation commands)
     private val _events = Channel<String>(Channel.BUFFERED)
@@ -76,6 +75,8 @@ class AuthViewModel @Inject constructor(
                     // Determine role from user data in login response
                     val isAdmin = user?.roles?.let { ERole.isAdmin(it) } ?: false
                     _userRole.value = if (isAdmin) ERole.ADMIN else ERole.USER
+                    // Update FavoriteManager with user's favorites
+                    favoriteManager.setFavorites(user?.favoriteCafeIds ?: emptyList())
                     _authState.value = AuthUiState.Success(user)
                     _events.send("로그인 성공")
                 }
@@ -96,6 +97,8 @@ class AuthViewModel @Inject constructor(
                     // Determine role from user data
                     val isAdmin = user?.roles?.let { ERole.isAdmin(it) } ?: false
                     _userRole.value = if (isAdmin) ERole.ADMIN else ERole.USER
+                    // Update FavoriteManager with user's favorites
+                    favoriteManager.setFavorites(user?.favoriteCafeIds ?: emptyList())
                 }
                 is ApiResult.Failure -> {
                     // If user data fetch fails, default to USER role
@@ -111,19 +114,14 @@ class AuthViewModel @Inject constructor(
      * TODO: Add API call to sync with backend when ready.
      */
     fun toggleFavorite(cafeId: Long) {
+        // Toggle in FavoriteManager (shared state)
+        favoriteManager.toggleFavorite(cafeId)
+        
+        // Also update local userData for consistency
         val currentUser = _userData.value ?: return
-        val currentFavorites = currentUser.favoriteCafeIds.toMutableList()
-        
-        if (cafeId in currentFavorites) {
-            currentFavorites.remove(cafeId)
-        } else {
-            currentFavorites.add(cafeId)
-        }
-        
-        // Update userData with new favorites
         _userData.value = currentUser.copy(
-            favoriteCafeIds = currentFavorites,
-            favoritesCount = currentFavorites.size
+            favoriteCafeIds = favoriteManager.favoriteCafeIds.value,
+            favoritesCount = favoriteManager.favoriteCafeIds.value.size
         )
     }
 
@@ -135,6 +133,8 @@ class AuthViewModel @Inject constructor(
                     _loginData.value = null
                     _userData.value = null
                     _userRole.value = ERole.USER
+                    // Clear favorites on logout
+                    favoriteManager.clearFavorites()
                     _authState.value = AuthUiState.Success(Unit)
                     _events.send("로그아웃 되었습니다.")
                 }
