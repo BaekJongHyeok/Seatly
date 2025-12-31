@@ -102,6 +102,8 @@ class AuthViewModel @Inject constructor(
             when (val result = logoutUseCase()) {
                 is ApiResult.Success -> {
                     _loginData.value = null
+                    _userData.value = null
+                    _userRole.value = ERole.USER
                     _authState.value = AuthUiState.Success(Unit)
                     _events.send("로그아웃 되었습니다.")
                 }
