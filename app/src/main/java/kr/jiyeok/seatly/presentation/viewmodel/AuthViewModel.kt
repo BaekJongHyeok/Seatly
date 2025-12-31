@@ -97,8 +97,11 @@ class AuthViewModel @Inject constructor(
                     // Determine role from user data
                     val isAdmin = user?.roles?.let { ERole.isAdmin(it) } ?: false
                     _userRole.value = if (isAdmin) ERole.ADMIN else ERole.USER
-                    // Update FavoriteManager with user's favorites
-                    favoriteManager.setFavorites(user?.favoriteCafeIds ?: emptyList())
+                    // CRITICAL: Only update FavoriteManager if it's empty (first load)
+                    // This preserves locally toggled favorites when refetching user data
+                    if (favoriteManager.favoriteCafeIds.value.isEmpty()) {
+                        favoriteManager.setFavorites(user?.favoriteCafeIds ?: emptyList())
+                    }
                 }
                 is ApiResult.Failure -> {
                     // If user data fetch fails, default to USER role
