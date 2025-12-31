@@ -80,8 +80,11 @@ fun LoginScreen(
                     SharedPreferencesHelper.clearAutoLoginCredentials(context)
                 }
             }
-        } catch (e: Exception) {
-            // Handle any errors during auto-login attempt
+        } catch (e: SecurityException) {
+            // Handle security-related errors when accessing SharedPreferences
+            SharedPreferencesHelper.clearAutoLoginCredentials(context)
+        } catch (e: IllegalStateException) {
+            // Handle state-related errors
             SharedPreferencesHelper.clearAutoLoginCredentials(context)
         }
     }
@@ -99,8 +102,11 @@ fun LoginScreen(
                 navController.navigate("home") {
                     popUpTo("login") { inclusive = true }
                 }
-            } catch (e: Exception) {
-                // Log error but continue with navigation
+            } catch (e: SecurityException) {
+                // Handle error but continue with navigation
+                navController.navigate("home") {
+                    popUpTo("login") { inclusive = true }
+                }
             }
         }
     }
@@ -147,8 +153,10 @@ fun LoginScreen(
                     } else {
                         SharedPreferencesHelper.clearAutoLoginCredentials(context)
                     }
-                } catch (e: Exception) {
-                    // Handle error silently or log
+                } catch (e: SecurityException) {
+                    // Handle SharedPreferences security error silently
+                } catch (e: IllegalStateException) {
+                    // Handle state error silently
                 }
             },
             onForgotPasswordClick = { navController.navigate("password_step1") }
@@ -489,4 +497,5 @@ private fun SignUpSection(onSignUpClick: () -> Unit) {
             modifier = Modifier.clickable { onSignUpClick() }
         )
     }
+}
 }
