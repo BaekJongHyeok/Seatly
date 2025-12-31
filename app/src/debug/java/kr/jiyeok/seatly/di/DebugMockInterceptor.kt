@@ -214,7 +214,7 @@ class DebugMockInterceptor : Interceptor {
                       {
                         "id": 1,
                         "name": "명지 스터디카페",
-                        "mainImageUrl": "https://example.com/cafe1.jpg",
+                        "mainImageUrl": "https://images.unsplash.com/photo-1554118811-1e0d58224f24",
                         "address": "서울시 강서구 마곡로 100",
                         "rating": 4.8,
                         "isFavorite": false,
@@ -224,7 +224,7 @@ class DebugMockInterceptor : Interceptor {
                       {
                         "id": 2,
                         "name": "더존 프리미엄 독서실",
-                        "mainImageUrl": "https://example.com/cafe2.jpg",
+                        "mainImageUrl": "https://images.unsplash.com/photo-1521017432531-fbd92d768814",
                         "address": "서울시 강남구 테헤란로 123",
                         "rating": 4.5,
                         "isFavorite": false,
@@ -234,7 +234,7 @@ class DebugMockInterceptor : Interceptor {
                       {
                         "id": 3,
                         "name": "어반 라이브러리",
-                        "mainImageUrl": "https://example.com/cafe3.jpg",
+                        "mainImageUrl": "https://images.unsplash.com/photo-1497366754035-f200968a6e72",
                         "address": "서울시 마포구 양화로 45",
                         "rating": null,
                         "isFavorite": false,
@@ -244,7 +244,7 @@ class DebugMockInterceptor : Interceptor {
                       {
                         "id": 4,
                         "name": "포커스 온",
-                        "mainImageUrl": "https://example.com/cafe4.jpg",
+                        "mainImageUrl": "https://images.unsplash.com/photo-1517502884422-41eaead166d4",
                         "address": "경기도 성남시 분당구 판교로 67",
                         "rating": 4.9,
                         "isFavorite": true,
@@ -254,7 +254,7 @@ class DebugMockInterceptor : Interceptor {
                       {
                         "id": 5,
                         "name": "스타벅스 스터디룸",
-                        "mainImageUrl": null,
+                        "mainImageUrl": "https://images.unsplash.com/photo-1481277542470-605612bd2d61",
                         "address": "서울시 서초구 서초대로 89",
                         "rating": 4.6,
                         "isFavorite": false,
