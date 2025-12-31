@@ -2,6 +2,7 @@ package kr.jiyeok.seatly.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -24,6 +25,7 @@ import javax.inject.Inject
  *
  * Exposes simple StateFlows for the UI. Errors are emitted via [events] channel as simple strings.
  */
+@HiltViewModel
 class HomeViewModel @Inject constructor(
     private val getCurrentCafeUsageUseCase: GetCurrentCafeUsageUseCase,
     private val getFavoriteCafesUseCase: GetFavoriteCafesUseCase,
