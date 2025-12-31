@@ -51,7 +51,8 @@ class DebugMockInterceptor : Interceptor {
                       "imageUrl": null,
                       "joinedAt": "2025-01-01T00:00:00Z",
                       "roles": ["ADMIN"],
-                      "favoritesCount": 0
+                      "favoriteCafeIds": [2],
+                      "favoritesCount": 1
                     }
                   }
                 }
@@ -73,7 +74,8 @@ class DebugMockInterceptor : Interceptor {
                       "imageUrl": null,
                       "joinedAt": "2025-01-01T00:00:00Z",
                       "roles": ["USER"],
-                      "favoritesCount": 0
+                      "favoriteCafeIds": [1, 3],
+                      "favoritesCount": 2
                     }
                   }
                 }
@@ -108,7 +110,8 @@ class DebugMockInterceptor : Interceptor {
                     "imageUrl": null,
                     "joinedAt": "2025-01-01T00:00:00Z",
                     "roles": ["ADMIN"],
-                    "favoritesCount": 0
+                    "favoriteCafeIds": [2],
+                    "favoritesCount": 1
                   }
                 }
                 """.trimIndent()
@@ -125,7 +128,8 @@ class DebugMockInterceptor : Interceptor {
                     "imageUrl": null,
                     "joinedAt": "2025-01-01T00:00:00Z",
                     "roles": ["USER"],
-                    "favoritesCount": 0
+                    "favoriteCafeIds": [1, 3],
+                    "favoritesCount": 2
                   }
                 }
                 """.trimIndent()

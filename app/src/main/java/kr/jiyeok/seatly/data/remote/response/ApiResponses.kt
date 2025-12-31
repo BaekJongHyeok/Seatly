@@ -29,6 +29,7 @@ data class UserResponseDto(
     val imageUrl: String?,
     val joinedAt: String,
     val roles: List<String> = emptyList(),
+    val favoriteCafeIds: List<Long> = emptyList(),
     val favoritesCount: Int = 0
 )
 

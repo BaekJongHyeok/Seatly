@@ -103,13 +103,13 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val selectedFilter = remember { mutableStateOf("위치 기반") }
-    val favoriteItems = remember { mutableStateListOf<String>() }
     val showFilterSheet = remember { mutableStateOf(false) }
 
-    // Observe cafe list and search query from ViewModel
+    // Observe cafe list, search query, and favorite cafe IDs from ViewModel
     val cafes by viewModel.cafes.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val favoriteCafeIds by viewModel.favoriteCafeIds.collectAsState()
 
     val filters = listOf("위치 기반", "별점 높은순", "최저가", "최신오픈", "특가상품", "더보기")
     val formatter = NumberFormat.getNumberInstance(Locale.KOREA)
@@ -307,10 +307,14 @@ fun SearchScreen(
                     items(cafes) { cafe ->
                         CafeCardItem(
                             cafe = cafe,
-                            isFavorite = cafe.id.toString() in favoriteItems,
+                            isFavorite = cafe.id in favoriteCafeIds,
                             onFavoriteClick = {
-                                val cafeId = cafe.id.toString()
-                                if (cafeId in favoriteItems) favoriteItems.remove(cafeId) else favoriteItems.add(cafeId)
+                                // TODO: Call API to toggle favorite
+                                // if (cafe.id in favoriteCafeIds) {
+                                //     // DELETE /users/me/favorites/{cafeId}
+                                // } else {
+                                //     // POST /users/me/favorites/{cafeId}
+                                // }
                             },
                             onCardClick = {
                                 navController.navigate("cafe_detail/${cafe.id}")
