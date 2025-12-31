@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "kr.jiyeok.seatly"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "kr.jiyeok.seatly"
