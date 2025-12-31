@@ -50,8 +50,8 @@ import kr.jiyeok.seatly.presentation.viewmodel.HomeViewModel
 
 data class CafeInfo(
     val id: String,
-    val name: String,
-    val address: String,
+    val name: String = "",
+    val address: String = "",
     val imageRes: Int,
     val rating: Double = 4.8,
     val reviewCount: Int = 128,
@@ -88,8 +88,8 @@ fun HomeScreen(
         }
         return CafeInfo(
             id = dto.id.toString(),
-            name = dto.name,
-            address = dto.address,
+            name = dto.name ?: "",
+            address = dto.address ?: "",
             imageRes = image,
             rating = dto.rating ?: 4.8,
             reviewCount = 128,
@@ -106,8 +106,8 @@ fun HomeScreen(
         val image = if (!it.mainImageUrl.isNullOrEmpty()) R.drawable.icon_cafe_sample_1 else R.drawable.icon_cafe_sample_1
         CafeInfo(
             id = it.id.toString(),
-            name = it.name,
-            address = it.address,
+            name = it.name ?: "",
+            address = it.address ?: "",
             imageRes = image,
             rating = it.rating ?: 4.8,
             reviewCount = 128,
@@ -155,13 +155,13 @@ fun HomeScreen(
             // Build a CafeInfo from currentUsage for UI
             val cafe = CafeInfo(
                 id = usage.cafeId.toString(),
-                name = usage.cafeName,
-                address = usage.cafeAddress,
+                name = usage.cafeName ?: "",
+                address = usage.cafeAddress ?: "",
                 imageRes = usage.cafeImageUrl?.let { _ ->
                     // backend gives url; we still use drawable for identical UI
                     R.drawable.icon_cafe_sample_1
                 } ?: R.drawable.icon_cafe_sample_1,
-                usageTime = usage.startedAt,
+                usageTime = usage.startedAt ?: "",
                 rating = 4.8
             )
             val elapsedTime = run {

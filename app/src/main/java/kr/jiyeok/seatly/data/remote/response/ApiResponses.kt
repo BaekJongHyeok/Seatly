@@ -34,19 +34,19 @@ data class UserResponseDto(
 
 data class CurrentCafeUsageDto(
     val cafeId: Long,
-    val cafeName: String,
+    val cafeName: String?,
     val cafeImageUrl: String?,
-    val cafeAddress: String,
-    val seatName: String,
-    val startedAt: String,
+    val cafeAddress: String?,
+    val seatName: String?,
+    val startedAt: String?,
     val elapsedMillis: Long
 )
 
 data class StudyCafeSummaryDto(
     val id: Long,
-    val name: String,
+    val name: String?,
     val mainImageUrl: String?,
-    val address: String,
+    val address: String?,
     val rating: Double? = null,
     val isFavorite: Boolean = false,
     val isOpen: Boolean = false,
