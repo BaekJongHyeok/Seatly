@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +54,8 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,8 +71,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
+import kr.jiyeok.seatly.presentation.viewmodel.SearchViewModel
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -91,80 +97,19 @@ private object Colors {
     val GRAY_400 = Color(0xFFA3A3A3)
 }
 
-// 카페 데이터 모델
-data class CafeItem(
-    val id: String,
-    val name: String,
-    val address: String,
-    val distance: String,
-    val rating: Float,
-    val reviewCount: Int,
-    val pricePerHour: Int,
-    val imageUrl: String,
-    val isFavorite: Boolean = false,
-    val status: String = "", // "특가", "준비중", "" 등
-    val openTime: String? = null,
-    val facilities: List<String> = emptyList()
-)
-
 @Composable
-fun SearchScreen(navController: NavHostController) {
+fun SearchScreen(
+    navController: NavHostController,
+    viewModel: SearchViewModel = hiltViewModel()
+) {
     val searchQuery = remember { mutableStateOf("") }
     val selectedFilter = remember { mutableStateOf("위치 기반") }
     val favoriteItems = remember { mutableStateListOf<String>() }
     val showFilterSheet = remember { mutableStateOf(false) }
 
-    val cafeList = remember {
-        mutableListOf(
-            CafeItem(
-                id = "1",
-                name = "명지 스터디카페",
-                address = "서울시 강서구 마곡로 100",
-                distance = "1.2km",
-                rating = 4.8f,
-                reviewCount = 156,
-                pricePerHour = 4500,
-                imageUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuAfJQjvyf2Fy2Q2GDG0rkdI5MPKBltZYsBJV_yiGtHiVULcmI27zpR2MUn_TtzWkJQgLZH8lyPobHWIlG3G24nAcFOJTW3P90Y0sHJfa7-phAmMKMz_dqK7aYvRPTaHkWRBsuTAkNtG7X7MB2CPTc_7zJHqKDiJrXiB2I_pK0TXE2-sYkU7IDGS6x4xA00BQOi3IZ1c3xAeAYYJZN5pwwtU6NeblSpmQAodAmpR43VCfHALUNE4-WC9IxAveCB6srxxYZELUoXXOyk",
-                status = "특가",
-                facilities = listOf("wifi", "electrical_services")
-            ),
-            CafeItem(
-                id = "2",
-                name = "더존 프리미엄 독서실",
-                address = "서울시 강남구 테헤란로",
-                distance = "0.5km",
-                rating = 4.5f,
-                reviewCount = 82,
-                pricePerHour = 3000,
-                imageUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuAXFyexJQ9snhmWLAWe3E-K4yy0uG0WnemrrjKKdjpvFe2h9P8-_rVa7p2zbOgt5Vo3mrgYeMyunuD1maA7WN_8WIdmUjr66IEj7akVFfBXDhZIJoqS7NQ_FsMT14QW0SeTkBPOwZ65S-wJ_0exmF5ALmvSDi1nd5XsJix6c2dFlmK2FoXtvg2hXzyoEyZPkWD5_sVZzWTxzQNkE5Ov48jgAuK3vK6gKGfif2OSlCdual2d4LN0RMpF44Arqap79Topuuplt69zTCg",
-                facilities = listOf("local_cafe", "wifi")
-            ),
-            CafeItem(
-                id = "3",
-                name = "어반 라이브러리",
-                address = "서울시 마포구 양화로",
-                distance = "3.2km",
-                rating = 0f,
-                reviewCount = 0,
-                pricePerHour = 5000,
-                imageUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuCfQj4TwN35RrMqLu45sn_857nJXqThvazPtgqFY6ZfL2DPoqYAigps_piHKhWx2FSJSNnBDuwaA4VUA4rZDrvw1k5AcWVrPi37_55rqv9M-bDEgmRRqVlFwvWiyAOzMdyhkhYP4u2zvkVhOd-PDAL3VXFzv1NvY84-EZSlrPC3lFUMC6qNXnl48eeARFPWAKt3WRCq8VSCqGo1AdjHERoli3EADvPu-PIlUCofnKXOLqtyxLzX0igJGuqFIdvpp0gTEC9WIUQXZsE",
-                status = "준비중",
-                openTime = "오전 10:00 개점예정",
-                facilities = listOf("local_parking", "wifi", "videocam")
-            ),
-            CafeItem(
-                id = "4",
-                name = "포커스 온",
-                address = "경기도 성남시 분당구",
-                distance = "8.5km",
-                rating = 4.9f,
-                reviewCount = 201,
-                pricePerHour = 6000,
-                imageUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuCIOfn8wjtDhD2zfY7EiCdc_uctVy2lWyBt4V9iDzAqSFaL5qcFVjWtBBs0En9FgFdvDgzrYYcYPkWKNxs3eCsyuLqGsNgoSUHz6zkNZLjkSLFHsZgrJi6D4Qsc7ltnE-2ZZgiwawhre74FgUI6BMPxN4gBvmcUsuima3_5L9nr-PG99TzN3uUMtzdN4-wBxoEcwb3ef-oITLah8TZVFwKTDYHe_VTPl0V1VtcxOafDLrJWHXSrgz_zi3_jQi1VXyYTDu110ZoFVJo",
-                facilities = listOf("wifi", "chair")
-            )
-        )
-    }
+    // Observe cafe list from ViewModel
+    val cafes by viewModel.cafes.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     val filters = listOf("위치 기반", "별점 높은순", "최저가", "최신오픈", "특가상품", "더보기")
     val formatter = NumberFormat.getNumberInstance(Locale.KOREA)
@@ -344,25 +289,35 @@ fun SearchScreen(navController: NavHostController) {
             }
 
             // 카페 리스트
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Colors.BACKGROUND_LIGHT),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(cafeList) { cafe ->
-                    CafeCardItem(
-                        cafe = cafe,
-                        isFavorite = cafe.id in favoriteItems,
-                        onFavoriteClick = {
-                            if (cafe.id in favoriteItems) favoriteItems.remove(cafe.id) else favoriteItems.add(cafe.id)
-                        },
-                        onCardClick = {
-                            navController.navigate("cafe_detail/${cafe.id}")
-                        },
-                        formatter = formatter
-                    )
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Colors.PRIMARY)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Colors.BACKGROUND_LIGHT),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(cafes) { cafe ->
+                        CafeCardItem(
+                            cafe = cafe,
+                            isFavorite = cafe.id.toString() in favoriteItems,
+                            onFavoriteClick = {
+                                val cafeId = cafe.id.toString()
+                                if (cafeId in favoriteItems) favoriteItems.remove(cafeId) else favoriteItems.add(cafeId)
+                            },
+                            onCardClick = {
+                                navController.navigate("cafe_detail/${cafe.id}")
+                            },
+                            formatter = formatter
+                        )
+                    }
                 }
             }
         } // end main Column
@@ -716,7 +671,7 @@ fun FilterChip(
 
 @Composable
 fun CafeCardItem(
-    cafe: CafeItem,
+    cafe: StudyCafeSummaryDto,
     isFavorite: Boolean,
     onFavoriteClick: () -> Unit,
     onCardClick: () -> Unit,
@@ -747,7 +702,7 @@ fun CafeCardItem(
                     .background(Colors.GRAY_100)
             ) {
                 AsyncImage(
-                    model = cafe.imageUrl,
+                    model = cafe.mainImageUrl,
                     contentDescription = "Cafe Thumbnail",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -758,20 +713,21 @@ fun CafeCardItem(
                     placeholder = painterResource(id = R.drawable.ic_menu_report_image),
                     error = painterResource(id = R.drawable.ic_menu_report_image)
                 )
-
-                if (cafe.status.isNotEmpty()) {
+                
+                // Show status badge if cafe is not open
+                if (!cafe.isOpen) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(6.dp)
                             .background(
-                                color = if (cafe.status == "특가") Colors.PRIMARY else Colors.AMBER_500,
+                                color = Colors.AMBER_500,
                                 shape = RoundedCornerShape(6.dp)
                             )
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = cafe.status,
+                            text = "준비중",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -788,80 +744,54 @@ fun CafeCardItem(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    // Cafe name
+                    Text(
+                        text = cafe.name ?: "이름 없음",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Colors.TEXT_PRIMARY,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // Address (removed distance)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = cafe.name,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Colors.TEXT_PRIMARY,
+                            text = cafe.address ?: "주소 정보 없음",
+                            fontSize = 13.sp,
+                            color = Colors.TEXT_SECONDARY,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp)) {
-                            Icon(imageVector = Icons.Filled.Star, contentDescription = "star", tint = Colors.PRIMARY, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            if (cafe.rating > 0f) {
-                                Text(text = "${String.format("%.1f", cafe.rating)} (${cafe.reviewCount})", fontSize = 13.sp, color = Colors.TEXT_SECONDARY)
-                            } else {
-                                Text(text = "New", fontSize = 13.sp, color = Colors.TEXT_SECONDARY)
-                            }
-                        }
-                    }
-
-                    Row(modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = cafe.address, fontSize = 13.sp, color = Colors.TEXT_SECONDARY, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Icon(imageVector = Icons.Filled.LocationOn, contentDescription = "location", tint = Colors.PRIMARY, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = cafe.distance, fontSize = 13.sp, color = Colors.TEXT_SECONDARY)
-                    }
-
-                    Row(modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "₩${formatter.format(cafe.pricePerHour)}/시간", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Colors.TEXT_PRIMARY)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            cafe.facilities.take(3).forEach { facility ->
-                                when (facility) {
-                                    "wifi" -> Icon(imageVector = Icons.Filled.Wifi, contentDescription = "wifi", tint = Colors.TEXT_SECONDARY, modifier = Modifier.size(16.dp))
-                                    "electrical_services" -> Icon(imageVector = Icons.Filled.ElectricalServices, contentDescription = "concent", tint = Colors.TEXT_SECONDARY, modifier = Modifier.size(16.dp))
-                                    "local_cafe" -> Icon(imageVector = Icons.Filled.LocalCafe, contentDescription = "coffee", tint = Colors.TEXT_SECONDARY, modifier = Modifier.size(16.dp))
-                                    "local_parking" -> Icon(imageVector = Icons.Filled.LocalParking, contentDescription = "parking", tint = Colors.TEXT_SECONDARY, modifier = Modifier.size(16.dp))
-                                    "videocam" -> Icon(imageVector = Icons.Filled.Videocam, contentDescription = "videocam", tint = Colors.TEXT_SECONDARY, modifier = Modifier.size(16.dp))
-                                    "chair" -> Icon(imageVector = Icons.Filled.EventSeat, contentDescription = "chair", tint = Colors.TEXT_SECONDARY, modifier = Modifier.size(16.dp))
-                                    else -> { /* no-op */ }
-                                }
-                                Spacer(modifier = Modifier.width(6.dp))
-                            }
-                        }
                     }
                 }
 
-                // bottom row: openTime OR status + 24시 on the same baseline, and right-side favorite + reserve buttons
+                // bottom row: open status + right-side favorite + reserve buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // left: openTime or status + 24시 — same vertical alignment
+                    // left: open status
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (cafe.openTime != null) {
-                            Text(text = cafe.openTime, fontSize = 12.sp, color = Colors.AMBER_500, fontWeight = FontWeight.Medium)
-                        } else {
-                            Text(text = if (cafe.status.isEmpty()) "영업중" else cafe.status, fontSize = 12.sp, color = Colors.TEXT_PRIMARY, fontWeight = FontWeight.Medium)
+                        Text(
+                            text = if (cafe.isOpen) "영업중" else "준비중",
+                            fontSize = 12.sp,
+                            color = if (cafe.isOpen) Colors.TEXT_PRIMARY else Colors.AMBER_500,
+                            fontWeight = FontWeight.Medium
+                        )
+                        if (cafe.isOpen) {
                             Text(text = "  |  24시", fontSize = 12.sp, color = Colors.TEXT_SECONDARY)
                         }
                     }
 
-                    // right: favorite + reservation — fixed sizes so 준비중에서도 작게 보이지 않음
+                    // right: favorite + reservation buttons
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
@@ -880,7 +810,7 @@ fun CafeCardItem(
 
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        val isDisabled = cafe.status == "준비중"
+                        val isDisabled = !cafe.isOpen
                         val reserveShape = RoundedCornerShape(8.dp)
                         Box(
                             modifier = Modifier

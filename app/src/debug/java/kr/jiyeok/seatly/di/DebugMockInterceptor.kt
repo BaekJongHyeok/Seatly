@@ -203,6 +203,82 @@ class DebugMockInterceptor : Interceptor {
                 .build()
         }
 
+        // GET /study-cafes - Mock study cafes list
+        if (method == "GET" && path.contains("/study-cafes") && !path.contains("/study-cafes/")) {
+            val json = """
+                {
+                  "success": true,
+                  "message": null,
+                  "data": {
+                    "content": [
+                      {
+                        "id": 1,
+                        "name": "명지 스터디카페",
+                        "mainImageUrl": "https://example.com/cafe1.jpg",
+                        "address": "서울시 강서구 마곡로 100",
+                        "rating": 4.8,
+                        "isFavorite": false,
+                        "isOpen": true,
+                        "distanceMeters": 1200
+                      },
+                      {
+                        "id": 2,
+                        "name": "더존 프리미엄 독서실",
+                        "mainImageUrl": "https://example.com/cafe2.jpg",
+                        "address": "서울시 강남구 테헤란로 123",
+                        "rating": 4.5,
+                        "isFavorite": false,
+                        "isOpen": true,
+                        "distanceMeters": 500
+                      },
+                      {
+                        "id": 3,
+                        "name": "어반 라이브러리",
+                        "mainImageUrl": "https://example.com/cafe3.jpg",
+                        "address": "서울시 마포구 양화로 45",
+                        "rating": null,
+                        "isFavorite": false,
+                        "isOpen": false,
+                        "distanceMeters": 3200
+                      },
+                      {
+                        "id": 4,
+                        "name": "포커스 온",
+                        "mainImageUrl": "https://example.com/cafe4.jpg",
+                        "address": "경기도 성남시 분당구 판교로 67",
+                        "rating": 4.9,
+                        "isFavorite": true,
+                        "isOpen": true,
+                        "distanceMeters": 8500
+                      },
+                      {
+                        "id": 5,
+                        "name": "스타벅스 스터디룸",
+                        "mainImageUrl": null,
+                        "address": "서울시 서초구 서초대로 89",
+                        "rating": 4.6,
+                        "isFavorite": false,
+                        "isOpen": true,
+                        "distanceMeters": 2100
+                      }
+                    ],
+                    "page": 0,
+                    "size": 100,
+                    "totalElements": 5,
+                    "totalPages": 1
+                  }
+                }
+            """.trimIndent()
+
+            return Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(json.toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                .build()
+        }
+
         // GET /sessions - Mock active sessions for logged-in user
         if (method == "GET" && path.contains("/sessions")) {
             // Check if user has an active session based on access token
