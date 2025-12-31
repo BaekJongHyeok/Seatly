@@ -83,6 +83,9 @@ fun HomeScreen(
     
     // Get user data from AuthViewModel
     val userData by authViewModel.userData.collectAsState()
+    
+    // Observe favorite cafe IDs from AuthViewModel for real-time sync
+    val favoriteCafeIds by authViewModel.favoriteCafeIds.collectAsState()
 
     // Map DTO -> local CafeInfo for UI (use sample image if backend image absent)
     fun mapSummaryToCafeInfo(dto: StudyCafeSummaryDto?): CafeInfo? {
@@ -139,6 +142,11 @@ fun HomeScreen(
     // Load data on first composition
     LaunchedEffect(Unit) {
         viewModel.loadHomeData()
+    }
+    
+    // Load favorite cafes whenever favoriteCafeIds changes (real-time sync)
+    LaunchedEffect(favoriteCafeIds) {
+        viewModel.loadFavoriteCafesFromIds(favoriteCafeIds)
     }
     
     // Fetch user data if not available (e.g., after navigation cleared previous ViewModel)

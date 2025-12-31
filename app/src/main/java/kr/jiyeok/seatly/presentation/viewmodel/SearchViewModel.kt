@@ -106,10 +106,14 @@ class SearchViewModel @Inject constructor(
 
     /**
      * Toggle favorite status for a cafe.
-     * This updates the state in FavoriteManager so it's shared across the app.
+     * Note: FavoriteManager is updated, but AuthViewModel also needs to update userData.
+     * This is handled via AuthViewModel.toggleFavorite() which should be called instead.
+     * Keeping this for backward compatibility but ideally should call authViewModel.toggleFavorite().
      */
     fun toggleFavorite(cafeId: Long) {
         favoriteManager.toggleFavorite(cafeId)
+        // Note: This only updates FavoriteManager. For full persistence,
+        // SearchScreen should inject AuthViewModel and call authViewModel.toggleFavorite()
     }
 
     /**

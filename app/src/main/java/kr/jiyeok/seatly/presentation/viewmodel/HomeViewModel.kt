@@ -112,6 +112,37 @@ class HomeViewModel @Inject constructor(
             _isLoading.value = false
         }
     }
+    
+    /**
+     * Load favorite cafes based on the list of favorite cafe IDs.
+     * This is called when favoriteCafeIds changes to sync favorites in real-time.
+     */
+    fun loadFavoriteCafesFromIds(favoriteIds: List<Long>) {
+        viewModelScope.launch(ioDispatcher) {
+            if (favoriteIds.isEmpty()) {
+                _favoritePage.value = null
+                return@launch
+            }
+            
+            // Load favorites from API
+            // For now, use the existing getFavoriteCafesUseCase
+            // In a real app, you might want a specific endpoint to fetch cafes by IDs
+            when (val r = getFavoriteCafesUseCase(0, favoriteIds.size)) {
+                is ApiResult.Success -> {
+                    // Filter to only include cafes that are in favoriteIds
+                    val filteredCafes = r.data?.content?.filter { cafe ->
+                        cafe.id in favoriteIds
+                    } ?: emptyList()
+                    
+                    _favoritePage.value = r.data?.copy(content = filteredCafes)
+                }
+                is ApiResult.Failure -> {
+                    // On failure, just keep existing data
+                    _events.send(r.message ?: "찜한 카페 조회 실패")
+                }
+            }
+        }
+    }
 
     /**
      * Try to end the current (active) session. This implementation:

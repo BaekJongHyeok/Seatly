@@ -100,7 +100,8 @@ private object Colors {
 @Composable
 fun SearchScreen(
     navController: NavHostController,
-    viewModel: SearchViewModel = hiltViewModel()
+    viewModel: SearchViewModel = hiltViewModel(),
+    authViewModel: kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel = hiltViewModel()
 ) {
     val selectedFilter = remember { mutableStateOf("위치 기반") }
     val showFilterSheet = remember { mutableStateOf(false) }
@@ -309,7 +310,7 @@ fun SearchScreen(
                             cafe = cafe,
                             isFavorite = cafe.id in favoriteCafeIds,
                             onFavoriteClick = {
-                                viewModel.toggleFavorite(cafe.id)
+                                authViewModel.toggleFavorite(cafe.id)
                             },
                             onCardClick = {
                                 navController.navigate("cafe_detail/${cafe.id}")
@@ -757,7 +758,7 @@ fun CafeCardItem(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp),
+                            .padding(top = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
