@@ -77,15 +77,27 @@ fun LoginScreen(
                     viewModel.login(LoginRequest(savedEmail, savedPassword))
                 } else {
                     // Clear invalid auto-login state
-                    SharedPreferencesHelper.clearAutoLoginCredentials(context)
+                    try {
+                        SharedPreferencesHelper.clearAutoLoginCredentials(context)
+                    } catch (e: Exception) {
+                        // Ignore errors when clearing credentials
+                    }
                 }
             }
         } catch (e: SecurityException) {
             // Handle security-related errors when accessing SharedPreferences
-            SharedPreferencesHelper.clearAutoLoginCredentials(context)
+            try {
+                SharedPreferencesHelper.clearAutoLoginCredentials(context)
+            } catch (clearError: Exception) {
+                // Ignore errors when clearing credentials
+            }
         } catch (e: IllegalStateException) {
             // Handle state-related errors
-            SharedPreferencesHelper.clearAutoLoginCredentials(context)
+            try {
+                SharedPreferencesHelper.clearAutoLoginCredentials(context)
+            } catch (clearError: Exception) {
+                // Ignore errors when clearing credentials
+            }
         }
     }
 
@@ -154,9 +166,11 @@ fun LoginScreen(
                         SharedPreferencesHelper.clearAutoLoginCredentials(context)
                     }
                 } catch (e: SecurityException) {
-                    // Handle SharedPreferences security error silently
+                    // Handle SharedPreferences security error - reset checkbox state
+                    isAutoLogin = !checked
                 } catch (e: IllegalStateException) {
-                    // Handle state error silently
+                    // Handle state error - reset checkbox state
+                    isAutoLogin = !checked
                 }
             },
             onForgotPasswordClick = { navController.navigate("password_step1") }
