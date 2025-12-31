@@ -23,6 +23,8 @@ class SearchViewModel @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
+    private val _allCafes = MutableStateFlow<List<StudyCafeSummaryDto>>(emptyList())
+    
     private val _cafes = MutableStateFlow<List<StudyCafeSummaryDto>>(emptyList())
     val cafes: StateFlow<List<StudyCafeSummaryDto>> = _cafes.asStateFlow()
 
@@ -32,8 +34,36 @@ class SearchViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
     init {
         loadCafes()
+    }
+    
+    /**
+     * Update search query and filter cafes.
+     */
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+        filterCafes(query)
+    }
+    
+    /**
+     * Filter cafes based on search query.
+     * Searches in cafe name and address.
+     */
+    private fun filterCafes(query: String) {
+        if (query.isBlank()) {
+            _cafes.value = _allCafes.value
+        } else {
+            val lowerQuery = query.lowercase()
+            _cafes.value = _allCafes.value.filter { cafe ->
+                val name = cafe.name?.lowercase() ?: ""
+                val address = cafe.address?.lowercase() ?: ""
+                name.contains(lowerQuery) || address.contains(lowerQuery)
+            }
+        }
     }
 
     /**
@@ -55,7 +85,10 @@ class SearchViewModel @Inject constructor(
 
             when (val result = getStudyCafesUseCase(page, size, search, amenities, openNow, sort, lat, lng)) {
                 is ApiResult.Success -> {
-                    _cafes.value = result.data?.content ?: emptyList()
+                    val cafeList = result.data?.content ?: emptyList()
+                    _allCafes.value = cafeList
+                    // Apply current search filter
+                    filterCafes(_searchQuery.value)
                 }
                 is ApiResult.Failure -> {
                     _error.value = result.message ?: "카페 목록을 불러오지 못했습니다"

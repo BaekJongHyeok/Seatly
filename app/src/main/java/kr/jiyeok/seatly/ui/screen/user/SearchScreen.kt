@@ -102,14 +102,14 @@ fun SearchScreen(
     navController: NavHostController,
     viewModel: SearchViewModel = hiltViewModel()
 ) {
-    val searchQuery = remember { mutableStateOf("") }
     val selectedFilter = remember { mutableStateOf("위치 기반") }
     val favoriteItems = remember { mutableStateListOf<String>() }
     val showFilterSheet = remember { mutableStateOf(false) }
 
-    // Observe cafe list from ViewModel
+    // Observe cafe list and search query from ViewModel
     val cafes by viewModel.cafes.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
 
     val filters = listOf("위치 기반", "별점 높은순", "최저가", "최신오픈", "특가상품", "더보기")
     val formatter = NumberFormat.getNumberInstance(Locale.KOREA)
@@ -186,8 +186,8 @@ fun SearchScreen(
                 )
 
                 BasicTextField(
-                    value = searchQuery.value,
-                    onValueChange = { searchQuery.value = it },
+                    value = searchQuery,
+                    onValueChange = { viewModel.updateSearchQuery(it) },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -202,7 +202,7 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxHeight(),
                             contentAlignment = Alignment.CenterStart
                         ) {
-                            if (searchQuery.value.isEmpty()) {
+                            if (searchQuery.isEmpty()) {
                                 Text(
                                     text = "카페명, 지역, 주소로 검색",
                                     fontSize = 14.sp,
