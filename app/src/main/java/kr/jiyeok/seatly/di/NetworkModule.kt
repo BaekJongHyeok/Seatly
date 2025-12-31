@@ -110,14 +110,30 @@ object NetworkModule {
         authInterceptor: AuthInterceptor,
         loggingInterceptor: HttpLoggingInterceptor
     ): OkHttpClient {
-        return OkHttpClient.Builder()
+        val builder = OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
-            // Do not add an authenticator here by default; token refresh strategy can be
-            // implemented separately (and must be careful to avoid recursive calls).
-            .build()
+        // Do not add an authenticator here by default; token refresh strategy can be
+        // implemented separately (and must be careful to avoid recursive calls).
+
+        // DEBUG 전용: DebugMockInterceptor가 debug 소스셋에 존재하면 리플렉션으로 로드하여
+        // 인터셉터 체인의 최상단(우선)으로 추가합니다. 존재하지 않으면 무시합니다.
+        if (BuildConfig.DEBUG) {
+            try {
+                val clazz = Class.forName("kr.jiyeok.seatly.di.DebugMockInterceptor")
+                val ctor = clazz.getDeclaredConstructor()
+                ctor.isAccessible = true
+                val interceptor = ctor.newInstance() as Interceptor
+                // 맨 앞에 추가하여 실제 네트워크 호출 전에 처리되도록 함
+                builder.interceptors().add(0, interceptor)
+            } catch (ignored: Throwable) {
+                // DebugMockInterceptor가 없거나 로드 실패하면 무시 (안정성 중요)
+            }
+        }
+
+        return builder.build()
     }
 
     @Provides
@@ -125,7 +141,7 @@ object NetworkModule {
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .client(okHttpClient) // use the parameter name okHttpClient (was `client` previously)
+            .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
