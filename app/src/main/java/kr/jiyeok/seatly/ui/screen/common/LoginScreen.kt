@@ -41,6 +41,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.request.LoginRequest
+import kr.jiyeok.seatly.domain.model.ERole
 import kr.jiyeok.seatly.presentation.viewmodel.AuthUiState
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.ui.component.AuthButton
@@ -62,6 +63,7 @@ fun LoginScreen(
 
     val authState by viewModel.authState.collectAsState()
     val loginData by viewModel.loginData.collectAsState()
+    val userRole by viewModel.userRole.collectAsState()
 
     // Try auto-login if enabled with enhanced error handling
     LaunchedEffect(Unit) {
@@ -101,7 +103,7 @@ fun LoginScreen(
         }
     }
 
-    // On success, persist/clear auto-login and navigate
+    // On success, persist/clear auto-login and navigate based on user role
     LaunchedEffect(authState) {
         if (authState is AuthUiState.Success) {
             try {
@@ -111,12 +113,25 @@ fun LoginScreen(
                     SharedPreferencesHelper.clearAutoLoginCredentials(context)
                 }
                 
-                navController.navigate("home") {
+                // Navigate based on user role
+                val destination = if (userRole == ERole.ADMIN) {
+                    "admin_home"
+                } else {
+                    "home"
+                }
+                
+                navController.navigate(destination) {
                     popUpTo("login") { inclusive = true }
                 }
             } catch (e: SecurityException) {
                 // Handle error but continue with navigation
-                navController.navigate("home") {
+                val destination = if (userRole == ERole.ADMIN) {
+                    "admin_home"
+                } else {
+                    "home"
+                }
+                
+                navController.navigate(destination) {
                     popUpTo("login") { inclusive = true }
                 }
             }

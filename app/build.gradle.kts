@@ -74,6 +74,7 @@ dependencies {
     implementation(libs.maps.compose)
 
     implementation("io.coil-kt:coil-compose:2.4.0")
+    implementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
