@@ -8,8 +8,11 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kr.jiyeok.seatly.data.remote.request.*
 import kr.jiyeok.seatly.data.remote.response.LoginResponseDTO
+import kr.jiyeok.seatly.data.remote.response.UserResponseDto
 import kr.jiyeok.seatly.data.repository.ApiResult
+import kr.jiyeok.seatly.domain.model.ERole
 import kr.jiyeok.seatly.domain.usecase.auth.*
+import kr.jiyeok.seatly.domain.usecase.user.GetCurrentUserUseCase
 import javax.inject.Inject
 
 /**
@@ -36,7 +39,8 @@ class AuthViewModel @Inject constructor(
     private val socialRegisterUseCase: SocialRegisterUseCase,
     private val requestPasswordResetUseCase: RequestPasswordResetUseCase,
     private val verifyPasswordResetCodeUseCase: VerifyPasswordResetCodeUseCase,
-    private val resetPasswordUseCase: ResetPasswordUseCase
+    private val resetPasswordUseCase: ResetPasswordUseCase,
+    private val getCurrentUserUseCase: GetCurrentUserUseCase
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
@@ -44,6 +48,12 @@ class AuthViewModel @Inject constructor(
 
     private val _loginData = MutableStateFlow<LoginResponseDTO?>(null)
     val loginData: StateFlow<LoginResponseDTO?> = _loginData.asStateFlow()
+
+    private val _userRole = MutableStateFlow<ERole>(ERole.USER)
+    val userRole: StateFlow<ERole> = _userRole.asStateFlow()
+
+    private val _userData = MutableStateFlow<UserResponseDto?>(null)
+    val userData: StateFlow<UserResponseDto?> = _userData.asStateFlow()
 
     // One-shot events (toasts, navigation commands)
     private val _events = Channel<String>(Channel.BUFFERED)
@@ -55,13 +65,33 @@ class AuthViewModel @Inject constructor(
             when (val result = loginUseCase(request)) {
                 is ApiResult.Success -> {
                     _loginData.value = result.data
-                    _authState.value = AuthUiState.Success(result.data)
-                    result.data?.let { _events.send("로그인 성공") }
+                    // Fetch user data to determine role
+                    fetchUserData()
                 }
                 is ApiResult.Failure -> {
                     _authState.value = AuthUiState.Error(result.message ?: "로그인 실패")
                     _events.send(result.message ?: "로그인 실패")
                 }
+            }
+        }
+    }
+
+    private suspend fun fetchUserData() {
+        when (val userResult = getCurrentUserUseCase()) {
+            is ApiResult.Success -> {
+                val user = userResult.data
+                _userData.value = user
+                // Determine role from user data
+                val isAdmin = user?.roles?.let { ERole.isAdmin(it) } ?: false
+                _userRole.value = if (isAdmin) ERole.ADMIN else ERole.USER
+                _authState.value = AuthUiState.Success(user)
+                _events.send("로그인 성공")
+            }
+            is ApiResult.Failure -> {
+                // If user data fetch fails, default to USER role but still mark as success
+                _userRole.value = ERole.USER
+                _authState.value = AuthUiState.Success(_loginData.value)
+                _events.send("로그인 성공")
             }
         }
     }

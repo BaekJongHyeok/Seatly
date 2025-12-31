@@ -50,12 +50,39 @@ class MockInterceptor : Interceptor {
                         "success" to true,
                         "message" to "로그인 성공",
                         "data" to mapOf(
-                            "id" to 1,
-                            "email" to "user@example.com",
-                            "name" to "김테스트",
-                            "role" to "USER",
-                            "token" to "mock_jwt_token_12345",
-                            "created_at" to getCurrentDateTime()
+                            "accessToken" to "mock_jwt_token_12345",
+                            "refreshToken" to "mock_refresh_token_67890",
+                            "expiresIn" to 3600,
+                            "user" to mapOf(
+                                "id" to 1,
+                                "email" to "user@example.com",
+                                "name" to "김테스트",
+                                "phone" to "010-1234-5678",
+                                "imageUrl" to null,
+                                "joinedAt" to getCurrentDateTime(),
+                                "roles" to listOf("USER"),
+                                "favoritesCount" to 3
+                            )
+                        )
+                    ))
+                } else if (loginRequest?.email == "admin@example.com" && loginRequest?.password == "admin123") {
+                    createMockResponse(200, mapOf(
+                        "success" to true,
+                        "message" to "로그인 성공",
+                        "data" to mapOf(
+                            "accessToken" to "mock_jwt_token_admin_12345",
+                            "refreshToken" to "mock_refresh_token_admin_67890",
+                            "expiresIn" to 3600,
+                            "user" to mapOf(
+                                "id" to 100,
+                                "email" to "admin@example.com",
+                                "name" to "관리자",
+                                "phone" to "010-9999-9999",
+                                "imageUrl" to null,
+                                "joinedAt" to getCurrentDateTime(),
+                                "roles" to listOf("ADMIN", "USER"),
+                                "favoritesCount" to 0
+                            )
                         )
                     ))
                 } else {
@@ -70,6 +97,23 @@ class MockInterceptor : Interceptor {
 
 
             // =========== 사용자 정보 ===========
+            path.endsWith("/users/me") && method == "GET" -> {
+                createMockResponse(200, mapOf(
+                    "success" to true,
+                    "message" to "사용자 정보 조회 성공",
+                    "data" to mapOf(
+                        "id" to 1,
+                        "email" to "user@example.com",
+                        "name" to "김테스트",
+                        "phone" to "010-1234-5678",
+                        "imageUrl" to null,
+                        "joinedAt" to getCurrentDateTime(),
+                        "roles" to listOf("USER"),
+                        "favoritesCount" to 3
+                    )
+                ))
+            }
+
             path.endsWith("/user-info") && method == "GET" -> {
                 createMockResponse(200, mapOf(
                     "success" to true,
@@ -79,9 +123,10 @@ class MockInterceptor : Interceptor {
                         "email" to "user@example.com",
                         "name" to "김테스트",
                         "phone" to "010-1234-5678",
-                        "credits" to 5000,
-                        "membership_level" to "STANDARD",
-                        "created_at" to getCurrentDateTime()
+                        "imageUrl" to null,
+                        "joinedAt" to getCurrentDateTime(),
+                        "roles" to listOf("USER"),
+                        "favoritesCount" to 3
                     )
                 ))
             }
