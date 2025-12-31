@@ -34,7 +34,9 @@ class DebugMockInterceptor : Interceptor {
                       "name": "테스트 사용자",
                       "phone": null,
                       "imageUrl": null,
-                      "joinedAt": "2025-01-01T00:00:00Z"
+                      "joinedAt": "2025-01-01T00:00:00Z",
+                      "roles": ["USER"],
+                      "favoritesCount": 0
                     }
                   }
                 }
@@ -49,8 +51,8 @@ class DebugMockInterceptor : Interceptor {
                 .build()
         }
 
-        // GET /user/me (예시)
-        if (method == "GET" && (path.contains("/user/me") || path.contains("/auth/me"))) {
+        // GET /users/me or /user/me
+        if (method == "GET" && (path.contains("/users/me") || path.contains("/user/me") || path.contains("/auth/me"))) {
             val json = """
                 {
                   "success": true,
@@ -61,7 +63,9 @@ class DebugMockInterceptor : Interceptor {
                     "name": "테스트 사용자",
                     "phone": null,
                     "imageUrl": null,
-                    "joinedAt": "2025-01-01T00:00:00Z"
+                    "joinedAt": "2025-01-01T00:00:00Z",
+                    "roles": ["USER"],
+                    "favoritesCount": 0
                   }
                 }
             """.trimIndent()
