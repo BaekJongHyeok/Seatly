@@ -55,6 +55,11 @@ class AuthViewModel @Inject constructor(
     private val _userData = MutableStateFlow<UserResponseDto?>(null)
     val userData: StateFlow<UserResponseDto?> = _userData.asStateFlow()
 
+    // Expose favorite cafe IDs as a separate flow for easier observation
+    val favoriteCafeIds: StateFlow<List<Long>> = userData
+        .map { it?.favoriteCafeIds ?: emptyList() }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     // One-shot events (toasts, navigation commands)
     private val _events = Channel<String>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
@@ -98,6 +103,28 @@ class AuthViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * Toggle favorite status for a cafe.
+     * This updates the local state immediately without API call.
+     * TODO: Add API call to sync with backend when ready.
+     */
+    fun toggleFavorite(cafeId: Long) {
+        val currentUser = _userData.value ?: return
+        val currentFavorites = currentUser.favoriteCafeIds.toMutableList()
+        
+        if (cafeId in currentFavorites) {
+            currentFavorites.remove(cafeId)
+        } else {
+            currentFavorites.add(cafeId)
+        }
+        
+        // Update userData with new favorites
+        _userData.value = currentUser.copy(
+            favoriteCafeIds = currentFavorites,
+            favoritesCount = currentFavorites.size
+        )
     }
 
     fun logout() {

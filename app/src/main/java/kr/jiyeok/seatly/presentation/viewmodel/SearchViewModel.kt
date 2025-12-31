@@ -1,8 +1,14 @@
 package kr.jiyeok.seatly.presentation.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kr.jiyeok.seatly.SeatlyApplication
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.domain.usecase.cafe.GetStudyCafesUseCase
@@ -19,14 +26,35 @@ import kr.jiyeok.seatly.di.IoDispatcher
 import javax.inject.Inject
 
 /**
+ * Entry point to access AuthViewModel from SearchViewModel.
+ * This is the proper way to access a ViewModel from another ViewModel in Hilt.
+ */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface AuthViewModelEntryPoint {
+    fun authViewModel(): AuthViewModel
+}
+
+/**
  * ViewModel for SearchScreen that fetches and manages study cafe list.
  */
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val getStudyCafesUseCase: GetStudyCafesUseCase,
     private val getCurrentUserUseCase: GetCurrentUserUseCase,
+    @ApplicationContext private val context: Context,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
+
+    // Access AuthViewModel through Hilt entry point (lazy to avoid initialization issues)
+    private val authViewModel: AuthViewModel by lazy {
+        val appContext = context.applicationContext as SeatlyApplication
+        val entryPoint = EntryPointAccessors.fromApplication(
+            appContext,
+            AuthViewModelEntryPoint::class.java
+        )
+        entryPoint.authViewModel()
+    }
 
     private val _allCafes = MutableStateFlow<List<StudyCafeSummaryDto>>(emptyList())
     
@@ -42,9 +70,10 @@ class SearchViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    // User's favorite cafe IDs
-    private val _favoriteCafeIds = MutableStateFlow<List<Long>>(emptyList())
-    val favoriteCafeIds: StateFlow<List<Long>> = _favoriteCafeIds.asStateFlow()
+    // User's favorite cafe IDs - expose from AuthViewModel for consistency
+    val favoriteCafeIds: StateFlow<List<Long>> by lazy {
+        authViewModel.favoriteCafeIds
+    }
 
     init {
         loadCafes()
@@ -111,19 +140,28 @@ class SearchViewModel @Inject constructor(
 
     /**
      * Load user's favorite cafes.
+     * This initializes the favorites in AuthViewModel if needed.
      */
     private fun loadUserFavorites() {
         viewModelScope.launch(ioDispatcher) {
             when (val result = getCurrentUserUseCase()) {
                 is ApiResult.Success -> {
-                    _favoriteCafeIds.value = result.data?.favoriteCafeIds ?: emptyList()
+                    // Favorites are automatically available through AuthViewModel
+                    // No need to do anything here
                 }
                 is ApiResult.Failure -> {
                     // Silently fail - user might not be logged in
-                    _favoriteCafeIds.value = emptyList()
                 }
             }
         }
+    }
+
+    /**
+     * Toggle favorite status for a cafe.
+     * This updates the state in AuthViewModel so it's shared across the app.
+     */
+    fun toggleFavorite(cafeId: Long) {
+        authViewModel.toggleFavorite(cafeId)
     }
 
     /**

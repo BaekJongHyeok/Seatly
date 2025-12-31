@@ -309,12 +309,7 @@ fun SearchScreen(
                             cafe = cafe,
                             isFavorite = cafe.id in favoriteCafeIds,
                             onFavoriteClick = {
-                                // TODO: Call API to toggle favorite
-                                // if (cafe.id in favoriteCafeIds) {
-                                //     // DELETE /users/me/favorites/{cafeId}
-                                // } else {
-                                //     // POST /users/me/favorites/{cafeId}
-                                // }
+                                viewModel.toggleFavorite(cafe.id)
                             },
                             onCardClick = {
                                 navController.navigate("cafe_detail/${cafe.id}")
