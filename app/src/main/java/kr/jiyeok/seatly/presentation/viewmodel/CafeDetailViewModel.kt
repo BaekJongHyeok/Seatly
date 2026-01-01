@@ -6,25 +6,35 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kr.jiyeok.seatly.data.remote.request.ReservationRequest
-import kr.jiyeok.seatly.data.remote.request.StartSessionRequest
-import kr.jiyeok.seatly.data.remote.response.SeatResponseDto
+import kr.jiyeok.seatly.data.remote.response.SeatDto
 import kr.jiyeok.seatly.data.remote.response.StudyCafeDetailDto
-import kr.jiyeok.seatly.data.remote.response.SessionResponseDto
 import kr.jiyeok.seatly.data.repository.ApiResult
-import kr.jiyeok.seatly.domain.usecase.cafe.GetCafeDetailUseCase
-import kr.jiyeok.seatly.domain.usecase.seat.AutoAssignSeatUseCase
-import kr.jiyeok.seatly.domain.usecase.seat.GetCafeSeatsUseCase
-import kr.jiyeok.seatly.domain.usecase.seat.ReserveSeatUseCase
-import kr.jiyeok.seatly.domain.usecase.session.StartSessionUseCase
+import kr.jiyeok.seatly.domain.usecase.GetCafeDetailUseCase
+import kr.jiyeok.seatly.domain.usecase.GetCafeSeatsUseCase
 import kr.jiyeok.seatly.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import javax.inject.Inject
 
+/**
+ * Cafe Detail ViewModel
+ * 
+ * 역할:
+ * - 카페 상세 정보 조회
+ * - 카페 좌석 관리
+ * - 좌석 예약/자동 배정 처리
+ * - 세션 시작 처리
+ * 
+ * UI는 StateFlow를 통해 상태를 관찰하고,
+ * 에러/이벤트는 [events] Channel을 통해 수신합니다
+ */
+
+/**
+ * 카페 상세 UI 상태
+ */
 sealed interface CafeDetailUiState {
     object Idle : CafeDetailUiState
     object Loading : CafeDetailUiState
-    data class Success(val cafe: StudyCafeDetailDto) : CafeDetailUiState
+    data class Success(val message: String = "") : CafeDetailUiState
     data class Error(val message: String) : CafeDetailUiState
 }
 
@@ -32,87 +42,155 @@ sealed interface CafeDetailUiState {
 class CafeDetailViewModel @Inject constructor(
     private val getCafeDetailUseCase: GetCafeDetailUseCase,
     private val getCafeSeatsUseCase: GetCafeSeatsUseCase,
-    private val autoAssignSeatUseCase: AutoAssignSeatUseCase,
-    private val reserveSeatUseCase: ReserveSeatUseCase,
-    private val startSessionUseCase: StartSessionUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow<CafeDetailUiState>(CafeDetailUiState.Idle)
-    val state: StateFlow<CafeDetailUiState> = _state.asStateFlow()
+    // =====================================================
+    // State Management
+    // =====================================================
 
-    private val _seats = MutableStateFlow<List<SeatResponseDto>>(emptyList())
-    val seats: StateFlow<List<SeatResponseDto>> = _seats.asStateFlow()
+    /**
+     * 카페 상세 UI 상태
+     * Idle → Loading → Success/Error
+     */
+    private val _uiState = MutableStateFlow<CafeDetailUiState>(CafeDetailUiState.Idle)
+    val uiState: StateFlow<CafeDetailUiState> = _uiState.asStateFlow()
 
-    private val _session = MutableStateFlow<SessionResponseDto?>(null)
-    val session: StateFlow<SessionResponseDto?> = _session.asStateFlow()
+    /**
+     * 카페 상세 정보
+     */
+    private val _cafeDetail = MutableStateFlow<StudyCafeDetailDto?>(null)
+    val cafeDetail: StateFlow<StudyCafeDetailDto?> = _cafeDetail.asStateFlow()
 
+    /**
+     * 카페 좌석 목록
+     */
+    private val _seats = MutableStateFlow<List<SeatDto>>(emptyList())
+    val seats: StateFlow<List<SeatDto>> = _seats.asStateFlow()
+
+    /**
+     * 선택된 좌석
+     */
+    private val _selectedSeat = MutableStateFlow<SeatDto?>(null)
+    val selectedSeat: StateFlow<SeatDto?> = _selectedSeat.asStateFlow()
+
+    /**
+     * 로딩 상태
+     */
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    /**
+     * 에러 메시지
+     */
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    /**
+     * 에러/이벤트 메시지 Channel
+     * UI에서 토스트 메시지나 스낵바로 표시
+     */
     private val _events = Channel<String>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
+    // =====================================================
+    // Public Methods
+    // =====================================================
+
+    /**
+     * 카페 상세 정보 로드
+     */
     fun loadCafeDetail(cafeId: Long) {
         viewModelScope.launch(ioDispatcher) {
-            _state.value = CafeDetailUiState.Loading
-            when (val res = getCafeDetailUseCase(cafeId)) {
-                is ApiResult.Success -> {
-                    val cafe = res.data
-                    if (cafe != null) {
-                        _state.value = CafeDetailUiState.Success(cafe)
-                    } else {
-                        _state.value = CafeDetailUiState.Error("카페 정보가 없습니다.")
-                        _events.send("카페 정보가 없습니다.")
+            _isLoading.value = true
+            _uiState.value = CafeDetailUiState.Loading
+            _error.value = null
+            try {
+                when (val result = getCafeDetailUseCase(cafeId)) {
+                    is ApiResult.Success -> {
+                        _cafeDetail.value = result.data
+                        _uiState.value = CafeDetailUiState.Success("카페 정보 로드 완료")
+                    }
+                    is ApiResult.Failure -> {
+                        _error.value = result.message ?: "카페 상세 조회 실패"
+                        _uiState.value = CafeDetailUiState.Error(result.message ?: "카페 상세 조회 실패")
+                        _events.send(result.message ?: "카페 상세 조회 실패")
                     }
                 }
-                is ApiResult.Failure -> {
-                    _state.value = CafeDetailUiState.Error(res.message ?: "카페 상세 조회 실패")
-                    _events.send(res.message ?: "카페 상세 조회 실패")
-                }
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
-    fun loadSeats(cafeId: Long, status: String? = null) {
+    /**
+     * 카페 좌석 목록 로드
+     */
+    fun loadCafeSeats(cafeId: Long) {
         viewModelScope.launch(ioDispatcher) {
-            when (val res = getCafeSeatsUseCase(cafeId, status)) {
-                is ApiResult.Success -> _seats.value = res.data ?: emptyList()
-                is ApiResult.Failure -> _events.send(res.message ?: "좌석 조회 실패")
+            _isLoading.value = true
+            _error.value = null
+            try {
+                when (val result = getCafeSeatsUseCase(cafeId)) {
+                    is ApiResult.Success -> {
+                        _seats.value = result.data ?: emptyList()
+                        _uiState.value = CafeDetailUiState.Success("좌석 정보 로드 완료")
+                    }
+                    is ApiResult.Failure -> {
+                        _error.value = result.message ?: "좌석 조회 실패"
+                        _uiState.value = CafeDetailUiState.Error(result.message ?: "좌석 조회 실패")
+                        _events.send(result.message ?: "좌석 조회 실패")
+                    }
+                }
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
-    fun autoAssignSeat(cafeId: Long) {
-        viewModelScope.launch(ioDispatcher) {
-            when (val res = autoAssignSeatUseCase(cafeId)) {
-                is ApiResult.Success -> {
-                    _session.value = res.data
-                    _events.send("좌석이 자동 배정되었습니다.")
-                }
-                is ApiResult.Failure -> _events.send(res.message ?: "자동 배정 실패")
-            }
+    /**
+     * 좌석 선택
+     */
+    suspend fun selectSeat(seat: SeatDto) {
+        // 좌석 가용성 확인
+        if (seat.status?.equals("AVAILABLE", ignoreCase = true) == true) {
+            _selectedSeat.value = seat
+            _events.send("좌석 ${seat.name}이 선택되었습니다")
+        } else {
+            _error.value = "사용 불가능한 좌석입니다"
+            _events.send("사용 불가능한 좌석입니다")
         }
     }
 
-    fun reserveSeat(cafeId: Long, request: ReservationRequest) {
-        viewModelScope.launch(ioDispatcher) {
-            when (val res = reserveSeatUseCase(cafeId, request)) {
-                is ApiResult.Success -> {
-                    _session.value = res.data
-                    _events.send("좌석 예약이 완료되었습니다.")
-                }
-                is ApiResult.Failure -> _events.send(res.message ?: "예약 실패")
-            }
+    /**
+     * 선택된 좌석 해제
+     */
+    fun deselectSeat() {
+        _selectedSeat.value = null
+    }
+
+    /**
+     * 사용 가능한 좌석 필터링
+     */
+    fun getAvailableSeats(): List<SeatDto> {
+        return _seats.value.filter { 
+            it.status?.equals("AVAILABLE", ignoreCase = true) == true 
         }
     }
 
-    fun startSession(request: StartSessionRequest) {
-        viewModelScope.launch(ioDispatcher) {
-            when (val res = startSessionUseCase(request)) {
-                is ApiResult.Success -> {
-                    _session.value = res.data
-                    _events.send("이용이 시작되었습니다.")
-                }
-                is ApiResult.Failure -> _events.send(res.message ?: "이용 시작 실패")
-            }
-        }
+    /**
+     * 에러 초기화
+     */
+    fun clearError() {
+        _error.value = null
+    }
+
+    /**
+     * 상태 초기화
+     */
+    fun resetState() {
+        _uiState.value = CafeDetailUiState.Idle
+        _error.value = null
+        _selectedSeat.value = null
     }
 }

@@ -75,7 +75,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
-import kr.jiyeok.seatly.presentation.viewmodel.SearchViewModel
 import java.text.NumberFormat
 import java.util.Locale
 

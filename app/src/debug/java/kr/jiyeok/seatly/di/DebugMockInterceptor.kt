@@ -33,6 +33,100 @@ class DebugMockInterceptor : Interceptor {
             
             // Determine role based on email in request
             val isAdmin = requestBody.contains("admin@test.com")
+
+            val json = if (isAdmin) {
+                """
+                {
+                  "success": true,
+                  "message": null,
+                  "data": {
+                    "accessToken": "fake-admin-access-token",
+                    "refreshToken": "fake-admin-refresh-token",
+                    "expiresIn": 3600,
+                    "user": {
+                      "id": 2,
+                      "email": "admin@test.com",
+                      "name": "관리자",
+                      "phone": "010-1234-5678",
+                      "imageUrl": null,
+                      "favoriteCafeIds": [],
+                      "sessions": [],
+                      "timePassess": [],
+                      "role": "ADMIN"
+                    }
+                  }
+                }
+                """.trimIndent()
+            } else {
+                """
+                {
+                    "success": true,
+                    "message": null,
+                    "data": {
+                        "accessToken": "fake-user-access-token",
+                        "refreshToken": "fake-user-refresh-token",
+                        "expiresIn": 3600,
+                        "user": {
+                            "id": 1,
+                            "email": "user@test.com",
+                            "name": "일반 사용자",
+                            "phone": "010-9876-5432",
+                            "imageUrl": null,
+                            "favoriteCafeIds": [1, 3],
+                            "sessions": [
+                                {
+                                    "id": 1,
+                                    "userId": 1,
+                                    "seat": {
+                                        "studyCafeId": 1,
+                                        "leftTime": 7200,
+                                        "totalTime": 14400
+                                    },
+                                    "studyCafe": {
+                                        "id": 1,
+                                        "name": "스터디 카페 A",
+                                        "address": "서울시 강남구",
+                                        "latitude": 37.4979,
+                                        "longitude": 127.0276,
+                                        "avgRating": 4.5,
+                                        "reviewCount": 128
+                                    },
+                                    "startTime": 1704110280000
+                                }
+                            ],
+                            "timePassess": [
+                                {
+                                    "studyCafeId": 1,
+                                    "leftTime": 3600,
+                                    "totalTime": 36000
+                                },
+                                {
+                                    "studyCafeId": 3,
+                                    "leftTime": 1800,
+                                    "totalTime": 18000
+                                }
+                            ],
+                            "role": "USER"
+                        }
+                    }
+                }
+                """.trimIndent()
+            }
+
+
+            return Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(json.toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                .build()
+        }
+
+        // GET /users/me or /user/me
+        if (method == "GET" && (path.contains("/users/me") || path.contains("/user/me") || path.contains("/auth/me"))) {
+            val authHeader = req.header("Authorization") ?: ""
+            val isAdmin = authHeader.contains("fake-admin-access-token")
             
             val json = if (isAdmin) {
                 """
@@ -49,69 +143,11 @@ class DebugMockInterceptor : Interceptor {
                       "name": "관리자",
                       "phone": "010-1234-5678",
                       "imageUrl": null,
-                      "joinedAt": "2025-01-01T00:00:00Z",
-                      "roles": ["ADMIN"],
-                      "favoriteCafeIds": [2],
-                      "favoritesCount": 1
+                      "favoriteCafeIds": [],
+                      "sessions": [],
+                      "timePassess": [],
+                      "role": "ADMIN"
                     }
-                  }
-                }
-                """.trimIndent()
-            } else {
-                """
-                {
-                  "success": true,
-                  "message": null,
-                  "data": {
-                    "accessToken": "fake-user-access-token",
-                    "refreshToken": "fake-user-refresh-token",
-                    "expiresIn": 3600,
-                    "user": {
-                      "id": 1,
-                      "email": "user@test.com",
-                      "name": "일반 사용자",
-                      "phone": "010-9876-5432",
-                      "imageUrl": null,
-                      "joinedAt": "2025-01-01T00:00:00Z",
-                      "roles": ["USER"],
-                      "favoriteCafeIds": [1, 3],
-                      "favoritesCount": 2
-                    }
-                  }
-                }
-                """.trimIndent()
-            }
-
-            return Response.Builder()
-                .request(req)
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(json.toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
-                .build()
-        }
-
-        // GET /users/me or /user/me
-        if (method == "GET" && (path.contains("/users/me") || path.contains("/user/me") || path.contains("/auth/me"))) {
-            // Determine role based on access token
-            val authHeader = req.header("Authorization") ?: ""
-            val isAdmin = authHeader.contains("fake-admin-access-token")
-            
-            val json = if (isAdmin) {
-                """
-                {
-                  "success": true,
-                  "message": null,
-                  "data": {
-                    "id": 2,
-                    "email": "admin@test.com",
-                    "name": "관리자",
-                    "phone": "010-1234-5678",
-                    "imageUrl": null,
-                    "joinedAt": "2025-01-01T00:00:00Z",
-                    "roles": ["ADMIN"],
-                    "favoriteCafeIds": [2],
-                    "favoritesCount": 1
                   }
                 }
                 """.trimIndent()
@@ -126,10 +162,41 @@ class DebugMockInterceptor : Interceptor {
                     "name": "일반 사용자",
                     "phone": "010-9876-5432",
                     "imageUrl": null,
-                    "joinedAt": "2025-01-01T00:00:00Z",
-                    "roles": ["USER"],
                     "favoriteCafeIds": [1, 3],
-                    "favoritesCount": 2
+                    "sessions": [
+                        {
+                            "id": 1,
+                            "userId": 1,
+                            "seat": {
+                                "studyCafeId": 1,
+                                "leftTime": 7200,
+                                "totalTime": 14400
+                            },
+                            "studyCafe": {
+                                "id": 1,
+                                "name": "스터디 카페 A",
+                                "address": "서울시 강남구",
+                                "latitude": 37.4979,
+                                "longitude": 127.0276,
+                                "avgRating": 4.5,
+                                "reviewCount": 128
+                            },
+                            "startTime": 1704110280000
+                        }
+                    ],
+                    "timePassess": [
+                        {
+                            "studyCafeId": 1,
+                            "leftTime": 3600,
+                            "totalTime": 36000
+                        },
+                        {
+                            "studyCafeId": 3,
+                            "leftTime": 1800,
+                            "totalTime": 18000
+                        }
+                    ],
+                    "role": "USER"
                   }
                 }
                 """.trimIndent()
@@ -163,171 +230,71 @@ class DebugMockInterceptor : Interceptor {
                 .build()
         }
 
-        // GET /users/me/favorites - Mock favorite cafes
-        if (method == "GET" && path.contains("/users/me/favorites")) {
-            // Determine role based on access token
-            val authHeader = req.header("Authorization") ?: ""
-            val isAdmin = authHeader.contains("fake-admin-access-token")
-            
-            // Return favorites based on user
-            // User has favorites: [1, 3]
-            // Admin has favorites: [2]
-            val json = if (isAdmin) {
-                """
-                {
-                  "success": true,
-                  "message": null,
-                  "data": {
-                    "content": [
-                      {
-                        "id": 2,
-                        "name": "더존 프리미엄 독서실",
-                        "mainImageUrl": "https://images.unsplash.com/photo-1521017432531-fbd92d768814",
-                        "address": "서울시 강남구 테헤란로 123",
-                        "rating": 4.5,
-                        "isFavorite": true,
-                        "isOpen": true,
-                        "distanceMeters": 500
-                      }
-                    ],
-                    "page": 0,
-                    "size": 10,
-                    "totalElements": 1,
-                    "totalPages": 1
-                  }
-                }
-                """.trimIndent()
-            } else {
-                """
-                {
-                  "success": true,
-                  "message": null,
-                  "data": {
-                    "content": [
-                      {
-                        "id": 1,
-                        "name": "명지 스터디카페",
-                        "mainImageUrl": "https://images.unsplash.com/photo-1554118811-1e0d58224f24",
-                        "address": "서울시 강서구 마곡로 100",
-                        "rating": 4.8,
-                        "isFavorite": true,
-                        "isOpen": true,
-                        "distanceMeters": 1200
-                      },
-                      {
-                        "id": 3,
-                        "name": "어반 라이브러리",
-                        "mainImageUrl": "https://images.unsplash.com/photo-1497366754035-f200968a6e72",
-                        "address": "서울시 마포구 양화로 45",
-                        "rating": null,
-                        "isFavorite": true,
-                        "isOpen": false,
-                        "distanceMeters": 3200
-                      }
-                    ],
-                    "page": 0,
-                    "size": 10,
-                    "totalElements": 2,
-                    "totalPages": 1
-                  }
-                }
-                """.trimIndent()
-            }
-
-            return Response.Builder()
-                .request(req)
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(json.toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
-                .build()
-        }
-
-        // GET /users/me/recent-cafes - Mock recent cafes
-        if (method == "GET" && path.contains("/users/me/recent-cafes")) {
-            val json = """
-                {
-                  "success": true,
-                  "message": null,
-                  "data": []
-                }
-            """.trimIndent()
-
-            return Response.Builder()
-                .request(req)
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(json.toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
-                .build()
-        }
-
         // GET /study-cafes - Mock study cafes list
         if (method == "GET" && path.contains("/study-cafes") && !path.contains("/study-cafes/")) {
-            val json = """
-                {
-                  "success": true,
-                  "message": null,
-                  "data": {
-                    "content": [
-                      {
-                        "id": 1,
-                        "name": "명지 스터디카페",
-                        "mainImageUrl": "https://images.unsplash.com/photo-1554118811-1e0d58224f24",
-                        "address": "서울시 강서구 마곡로 100",
-                        "rating": 4.8,
-                        "isFavorite": false,
-                        "isOpen": true,
-                        "distanceMeters": 1200
-                      },
-                      {
-                        "id": 2,
-                        "name": "더존 프리미엄 독서실",
-                        "mainImageUrl": "https://images.unsplash.com/photo-1521017432531-fbd92d768814",
-                        "address": "서울시 강남구 테헤란로 123",
-                        "rating": 4.5,
-                        "isFavorite": false,
-                        "isOpen": true,
-                        "distanceMeters": 500
-                      },
-                      {
-                        "id": 3,
-                        "name": "어반 라이브러리",
-                        "mainImageUrl": "https://images.unsplash.com/photo-1497366754035-f200968a6e72",
-                        "address": "서울시 마포구 양화로 45",
-                        "rating": null,
-                        "isFavorite": false,
-                        "isOpen": false,
-                        "distanceMeters": 3200
-                      },
-                      {
-                        "id": 4,
-                        "name": "포커스 온",
-                        "mainImageUrl": "https://images.unsplash.com/photo-1517502884422-41eaead166d4",
-                        "address": "경기도 성남시 분당구 판교로 67",
-                        "rating": 4.9,
-                        "isFavorite": true,
-                        "isOpen": true,
-                        "distanceMeters": 8500
-                      },
-                      {
-                        "id": 5,
-                        "name": "스타벅스 스터디룸",
-                        "mainImageUrl": "https://images.unsplash.com/photo-1481277542470-605612bd2d61",
-                        "address": "서울시 서초구 서초대로 89",
-                        "rating": 4.6,
-                        "isFavorite": false,
-                        "isOpen": true,
-                        "distanceMeters": 2100
-                      }
-                    ],
-                    "page": 0,
-                    "size": 100,
-                    "totalElements": 5,
-                    "totalPages": 1
+            val json = """{
+              "success": true,
+              "message": null,
+              "data": {
+                "content": [
+                  {
+                    "id": 1,
+                    "name": "명지 스터디카페",
+                    "address": "서울시 강서구 마곡로 100",
+                    "imageUrls": ["https://images.unsplash.com/photo-1554118811-1e0d58224f24"],
+                    "phoneNumber": "010-1234-5678",
+                    "facilities": ["WIFI", "AC"],
+                    "openingHours": "연중무휴",
+                    "description": ""
+                  },
+                  {
+                    "id": 2,
+                    "name": "더존 프리미엄 독서실",
+                    "address": "서울시 강남구 테헤란로 123",
+                    "imageUrls": ["https://images.unsplash.com/photo-1521017432531-fbd92d768814"],
+                    "phoneNumber": "010-1234-5678",
+                    "facilities": ["WIFI", "AC"],
+                    "openingHours": "연중무휴",
+                    "description": ""
+                  },
+                  {
+                    "id": 3,
+                    "name": "어반 라이브러리",
+                    "address": "서울시 마포구 양화로 45",
+                    "imageUrls": ["https://images.unsplash.com/photo-1497366754035-f200968a6e72"],
+                    "phoneNumber": "010-1234-5678",
+                    "facilities": ["WIFI", "AC"],
+                    "openingHours": "연중무휴",
+                    "description": ""
+                  },
+                  {
+                    "id": 4,
+                    "name": "포커스 온",
+                    "address": "경기도 성남시 분당구 판교로 67",
+                    "imageUrls": ["https://images.unsplash.com/photo-1517502884422-41eaead166d4"],
+                    "phoneNumber": "010-1234-5678",
+                    "facilities": ["WIFI", "AC"],
+                    "openingHours": "연중무휴",
+                    "description": ""
+                  },
+                  {
+                    "id": 5,
+                    "name": "스타벅스 스터디룸",
+                    "address": "서울시 서초구 서초대로 89",
+                    "imageUrls": ["https://images.unsplash.com/photo-1481277542470-605612bd2d61"],
+                    "phoneNumber": "010-1234-5678",
+                    "facilities": ["WIFI", "AC"],
+                    "openingHours": "연중무휴",
+                    "description": ""
                   }
-                }
-            """.trimIndent()
+                ],
+                "page": 0,
+                "size": 100,
+                "totalElements": 5,
+                "totalPages": 1
+              }
+            }""".trimIndent()
+
 
             return Response.Builder()
                 .request(req)
@@ -351,16 +318,25 @@ class DebugMockInterceptor : Interceptor {
                   "message": null,
                   "data": [
                     {
-                      "id": 1,
-                      "userId": ${if (isAdmin) 2 else 1},
-                      "studyCafeId": 1,
-                      "seatId": 5,
-                      "seatName": "A-5",
-                      "startedAt": "2025-12-31T14:30:00Z",
-                      "endedAt": null,
-                      "status": "IN_USE"
+                        "id": 1,
+                        "userId": 1,
+                        "seat": {
+                            "studyCafeId": 1,
+                            "leftTime": 7200,
+                            "totalTime": 14400
+                        },
+                        "studyCafe": {
+                            "id": 1,
+                            "name": "스터디 카페 A",
+                            "address": "서울시 강남구",
+                            "latitude": 37.4979,
+                            "longitude": 127.0276,
+                            "avgRating": 4.5,
+                            "reviewCount": 128
+                        },
+                        "startTime": 1704110280000
                     }
-                  ]
+                 ]
                 }
             """.trimIndent()
 

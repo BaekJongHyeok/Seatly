@@ -5,9 +5,9 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import kr.jiyeok.seatly.data.repository.SeatlyRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kr.jiyeok.seatly.data.repository.SeatlyRepository
 import kr.jiyeok.seatly.data.repository.SeatlyRepositoryImpl
 import javax.inject.Qualifier
 import javax.inject.Singleton

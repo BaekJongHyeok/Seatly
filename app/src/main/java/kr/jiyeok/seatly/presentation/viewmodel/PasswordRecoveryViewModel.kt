@@ -1,217 +1,289 @@
 package kr.jiyeok.seatly.presentation.viewmodel
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import kr.jiyeok.seatly.data.remote.request.ForgotPasswordRequest
+import kr.jiyeok.seatly.data.remote.request.VerifyCodeRequest
+import kr.jiyeok.seatly.data.repository.ApiResult
+import kr.jiyeok.seatly.domain.usecase.ForgotPasswordUseCase
+import kr.jiyeok.seatly.domain.usecase.VerifyCodeUseCase
+import kr.jiyeok.seatly.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kr.jiyeok.seatly.data.remote.request.ForgotPasswordRequest
-import kr.jiyeok.seatly.data.remote.request.ResetPasswordRequest
-import kr.jiyeok.seatly.data.remote.request.VerifyCodeRequest
-import kr.jiyeok.seatly.data.repository.ApiResult
-import kr.jiyeok.seatly.domain.usecase.auth.RequestPasswordResetUseCase
-import kr.jiyeok.seatly.domain.usecase.auth.ResetPasswordUseCase
-import kr.jiyeok.seatly.domain.usecase.auth.VerifyPasswordResetCodeUseCase
-import kr.jiyeok.seatly.di.IoDispatcher
 import javax.inject.Inject
-import dagger.hilt.android.lifecycle.HiltViewModel
 
 /**
- * ViewModel for password recovery flow (step1: request code, step2: verify code, step3: reset password).
- *
- * Exposes simple Compose-backed state properties so existing composables can read them directly
- * (keeps the UI identical while wiring real network calls).
+ * Password Recovery ViewModel
+ * 
+ * 역할:
+ * - 비밀번호 재설정 흐름 관리
+ * - 1단계: 보안 코드 요청 및 이메일 전송
+ * - 2단계: 보안 코드 검증
+ * - 3단계: 비밀번호 변경 (AuthViewModel의 changePassword 사용)
+ * 
+ * UI는 StateFlow를 통해 상태를 관찰하고,
+ * 에러/이벤트는 [events] Channel을 통해 수신합니다
  */
+
+/**
+ * 비밀번호 재설정 UI 상태
+ */
+sealed interface PasswordRecoveryUiState {
+    object Idle : PasswordRecoveryUiState
+    object Loading : PasswordRecoveryUiState
+    data class Success(val message: String = "") : PasswordRecoveryUiState
+    data class Error(val message: String) : PasswordRecoveryUiState
+}
+
 @HiltViewModel
 class PasswordRecoveryViewModel @Inject constructor(
-    private val requestPasswordResetUseCase: RequestPasswordResetUseCase,
-    private val verifyPasswordResetCodeUseCase: VerifyPasswordResetCodeUseCase,
-    private val resetPasswordUseCase: ResetPasswordUseCase,
+    private val forgotPasswordUseCase: ForgotPasswordUseCase,
+    private val verifyCodeUseCase: VerifyCodeUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
-    // bound to UI
-    var email by mutableStateOf("")
-        private set
+    // =====================================================
+    // State Management
+    // =====================================================
 
-    // server-side / flow state
-    var isLoading by mutableStateOf(false)
-        private set
+    /**
+     * 비밀번호 재설정 UI 상태
+     * Idle → Loading → Success/Error
+     */
+    private val _uiState = MutableStateFlow<PasswordRecoveryUiState>(PasswordRecoveryUiState.Idle)
+    val uiState: StateFlow<PasswordRecoveryUiState> = _uiState.asStateFlow()
 
-    var errorMessage by mutableStateOf<String?>(null)
-        private set
+    /**
+     * 입력된 이메일
+     */
+    private val _email = MutableStateFlow("")
+    val email: StateFlow<String> = _email.asStateFlow()
 
-    // countdown for code validity / resend UI (seconds)
-    var secondsLeft by mutableStateOf(0)
-        private set
+    /**
+     * 검증된 코드 (최종 비밀번호 변경 시 사용)
+     */
+    private val _verifiedCode = MutableStateFlow("")
+    val verifiedCode: StateFlow<String> = _verifiedCode.asStateFlow()
 
-    // last verified code (kept to use in reset step)
-    private var verifiedCode: String? = null
+    /**
+     * 코드 유효 시간 (초 단위 카운트다운)
+     */
+    private val _codeValiditySeconds = MutableStateFlow(0)
+    val codeValiditySeconds: StateFlow<Int> = _codeValiditySeconds.asStateFlow()
 
+    /**
+     * 현재 단계 (1: 이메일, 2: 코드 검증, 3: 비밀번호 변경)
+     */
+    private val _currentStep = MutableStateFlow(1)
+    val currentStep: StateFlow<Int> = _currentStep.asStateFlow()
+
+    /**
+     * 로딩 상태
+     */
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    /**
+     * 에러 메시지
+     */
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    /**
+     * 에러/이벤트 메시지 Channel
+     * UI에서 토스트 메시지나 스낵바로 표시
+     */
+    private val _events = Channel<String>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
+
+    /**
+     * 타이머 작업
+     */
     private var timerJob: Job? = null
 
-    fun updateEmail(value: String) {
-        email = value
-        // clear previous server errors when user edits
-        errorMessage = null
-    }
+    // =====================================================
+    // Public Methods
+    // =====================================================
 
-    fun clearError() {
-        errorMessage = null
+    /**
+     * 이메일 업데이트
+     */
+    fun updateEmail(email: String) {
+        _email.value = email
+        _error.value = null
     }
 
     /**
-     * Request security code to be sent to [email].
-     * onSuccess is invoked when backend accepted the request.
+     * 1단계: 보안 코드 요청 (이메일로 전송)
      */
-    fun requestSecurityCode(onSuccess: () -> Unit = {}, onFailure: ((String) -> Unit)? = null) {
-        if (email.isBlank()) {
-            val msg = "이메일을 입력하세요."
-            errorMessage = msg
-            onFailure?.invoke(msg)
+    suspend fun requestSecurityCode() {
+        val emailValue = _email.value
+        
+        if (emailValue.isBlank()) {
+            _error.value = "이메일을 입력하세요"
+            _events.runCatching { send("이메일을 입력하세요") }
+            return
+        }
+
+        if (!isValidEmail(emailValue)) {
+            _error.value = "올바른 이메일 형식이 아닙니다"
+            _events.runCatching { send("올바른 이메일 형식이 아닙니다") }
             return
         }
 
         viewModelScope.launch(ioDispatcher) {
-            isLoading = true
-            errorMessage = null
+            _isLoading.value = true
+            _uiState.value = PasswordRecoveryUiState.Loading
+            _error.value = null
             try {
-                val req = ForgotPasswordRequest(email = email)
-                when (val res = requestPasswordResetUseCase(req)) {
+                val request = ForgotPasswordRequest(email = emailValue)
+                when (val result = forgotPasswordUseCase(request)) {
                     is ApiResult.Success -> {
-                        // start countdown (common default 3 minutes)
-                        startCountdown(180)
-                        onSuccess()
+                        // 3분(180초) 코드 유효성 타이머 시작
+                        startCodeValidityTimer(180)
+                        _currentStep.value = 2
+                        _uiState.value = PasswordRecoveryUiState.Success("보안 코드가 이메일로 발송되었습니다")
+                        _events.send("보안 코드가 이메일로 발송되었습니다")
                     }
                     is ApiResult.Failure -> {
-                        val msg = res.message ?: "보안 코드 전송 실패"
-                        errorMessage = msg
-                        onFailure?.invoke(msg)
+                        _error.value = result.message ?: "코드 요청 실패"
+                        _uiState.value = PasswordRecoveryUiState.Error(result.message ?: "코드 요청 실패")
+                        _events.send(result.message ?: "코드 요청 실패")
                     }
                 }
-            } catch (t: Throwable) {
-                val msg = t.localizedMessage ?: "알 수 없는 오류"
-                errorMessage = msg
-                onFailure?.invoke(msg)
             } finally {
-                isLoading = false
+                _isLoading.value = false
             }
         }
     }
 
-    fun resendSecurityCode() {
-        // Allow resend even if secondsLeft > 0 — backend may throttle; UI keeps responsibility
+    /**
+     * 코드 재전송
+     */
+    suspend fun resendSecurityCode() {
         requestSecurityCode()
     }
 
     /**
-     * Verify the security code that user entered.
-     * On success we store the verified code to be used in the final reset step.
+     * 2단계: 보안 코드 검증
      */
-    fun verifyCode(code: String, onSuccess: () -> Unit = {}, onFailure: ((String) -> Unit)? = null) {
-        if (email.isBlank()) {
-            val msg = "이메일이 없습니다."
-            errorMessage = msg
-            onFailure?.invoke(msg)
+    suspend fun verifyCode(code: String) {
+        val emailValue = _email.value
+
+        if (code.isBlank()) {
+            _error.value = "보안 코드를 입력하세요"
+            _events.runCatching { send("보안 코드를 입력하세요") }
             return
         }
+
         if (code.length < 4) {
-            val msg = "올바른 보안 코드를 입력하세요."
-            errorMessage = msg
-            onFailure?.invoke(msg)
+            _error.value = "올바른 보안 코드를 입력하세요"
+            _events.runCatching { send("올바른 보안 코드를 입력하세요") }
             return
         }
 
         viewModelScope.launch(ioDispatcher) {
-            isLoading = true
-            errorMessage = null
+            _isLoading.value = true
+            _uiState.value = PasswordRecoveryUiState.Loading
+            _error.value = null
             try {
-                val req = VerifyCodeRequest(email = email, code = code)
-                when (val res = verifyPasswordResetCodeUseCase(req)) {
+                val request = VerifyCodeRequest(email = emailValue, code = code)
+                when (val result = verifyCodeUseCase(request)) {
                     is ApiResult.Success -> {
-                        verifiedCode = code
-                        onSuccess()
+                        _verifiedCode.value = code
+                        _currentStep.value = 3
+                        _uiState.value = PasswordRecoveryUiState.Success("코드 검증 완료")
+                        _events.send("코드 검증 완료")
                     }
                     is ApiResult.Failure -> {
-                        val msg = res.message ?: "코드 검증 실패"
-                        errorMessage = msg
-                        onFailure?.invoke(msg)
+                        _error.value = result.message ?: "코드 검증 실패"
+                        _uiState.value = PasswordRecoveryUiState.Error(result.message ?: "코드 검증 실패")
+                        _events.send(result.message ?: "코드 검증 실패")
                     }
                 }
-            } catch (t: Throwable) {
-                val msg = t.localizedMessage ?: "알 수 없는 오류"
-                errorMessage = msg
-                onFailure?.invoke(msg)
             } finally {
-                isLoading = false
+                _isLoading.value = false
             }
         }
     }
 
     /**
-     * Reset the password using previously verified code.
-     * If the code was not verified in this session, backend may still accept it (depending on backend design).
+     * 비밀번호 재설정 준비
+     * 최종 비밀번호 변경은 AuthViewModel.changePassword를 호출하면 됨
      */
-    fun resetPassword(
-        newPassword: String,
-        onSuccess: () -> Unit = {},
-        onFailure: ((String) -> Unit)? = null
-    ) {
-        val codeToUse = verifiedCode
-        if (email.isBlank() || codeToUse.isNullOrBlank()) {
-            val msg = "이메일 또는 보안 코드가 없습니다."
-            errorMessage = msg
-            onFailure?.invoke(msg)
-            return
-        }
-
-        viewModelScope.launch(ioDispatcher) {
-            isLoading = true
-            errorMessage = null
-            try {
-                val req = ResetPasswordRequest(
-                    email = email,
-                    code = codeToUse,
-                    newPassword = newPassword,
-                    newPasswordConfirm = newPassword
-                )
-                when (val res = resetPasswordUseCase(req)) {
-                    is ApiResult.Success -> {
-                        // clear sensitive stored code after success
-                        verifiedCode = null
-                        onSuccess()
-                    }
-                    is ApiResult.Failure -> {
-                        val msg = res.message ?: "비밀번호 변경 실패"
-                        errorMessage = msg
-                        onFailure?.invoke(msg)
-                    }
-                }
-            } catch (t: Throwable) {
-                val msg = t.localizedMessage ?: "알 수 없는 오류"
-                errorMessage = msg
-                onFailure?.invoke(msg)
-            } finally {
-                isLoading = false
-            }
+    fun getResetInfo(): Pair<String, String>? {
+        val email = _email.value
+        val code = _verifiedCode.value
+        
+        return if (email.isNotBlank() && code.isNotBlank()) {
+            Pair(email, code)
+        } else {
+            null
         }
     }
 
-    private fun startCountdown(seconds: Int) {
+    /**
+     * 흐름 초기화 (처음부터 다시 시작)
+     */
+    fun reset() {
+        _email.value = ""
+        _verifiedCode.value = ""
+        _currentStep.value = 1
+        _error.value = null
+        _uiState.value = PasswordRecoveryUiState.Idle
         timerJob?.cancel()
-        secondsLeft = seconds
+        _codeValiditySeconds.value = 0
+    }
+
+    /**
+     * 에러 초기화
+     */
+    fun clearError() {
+        _error.value = null
+    }
+
+    /**
+     * 상태 초기화
+     */
+    fun resetState() {
+        _uiState.value = PasswordRecoveryUiState.Idle
+        _error.value = null
+    }
+
+    // =====================================================
+    // Private Helper Methods
+    // =====================================================
+
+    /**
+     * 이메일 유효성 검사 (간단한 정규식)
+     */
+    private fun isValidEmail(email: String): Boolean {
+        return email.contains("@") && email.contains(".")
+    }
+
+    /**
+     * 코드 유효 시간 카운트다운 시작 (초)
+     */
+    private fun startCodeValidityTimer(seconds: Int) {
+        timerJob?.cancel()
+        _codeValiditySeconds.value = seconds
+        
         timerJob = viewModelScope.launch {
-            while (secondsLeft > 0) {
+            while (_codeValiditySeconds.value > 0) {
                 delay(1000L)
-                secondsLeft = secondsLeft - 1
+                _codeValiditySeconds.value = _codeValiditySeconds.value - 1
             }
         }
     }
 
+    /**
+     * ViewModel 해제 시 타이머 정리
+     */
     override fun onCleared() {
         super.onCleared()
         timerJob?.cancel()

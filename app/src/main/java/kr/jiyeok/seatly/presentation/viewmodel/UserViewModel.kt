@@ -8,135 +8,205 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kr.jiyeok.seatly.data.remote.request.ChangePasswordRequest
 import kr.jiyeok.seatly.data.remote.request.UpdateUserRequest
-import kr.jiyeok.seatly.data.remote.response.CurrentCafeUsageDto
 import kr.jiyeok.seatly.data.remote.response.UserResponseDto
 import kr.jiyeok.seatly.data.repository.ApiResult
-import kr.jiyeok.seatly.domain.usecase.user.*
+import kr.jiyeok.seatly.domain.usecase.*
+import kr.jiyeok.seatly.di.IoDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import javax.inject.Inject
 
+/**
+ * User Profile ViewModel
+ * 
+ * 역할:
+ * - 사용자 프로필 정보 관리
+ * - 사용자 정보 수정
+ * - 비밀번호 변경
+ * - 계정 삭제
+ * 
+ * UI는 StateFlow를 통해 상태를 관찰하고,
+ * 에러/이벤트는 [events] Channel을 통해 수신합니다
+ */
+
+/**
+ * 사용자 UI 상태
+ */
 sealed interface UserUiState {
     object Idle : UserUiState
     object Loading : UserUiState
-    data class Success<T>(val data: T) : UserUiState
+    data class Success(val message: String = "") : UserUiState
     data class Error(val message: String) : UserUiState
 }
 
 @HiltViewModel
 class UserViewModel @Inject constructor(
-    private val getCurrentUserUseCase: GetCurrentUserUseCase,
     private val getUserInfoUseCase: GetUserInfoUseCase,
-    private val updateUserUseCase: UpdateUserUseCase,
+    private val updateUserInfoUseCase: UpdateUserInfoUseCase,
     private val changePasswordUseCase: ChangePasswordUseCase,
     private val deleteAccountUseCase: DeleteAccountUseCase,
-    private val getCurrentCafeUsageUseCase: GetCurrentCafeUsageUseCase
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
+    // =====================================================
+    // State Management
+    // =====================================================
+
+    /**
+     * 사용자 UI 상태
+     * Idle → Loading → Success/Error
+     */
     private val _userState = MutableStateFlow<UserUiState>(UserUiState.Idle)
     val userState: StateFlow<UserUiState> = _userState.asStateFlow()
 
-    private val _profile = MutableStateFlow<UserResponseDto?>(null)
-    val profile: StateFlow<UserResponseDto?> = _profile.asStateFlow()
+    /**
+     * 사용자 프로필 정보
+     */
+    private val _userProfile = MutableStateFlow<UserResponseDto?>(null)
+    val userProfile: StateFlow<UserResponseDto?> = _userProfile.asStateFlow()
 
-    private val _currentCafeUsage = MutableStateFlow<CurrentCafeUsageDto?>(null)
-    val currentCafeUsage: StateFlow<CurrentCafeUsageDto?> = _currentCafeUsage.asStateFlow()
+    /**
+     * 로딩 상태
+     */
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    /**
+     * 에러 메시지
+     */
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    /**
+     * 에러/이벤트 메시지 Channel
+     * UI에서 토스트 메시지나 스낵바로 표시
+     */
     private val _events = Channel<String>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
-    fun loadProfile() {
-        viewModelScope.launch {
+    // =====================================================
+    // Public Methods
+    // =====================================================
+
+    /**
+     * 사용자 정보 로드
+     */
+    fun loadUserProfile() {
+        viewModelScope.launch(ioDispatcher) {
+            _isLoading.value = true
             _userState.value = UserUiState.Loading
-            when (val res = getCurrentUserUseCase()) {
-                is ApiResult.Success -> {
-                    res.data?.let { _profile.value = it }
-                    _userState.value = res.data?.let { UserUiState.Success(it) } ?: UserUiState.Error("프로필이 없습니다.")
+            _error.value = null
+            try {
+                when (val result = getUserInfoUseCase()) {
+                    is ApiResult.Success -> {
+                        _userProfile.value = result.data
+                        _userState.value = UserUiState.Success("프로필 로드 완료")
+                    }
+                    is ApiResult.Failure -> {
+                        _error.value = result.message ?: "사용자 정보 조회 실패"
+                        _userState.value = UserUiState.Error(result.message ?: "사용자 정보 조회 실패")
+                        _events.send(result.message ?: "사용자 정보 조회 실패")
+                    }
                 }
-                is ApiResult.Failure -> {
-                    _userState.value = UserUiState.Error(res.message ?: "사용자 조회 실패")
-                    _events.send(res.message ?: "사용자 조회 실패")
-                }
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
-    fun loadUserInfo() {
-        viewModelScope.launch {
+    /**
+     * 사용자 정보 수정
+     */
+    fun updateUserProfile(name: String?, phone: String?, imageUrl: String?) {
+        viewModelScope.launch(ioDispatcher) {
+            _isLoading.value = true
             _userState.value = UserUiState.Loading
-            when (val res = getUserInfoUseCase()) {
-                is ApiResult.Success -> {
-                    res.data?.let { _profile.value = it }
-                    _userState.value = res.data?.let { UserUiState.Success(it) } ?: UserUiState.Error("정보 없음")
+            _error.value = null
+            try {
+                val request = UpdateUserRequest(name, phone, imageUrl)
+                when (val result = updateUserInfoUseCase(request)) {
+                    is ApiResult.Success -> {
+                        _userProfile.value = result.data
+                        _userState.value = UserUiState.Success("프로필이 업데이트되었습니다")
+                        _events.send("프로필이 업데이트되었습니다")
+                    }
+                    is ApiResult.Failure -> {
+                        _error.value = result.message ?: "프로필 업데이트 실패"
+                        _userState.value = UserUiState.Error(result.message ?: "프로필 업데이트 실패")
+                        _events.send(result.message ?: "프로필 업데이트 실패")
+                    }
                 }
-                is ApiResult.Failure -> {
-                    _userState.value = UserUiState.Error(res.message ?: "정보 조회 실패")
-                    _events.send(res.message ?: "정보 조회 실패")
-                }
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
-    fun updateProfile(request: UpdateUserRequest) {
-        viewModelScope.launch {
+    /**
+     * 비밀번호 변경
+     */
+    fun changePassword(userId: Long, currentPassword: String, newPassword: String) {
+        viewModelScope.launch(ioDispatcher) {
+            _isLoading.value = true
             _userState.value = UserUiState.Loading
-            when (val res = updateUserUseCase(request)) {
-                is ApiResult.Success -> {
-                    res.data?.let { _profile.value = it }
-                    _userState.value = UserUiState.Success(res.data ?: Unit)
-                    _events.send("프로필이 업데이트되었습니다.")
+            _error.value = null
+            try {
+                val request = ChangePasswordRequest(currentPassword, newPassword)
+                when (val result = changePasswordUseCase(userId, request)) {
+                    is ApiResult.Success -> {
+                        _userState.value = UserUiState.Success("비밀번호가 변경되었습니다")
+                        _events.send("비밀번호가 변경되었습니다")
+                    }
+                    is ApiResult.Failure -> {
+                        _error.value = result.message ?: "비밀번호 변경 실패"
+                        _userState.value = UserUiState.Error(result.message ?: "비밀번호 변경 실패")
+                        _events.send(result.message ?: "비밀번호 변경 실패")
+                    }
                 }
-                is ApiResult.Failure -> {
-                    _userState.value = UserUiState.Error(res.message ?: "프로필 업데이트 실패")
-                    _events.send(res.message ?: "프로필 업데이트 실패")
-                }
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
-    fun changePassword(request: ChangePasswordRequest) {
-        viewModelScope.launch {
-            _userState.value = UserUiState.Loading
-            when (val res = changePasswordUseCase(request)) {
-                is ApiResult.Success -> {
-                    _userState.value = UserUiState.Success(Unit)
-                    _events.send("비밀번호가 변경되었습니다.")
-                }
-                is ApiResult.Failure -> {
-                    _userState.value = UserUiState.Error(res.message ?: "비밀번호 변경 실패")
-                    _events.send(res.message ?: "비밀번호 변경 실패")
-                }
-            }
-        }
-    }
-
+    /**
+     * 계정 삭제
+     */
     fun deleteAccount() {
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
+            _isLoading.value = true
             _userState.value = UserUiState.Loading
-            when (val res = deleteAccountUseCase()) {
-                is ApiResult.Success -> {
-                    _userState.value = UserUiState.Success(Unit)
-                    _events.send("회원탈퇴 완료")
+            _error.value = null
+            try {
+                when (val result = deleteAccountUseCase()) {
+                    is ApiResult.Success -> {
+                        _userProfile.value = null
+                        _userState.value = UserUiState.Success("회원탈퇴 완료")
+                        _events.send("회원탈퇴 완료되었습니다")
+                    }
+                    is ApiResult.Failure -> {
+                        _error.value = result.message ?: "회원탈퇴 실패"
+                        _userState.value = UserUiState.Error(result.message ?: "회원탈퇴 실패")
+                        _events.send(result.message ?: "회원탈퇴 실패")
+                    }
                 }
-                is ApiResult.Failure -> {
-                    _userState.value = UserUiState.Error(res.message ?: "회원탈퇴 실패")
-                    _events.send(res.message ?: "회원탈퇴 실패")
-                }
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
-    fun loadCurrentCafeUsage() {
-        viewModelScope.launch {
-            _userState.value = UserUiState.Loading
-            when (val res = getCurrentCafeUsageUseCase()) {
-                is ApiResult.Success -> {
-                    _currentCafeUsage.value = res.data
-                    _userState.value = res.data?.let { UserUiState.Success(it) } ?: UserUiState.Error("사용중인 카페가 없습니다.")
-                }
-                is ApiResult.Failure -> {
-                    _userState.value = UserUiState.Error(res.message ?: "현재 이용 정보 조회 실패")
-                    _events.send(res.message ?: "현재 이용 정보 조회 실패")
-                }
-            }
-        }
+    /**
+     * 에러 초기화
+     */
+    fun clearError() {
+        _error.value = null
+    }
+
+    /**
+     * 상태 초기화
+     */
+    fun resetState() {
+        _userState.value = UserUiState.Idle
+        _error.value = null
     }
 }

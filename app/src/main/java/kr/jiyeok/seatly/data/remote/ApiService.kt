@@ -2,183 +2,291 @@ package kr.jiyeok.seatly.data.remote
 
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
-import retrofit2.http.Body
-import retrofit2.http.DELETE
-import retrofit2.http.GET
-import retrofit2.http.Multipart
-import retrofit2.http.POST
-import retrofit2.http.PUT
-import retrofit2.http.PATCH
-import retrofit2.http.Part
-import retrofit2.http.Path
-import retrofit2.http.Query
-import retrofit2.http.PartMap
+import retrofit2.http.*
 import kotlin.jvm.JvmSuppressWildcards
 import kr.jiyeok.seatly.data.remote.request.*
 import kr.jiyeok.seatly.data.remote.response.*
 
 interface ApiService {
 
-    // Authentication
-    @POST("auth/login")
-    suspend fun login(@Body request: LoginRequest): ApiResponse<LoginResponseDTO>
+    // =====================================================
+    // [✅] AuthController - /auth
+    // =====================================================
 
+    /**
+     * POST /auth/login
+     * 로그인 성공 시 토큰과 유저 정보 함께 반환
+     */
+    @POST("auth/login")
+    suspend fun login(@Body request: LoginRequest): ApiResponse<LoginResponse>
+
+    /**
+     * POST /auth/logout
+     * 로그아웃
+     */
     @POST("auth/logout")
     suspend fun logout(): ApiResponse<Unit>
 
+    /**
+     * POST /auth/register
+     * 회원가입
+     */
     @POST("auth/register")
-    suspend fun register(@Body request: RegisterRequest): ApiResponse<UserResponseDto>
+    suspend fun register(@Body request: RegisterRequest): ApiResponse<Unit>
 
-    @POST("auth/register/social")
-    suspend fun socialRegister(@Body request: SocialRegisterRequest): ApiResponse<UserResponseDto>
+    /**
+     * POST /auth/refresh
+     * 토큰 리프레시
+     */
+    @POST("auth/refresh")
+    suspend fun refreshToken(@Body request: RefreshTokenRequest): ApiResponse<TokenResponse>
 
-    @POST("auth/password/forgot")
-    suspend fun requestPasswordReset(@Body request: ForgotPasswordRequest): ApiResponse<Unit>
+    // =====================================================
+    // [✅] UserController - /user
+    // =====================================================
 
-    @POST("auth/password/verify-code")
-    suspend fun verifyPasswordResetCode(@Body request: VerifyCodeRequest): ApiResponse<Unit>
-
-    @POST("auth/password/reset")
-    suspend fun resetPassword(@Body request: ResetPasswordRequest): ApiResponse<Unit>
-
-    // User
-    @GET("users/me")
-    suspend fun getCurrentUser(): ApiResponse<UserResponseDto>
-
-    @GET("user-info")
+    /**
+     * GET /user
+     * 로그인한 사용자 정보 조회
+     */
+    @GET("user")
     suspend fun getUserInfo(): ApiResponse<UserResponseDto>
 
-    @PUT("users/me")
-    suspend fun updateUser(@Body request: UpdateUserRequest): ApiResponse<UserResponseDto>
+    /**
+     * PATCH /user
+     * 사용자 정보 편집 (이름, 전화번호, 이미지)
+     */
+    @PATCH("user")
+    suspend fun updateUserInfo(@Body request: UpdateUserRequest): ApiResponse<UserResponseDto>
 
-    @PATCH("users/me/password")
-    suspend fun changePassword(@Body request: ChangePasswordRequest): ApiResponse<Unit>
-
-    @DELETE("users/me")
+    /**
+     * DELETE /user
+     * 회원탈퇴
+     */
+    @DELETE("user")
     suspend fun deleteAccount(): ApiResponse<Unit>
 
-    @GET("users/me/current-cafe")
-    suspend fun getCurrentCafeUsage(): ApiResponse<CurrentCafeUsageDto>
+    /**
+     * PUT /user/{id}/password
+     * 비밀번호 변경
+     */
+    @PUT("user/{id}/password")
+    suspend fun changePassword(
+        @Path("id") userId: Long,
+        @Body request: ChangePasswordRequest
+    ): ApiResponse<Unit>
 
-    // Favorites & Recent
-    @GET("users/me/favorites")
-    suspend fun getFavoriteCafes(
+    // =====================================================
+    // [✅] UsersController - /users (Admin only)
+    // =====================================================
+
+    /**
+     * GET /users?studyCafeId={id}
+     * 현재 내가 관리하는 스터디카페에 시간권이 남아있는 사용자 목록
+     */
+    @GET("users")
+    suspend fun getUsersWithTimePass(
+        @Query("studyCafeId") studyCafeId: Long
+    ): ApiResponse<List<UserTimePassInfo>>
+
+    /**
+     * GET /users/{id}
+     * 사용자 정보 조회 (관리자)
+     */
+    @GET("users/{id}")
+    suspend fun getUserInfoAdmin(@Path("id") userId: Long): ApiResponse<UserResponseDtoAdmin>
+
+    // =====================================================
+    // [✅] SessionController - /sessions
+    // =====================================================
+
+    /**
+     * GET /sessions
+     * 세션 목록 조회 (좌석 목록과 결합해서 사용)
+     */
+    @GET("sessions")
+    suspend fun getSessions(): ApiResponse<List<SessionDto>>
+
+    /**
+     * PATCH /sessions/{id}/start
+     * 좌석 이용 시작
+     */
+    @PATCH("sessions/{id}/start")
+    suspend fun startSession(@Path("id") sessionId: Long): ApiResponse<SessionDto>
+
+    /**
+     * DELETE /sessions/{id}
+     * 좌석 이용 종료 (본인 또는 관리자만 가능)
+     */
+    @DELETE("sessions/{id}")
+    suspend fun endSession(@Path("id") sessionId: Long): ApiResponse<Unit>
+
+    /**
+     * POST /sessions/assign?seatId={seatId}
+     * 좌석 선택 (수동 할당)
+     */
+    @POST("sessions/assign")
+    suspend fun assignSeat(@Query("seatId") seatId: String): ApiResponse<SessionDto>
+
+    /**
+     * POST /sessions/auto-assign?seatId={seatId}
+     * 좌석 자동 할당
+     */
+    @POST("sessions/auto-assign")
+    suspend fun autoAssignSeat(@Query("seatId") seatId: String): ApiResponse<SessionDto>
+
+    // =====================================================
+    // [✅] StudyCafeController - /study-cafes
+    // =====================================================
+
+    /**
+     * GET /study-cafes
+     * 전체 카페 목록 조회
+     */
+    @GET("study-cafes")
+    suspend fun getStudyCafes(
         @Query("page") page: Int = 0,
         @Query("size") size: Int = 20
     ): ApiResponse<PageResponse<StudyCafeSummaryDto>>
 
-    @POST("users/me/favorites/{cafeId}")
-    suspend fun addFavoriteCafe(@Path("cafeId") cafeId: Long): ApiResponse<Unit>
-
-    @DELETE("users/me/favorites/{cafeId}")
-    suspend fun removeFavoriteCafe(@Path("cafeId") cafeId: Long): ApiResponse<Unit>
-
-    @GET("users/me/recent-cafes")
-    suspend fun getRecentCafes(
-        @Query("limit") limit: Int = 10
-    ): ApiResponse<List<StudyCafeSummaryDto>>
-
-    // Study Cafes
-    @GET("study-cafes")
-    suspend fun getStudyCafes(
-        @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20,
-        @Query("search") search: String? = null,
-        @Query("amenities") amenities: String? = null,
-        @Query("openNow") openNow: Boolean? = null,
-        @Query("sort") sort: String? = null,
-        @Query("lat") lat: Double? = null,
-        @Query("lng") lng: Double? = null
-    ): ApiResponse<PageResponse<StudyCafeSummaryDto>>
-
-    @GET("study-cafes/{id}/summary")
-    suspend fun getCafeSummary(@Path("id") cafeId: Long): ApiResponse<StudyCafeSummaryDto>
-
+    /**
+     * GET /study-cafes/{id}
+     * 카페 상세 정보 조회
+     */
     @GET("study-cafes/{id}")
     suspend fun getCafeDetail(@Path("id") cafeId: Long): ApiResponse<StudyCafeDetailDto>
 
-    // Seats
-    @GET("study-cafes/{id}/seats")
-    suspend fun getCafeSeats(
-        @Path("id") cafeId: Long,
-        @Query("status") status: String? = null
-    ): ApiResponse<List<SeatResponseDto>>
+    /**
+     * POST /study-cafes
+     * 카페 추가 (관리자)
+     */
+    @POST("study-cafes")
+    suspend fun createCafe(@Body request: StudyCafeDetailPost): ApiResponse<StudyCafeDetailDto>
 
-    @POST("study-cafes/{id}/seats/auto-assign")
-    suspend fun autoAssignSeat(@Path("id") cafeId: Long): ApiResponse<SessionResponseDto>
-
-    @POST("study-cafes/{id}/seats/reservation")
-    suspend fun reserveSeat(
-        @Path("id") cafeId: Long,
-        @Body request: ReservationRequest
-    ): ApiResponse<SessionResponseDto>
-
-    // Sessions
-    @POST("sessions/start")
-    suspend fun startSession(@Body request: StartSessionRequest): ApiResponse<SessionResponseDto>
-
-    @POST("sessions/{id}/end")
-    suspend fun endSession(@Path("id") sessionId: Long): ApiResponse<SessionResponseDto>
-
-    @GET("sessions")
-    suspend fun getCurrentSessions(
-        @Query("study_cafe_id") studyCafeId: Long? = null
-    ): ApiResponse<List<SessionResponseDto>>
-
-    // Admin
-    @GET("admin/study-cafes")
-    suspend fun getAdminCafes(
-        @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20,
-        @Query("search") search: String? = null
-    ): ApiResponse<PageResponse<StudyCafeSummaryDto>>
-
-    @GET("admin/study-cafes/{id}")
-    suspend fun getAdminCafeDetail(@Path("id") cafeId: Long): ApiResponse<StudyCafeDetailDto>
-
-    @Multipart
-    @POST("admin/study-cafes")
-    suspend fun createCafe(
-        @PartMap parts: Map<String, @JvmSuppressWildcards RequestBody>,
-        @Part images: List<MultipartBody.Part> = emptyList()
-    ): ApiResponse<StudyCafeDetailDto>
-
-    @Multipart
-    @PUT("admin/study-cafes/{id}")
+    /**
+     * PATCH /study-cafes/{id}
+     * 카페 정보 수정 (관리자)
+     */
+    @PATCH("study-cafes/{id}")
     suspend fun updateCafe(
         @Path("id") cafeId: Long,
-        @PartMap parts: Map<String, @JvmSuppressWildcards RequestBody>,
-        @Part images: List<MultipartBody.Part> = emptyList()
+        @Body request: StudyCafeDetailPost
     ): ApiResponse<StudyCafeDetailDto>
 
-    @DELETE("admin/study-cafes/{id}")
+    /**
+     * DELETE /study-cafes/{id}
+     * 카페 삭제 (관리자)
+     */
+    @DELETE("study-cafes/{id}")
     suspend fun deleteCafe(@Path("id") cafeId: Long): ApiResponse<Unit>
 
-    @POST("admin/study-cafes/{id}/seats")
-    suspend fun addSeat(
+    /**
+     * POST /study-cafes/{id}/favorite
+     * 카페 즐겨찾기 추가
+     */
+    @POST("study-cafes/{id}/favorite")
+    suspend fun addFavoriteCafe(@Path("id") cafeId: Long): ApiResponse<Unit>
+
+    /**
+     * DELETE /study-cafes/{id}/favorite
+     * 카페 즐겨찾기 제거
+     */
+    @DELETE("study-cafes/{id}/favorite")
+    suspend fun removeFavoriteCafe(@Path("id") cafeId: Long): ApiResponse<Unit>
+
+    /**
+     * GET /study-cafes/{id}/usage
+     * 카페 실시간 혼잡도 조회
+     */
+    @GET("study-cafes/{id}/usage")
+    suspend fun getCafeUsage(@Path("id") cafeId: Long): ApiResponse<UsageDto>
+
+    /**
+     * DELETE /study-cafes/{id}/users/{userId}/time
+     * 회원의 남은 시간권 삭제 (관리자)
+     */
+    @DELETE("study-cafes/{id}/users/{userId}/time")
+    suspend fun deleteUserTimePass(
         @Path("id") cafeId: Long,
-        @Body request: AddSeatRequest
-    ): ApiResponse<SeatResponseDto>
-
-    @PUT("admin/study-cafes/{cafeId}/seats/{seatId}")
-    suspend fun editSeat(
-        @Path("cafeId") cafeId: Long,
-        @Path("seatId") seatId: Long,
-        @Body request: EditSeatRequest
-    ): ApiResponse<SeatResponseDto>
-
-    @DELETE("admin/study-cafes/{cafeId}/seats/{seatId}")
-    suspend fun deleteSeat(
-        @Path("cafeId") cafeId: Long,
-        @Path("seatId") seatId: Long
-    ): ApiResponse<Unit>
-
-    @DELETE("admin/sessions/{id}")
-    suspend fun forceEndSession(@Path("id") sessionId: Long): ApiResponse<Unit>
-
-    @DELETE("admin/study-cafes/{cafeId}/users/{userId}")
-    suspend fun deleteUserFromCafe(
-        @Path("cafeId") cafeId: Long,
         @Path("userId") userId: Long
     ): ApiResponse<Unit>
+
+    /**
+     * GET /study-cafes/admin
+     * 관리자가 관리하는 카페 목록
+     */
+    @GET("study-cafes/admin")
+    suspend fun getAdminCafes(
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 20
+    ): ApiResponse<PageResponse<StudyCafeSummaryDto>>
+
+    // =====================================================
+    // [✅] SeatController - /study-cafes/{id}/seats
+    // =====================================================
+
+    /**
+     * GET /study-cafes/{id}/seats
+     * 좌석 정보 조회
+     */
+    @GET("study-cafes/{id}/seats")
+    suspend fun getCafeSeats(@Path("id") cafeId: Long): ApiResponse<GetSeatResponse>
+
+    /**
+     * POST /study-cafes/{id}/seats
+     * 좌석 추가 (관리자)
+     * 리스트로 여러 좌석 한번에 추가 가능
+     */
+    @POST("study-cafes/{id}/seats")
+    suspend fun createSeats(
+        @Path("id") cafeId: Long,
+        @Body request: CreateSeatRequest
+    ): ApiResponse<GetSeatResponse>
+
+    /**
+     * PATCH /study-cafes/{id}/seats
+     * 좌석 정보 수정 (관리자)
+     * 리스트로 여러 좌석 한번에 수정 가능
+     */
+    @PATCH("study-cafes/{id}/seats")
+    suspend fun updateSeats(
+        @Path("id") cafeId: Long,
+        @Body request: UpdateSeatRequest
+    ): ApiResponse<GetSeatResponse>
+
+    /**
+     * DELETE /study-cafes/{id}/seats/{seatId}
+     * 좌석 삭제 (관리자)
+     */
+    @DELETE("study-cafes/{id}/seats/{seatId}")
+    suspend fun deleteSeat(
+        @Path("id") cafeId: Long,
+        @Path("seatId") seatId: String
+    ): ApiResponse<Unit>
+
+    // =====================================================
+    // [✅] ImageController - /images
+    // =====================================================
+
+    /**
+     * POST /images/upload
+     * 이미지 업로드
+     */
+    @Multipart
+    @POST("images/upload")
+    suspend fun uploadImage(@Part file: MultipartBody.Part): ApiResponse<ImageUploadResponse>
+
+    /**
+     * GET /images/{imageId}
+     * 이미지 조회 (다운로드)
+     */
+    @GET("images/{imageId}")
+    suspend fun getImage(@Path("imageId") imageId: String): ApiResponse<ByteArray>
+
+    /**
+     * DELETE /images/{imageId}
+     * 이미지 삭제
+     */
+    @DELETE("images/{imageId}")
+    suspend fun deleteImage(@Path("imageId") imageId: String): ApiResponse<Unit>
 }

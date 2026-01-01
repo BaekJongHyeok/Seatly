@@ -1,78 +1,183 @@
 package kr.jiyeok.seatly.data.remote.request
 
+// =====================================================
+// Auth Requests
+// =====================================================
+
+/**
+ * POST /auth/login 요청
+ */
 data class LoginRequest(
     val email: String,
     val password: String
 )
 
+/**
+ * POST /auth/register 요청
+ * 회원가입
+ */
 data class RegisterRequest(
     val email: String,
     val password: String,
-    val passwordConfirm: String,
     val name: String,
-    val phone: String?,
-    val agreeTerms: Boolean
+    val phone: String
 )
 
+/**
+ * POST /auth/refresh 요청
+ * 토큰 리프레시
+ */
+data class RefreshTokenRequest(
+    val refreshToken: String
+)
+
+/**
+ * 소셜 로그인 회원가입
+ * POST /auth/social-register (보류)
+ */
 data class SocialRegisterRequest(
     val email: String,
     val name: String,
     val phone: String?,
-    val provider: String,
-    val agreeTerms: Boolean
+    val provider: String  // KAKAO, GOOGLE, NAVER, etc.
 )
 
+/**
+ * 비밀번호 찾기 - 보안 코드 전송 (보류)
+ * POST /auth/forgot-password
+ */
 data class ForgotPasswordRequest(
     val email: String
 )
 
+/**
+ * 비밀번호 찾기 - 보안 코드 검증 (보류)
+ * POST /auth/verify-code
+ */
 data class VerifyCodeRequest(
     val email: String,
     val code: String
 )
 
-data class ResetPasswordRequest(
-    val email: String,
-    val code: String,
-    val newPassword: String,
-    val newPasswordConfirm: String
-)
+// =====================================================
+// User Requests
+// =====================================================
 
+/**
+ * PATCH /user 요청
+ * 사용자 정보 편집
+ */
 data class UpdateUserRequest(
     val name: String?,
     val phone: String?,
     val imageUrl: String?
 )
 
+/**
+ * PUT /user/{id}/password 요청
+ * 비밀번호 변경
+ */
 data class ChangePasswordRequest(
     val currentPassword: String,
-    val newPassword: String,
-    val newPasswordConfirm: String
+    val newPassword: String
 )
 
-data class AddSeatRequest(
-    val seatNumber: String,
-    val position: String,
-    val type: String? = null,
-    val meta: Map<String, String>? = null
+// =====================================================
+// Seat Requests
+// =====================================================
+
+/**
+ * POST /study-cafes/{id}/seats 요청
+ * 좌석 추가 (리스트로 여러 개 한번에)
+ */
+data class CreateSeatRequest(
+    val seats: List<SeatCreate>
 )
 
-data class EditSeatRequest(
-    val seatNumber: String?,
-    val position: String?,
-    val type: String?,
-    val meta: Map<String, String>? = null
+/**
+ * 좌석 생성 정보
+ */
+data class SeatCreate(
+    val name: String,
+    val status: String,  // AVAILABLE, UNAVAILABLE
+    val position: String  // window, middle, wall, etc.
 )
 
-data class ReservationRequest(
-    val seatId: Long?,
-    val startAt: String?,
-    val durationMinutes: Int?,
-    val note: String? = null
+/**
+ * PATCH /study-cafes/{id}/seats 요청
+ * 좌석 정보 수정 (리스트로 여러 개 한번에)
+ */
+data class UpdateSeatRequest(
+    val seats: List<SeatUpdate>
 )
 
-data class StartSessionRequest(
-    val studyCafeId: Long,
-    val seatId: Long?,
-    val startAt: String? = null
+/**
+ * 좌석 수정 정보
+ */
+data class SeatUpdate(
+    val id: String,
+    val name: String,
+    val status: String,  // AVAILABLE, UNAVAILABLE
+    val position: String  // window, middle, wall, etc.
+)
+
+// =====================================================
+// Study Cafe Requests
+// =====================================================
+
+/**
+ * POST /study-cafes 요청
+ * 카페 추가 (관리자)
+ */
+data class CreateCafeRequest(
+    val name: String,
+    val address: String,
+    val images: List<String> = emptyList(),
+    val phoneNumber: String?,
+    val facilities: List<String> = emptyList(),
+    val openingHours: List<OpeningHourRequest> = emptyList(),
+    val description: String? = null
+)
+
+/**
+ * PATCH /study-cafes/{id} 요청
+ * 카페 정보 수정 (관리자)
+ */
+data class UpdateCafeRequest(
+    val name: String?,
+    val address: String?,
+    val images: List<String> = emptyList(),
+    val phoneNumber: String?,
+    val facilities: List<String> = emptyList(),
+    val openingHours: List<OpeningHourRequest> = emptyList(),
+    val description: String? = null
+)
+
+/**
+ * 영업 시간 요청
+ */
+data class OpeningHourRequest(
+    val day: String,  // MON, TUE, WED, THU, FRI, SAT, SUN
+    val openTime: String,  // HH:mm
+    val closeTime: String  // HH:mm
+)
+
+// =====================================================
+// Session Requests (for future use)
+// =====================================================
+
+/**
+ * POST /sessions/assign 요청
+ * 좌석 수동 할당 - Query parameter: seatId
+ */
+data class AssignSeatRequest(
+    val seatId: String
+)
+
+/**
+ * POST /sessions/auto-assign 요청
+ * 좌석 자동 할당 - Query parameter: seatId
+ */
+data class AutoAssignSeatRequest(
+    val seatId: String
 )

@@ -4,91 +4,182 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kr.jiyeok.seatly.data.remote.ApiService
-import kr.jiyeok.seatly.data.remote.request.ChangePasswordRequest
-import kr.jiyeok.seatly.data.remote.request.ForgotPasswordRequest
-import kr.jiyeok.seatly.data.remote.request.LoginRequest
-import kr.jiyeok.seatly.data.remote.request.RegisterRequest
-import kr.jiyeok.seatly.data.remote.request.ReservationRequest
-import kr.jiyeok.seatly.data.remote.request.ResetPasswordRequest
-import kr.jiyeok.seatly.data.remote.request.SocialRegisterRequest
-import kr.jiyeok.seatly.data.remote.request.StartSessionRequest
-import kr.jiyeok.seatly.data.remote.request.UpdateUserRequest
-import kr.jiyeok.seatly.data.remote.request.VerifyCodeRequest
+import kr.jiyeok.seatly.data.remote.request.*
+import kr.jiyeok.seatly.data.remote.response.*
 import kr.jiyeok.seatly.di.IoDispatcher
-import okhttp3.MultipartBody
-import okhttp3.RequestBody
 import retrofit2.HttpException
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Seatly Repository 구현체
+ * 모든 API 호출을 관리하고 에러 처리를 수행합니다
+ */
 @Singleton
 class SeatlyRepositoryImpl @Inject constructor(
     private val apiService: ApiService,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : SeatlyRepository {
 
-    override suspend fun login(request: LoginRequest) = safeApiCall { apiService.login(request) }
-    override suspend fun logout() = safeApiCall { apiService.logout() }
-    override suspend fun register(request: RegisterRequest) = safeApiCall { apiService.register(request) }
-    override suspend fun socialRegister(request: SocialRegisterRequest) = safeApiCall { apiService.socialRegister(request) }
-    override suspend fun requestPasswordReset(request: ForgotPasswordRequest) = safeApiCall { apiService.requestPasswordReset(request) }
-    override suspend fun verifyPasswordResetCode(request: VerifyCodeRequest) = safeApiCall { apiService.verifyPasswordResetCode(request) }
-    override suspend fun resetPassword(request: ResetPasswordRequest) = safeApiCall { apiService.resetPassword(request) }
+    // =====================================================
+    // Authentication
+    // =====================================================
 
-    override suspend fun getCurrentUser() = safeApiCall { apiService.getCurrentUser() }
-    override suspend fun getUserInfo() = safeApiCall { apiService.getUserInfo() }
-    override suspend fun updateUser(request: UpdateUserRequest) = safeApiCall { apiService.updateUser(request) }
-    override suspend fun changePassword(request: ChangePasswordRequest) = safeApiCall { apiService.changePassword(request) }
-    override suspend fun deleteAccount() = safeApiCall { apiService.deleteAccount() }
-    override suspend fun getCurrentCafeUsage() = safeApiCall { apiService.getCurrentCafeUsage() }
+    override suspend fun login(request: LoginRequest) =
+        safeApiCall { apiService.login(request) }
 
-    override suspend fun getFavoriteCafes(page: Int, size: Int) = safeApiCall { apiService.getFavoriteCafes(page, size) }
-    override suspend fun addFavoriteCafe(cafeId: Long) = safeApiCall { apiService.addFavoriteCafe(cafeId) }
-    override suspend fun removeFavoriteCafe(cafeId: Long) = safeApiCall { apiService.removeFavoriteCafe(cafeId) }
-    override suspend fun getRecentCafes(limit: Int) = safeApiCall { apiService.getRecentCafes(limit) }
+    override suspend fun logout() =
+        safeApiCall { apiService.logout() }
 
-    override suspend fun getStudyCafes(page: Int, size: Int, search: String?, amenities: String?, openNow: Boolean?, sort: String?, lat: Double?, lng: Double?) =
-        safeApiCall { apiService.getStudyCafes(page, size, search, amenities, openNow, sort, lat, lng) }
+    override suspend fun register(request: RegisterRequest) =
+        safeApiCall { apiService.register(request) }
 
-    override suspend fun getCafeSummary(cafeId: Long) = safeApiCall { apiService.getCafeSummary(cafeId) }
-    override suspend fun getCafeDetail(cafeId: Long) = safeApiCall { apiService.getCafeDetail(cafeId) }
+    override suspend fun refreshToken(request: RefreshTokenRequest) =
+        safeApiCall { apiService.refreshToken(request) }
 
-    override suspend fun getCafeSeats(cafeId: Long, status: String?) = safeApiCall { apiService.getCafeSeats(cafeId, status) }
-    override suspend fun autoAssignSeat(cafeId: Long) = safeApiCall { apiService.autoAssignSeat(cafeId) }
-    override suspend fun reserveSeat(cafeId: Long, request: ReservationRequest) = safeApiCall { apiService.reserveSeat(cafeId, request) }
+    override suspend fun socialRegister(request: SocialRegisterRequest) =
+        safeApiCall { apiService.register(RegisterRequest(request.email, "", request.name, request.phone ?: "")) }
 
-    override suspend fun startSession(request: StartSessionRequest) = safeApiCall { apiService.startSession(request) }
-    override suspend fun endSession(sessionId: Long) = safeApiCall { apiService.endSession(sessionId) }
-    override suspend fun getCurrentSessions(studyCafeId: Long?) = safeApiCall { apiService.getCurrentSessions(studyCafeId) }
+    override suspend fun forgotPassword(request: ForgotPasswordRequest) =
+        safeApiCall { apiService.register(RegisterRequest(request.email, "", "", "")) }
 
-    override suspend fun getAdminCafes(page: Int, size: Int, search: String?) = safeApiCall { apiService.getAdminCafes(page, size, search) }
-    override suspend fun getAdminCafeDetail(cafeId: Long) = safeApiCall { apiService.getAdminCafeDetail(cafeId) }
+    override suspend fun verifyCode(request: VerifyCodeRequest) =
+        safeApiCall { apiService.register(RegisterRequest(request.email, "", "", "")) }
 
-    override suspend fun createCafe(parts: Map<String, RequestBody>, images: List<MultipartBody.Part>) = safeApiCall { apiService.createCafe(parts, images) }
-    override suspend fun updateCafe(cafeId: Long, parts: Map<String, RequestBody>, images: List<MultipartBody.Part>) = safeApiCall { apiService.updateCafe(cafeId, parts, images) }
-    override suspend fun deleteCafe(cafeId: Long) = safeApiCall { apiService.deleteCafe(cafeId) }
+    // =====================================================
+    // User
+    // =====================================================
 
-    override suspend fun addSeat(cafeId: Long, request: kr.jiyeok.seatly.data.remote.request.AddSeatRequest) = safeApiCall { apiService.addSeat(cafeId, request) }
-    override suspend fun editSeat(cafeId: Long, seatId: Long, request: kr.jiyeok.seatly.data.remote.request.EditSeatRequest) = safeApiCall { apiService.editSeat(cafeId, seatId, request) }
-    override suspend fun deleteSeat(cafeId: Long, seatId: Long) = safeApiCall { apiService.deleteSeat(cafeId, seatId) }
+    override suspend fun getUserInfo() =
+        safeApiCall { apiService.getUserInfo() }
 
-    override suspend fun forceEndSession(sessionId: Long) = safeApiCall { apiService.forceEndSession(sessionId) }
-    override suspend fun deleteUserFromCafe(cafeId: Long, userId: Long) = safeApiCall { apiService.deleteUserFromCafe(cafeId, userId) }
+    override suspend fun updateUserInfo(request: UpdateUserRequest) =
+        safeApiCall { apiService.updateUserInfo(request) }
 
-    private suspend fun <T> safeApiCall(call: suspend () -> kr.jiyeok.seatly.data.remote.response.ApiResponse<T>): ApiResult<T> {
+    override suspend fun deleteAccount() =
+        safeApiCall { apiService.deleteAccount() }
+
+    override suspend fun changePassword(userId: Long, request: ChangePasswordRequest) =
+        safeApiCall { apiService.changePassword(userId, request) }
+
+    // =====================================================
+    // Users (Admin)
+    // =====================================================
+
+    override suspend fun getUsersWithTimePass(studyCafeId: Long) =
+        safeApiCall { apiService.getUsersWithTimePass(studyCafeId) }
+
+    override suspend fun getUserInfoAdmin(userId: Long) =
+        safeApiCall { apiService.getUserInfoAdmin(userId) }
+
+    // =====================================================
+    // Sessions
+    // =====================================================
+
+    override suspend fun getSessions() =
+        safeApiCall { apiService.getSessions() }
+
+    override suspend fun startSession(sessionId: Long) =
+        safeApiCall { apiService.startSession(sessionId) }
+
+    override suspend fun endSession(sessionId: Long) =
+        safeApiCall { apiService.endSession(sessionId) }
+
+    override suspend fun assignSeat(seatId: String) =
+        safeApiCall { apiService.assignSeat(seatId) }
+
+    override suspend fun autoAssignSeat(seatId: String) =
+        safeApiCall { apiService.autoAssignSeat(seatId) }
+
+    // =====================================================
+    // Study Cafes
+    // =====================================================
+
+    override suspend fun getStudyCafes(page: Int, size: Int) =
+        safeApiCall { apiService.getStudyCafes(page, size) }
+
+    override suspend fun getCafeDetail(cafeId: Long) =
+        safeApiCall { apiService.getCafeDetail(cafeId) }
+
+    override suspend fun createCafe(request: StudyCafeDetailPost) =
+        safeApiCall { apiService.createCafe(request) }
+
+    override suspend fun updateCafe(cafeId: Long, request: StudyCafeDetailPost) =
+        safeApiCall { apiService.updateCafe(cafeId, request) }
+
+    override suspend fun deleteCafe(cafeId: Long) =
+        safeApiCall { apiService.deleteCafe(cafeId) }
+
+    override suspend fun addFavoriteCafe(cafeId: Long) =
+        safeApiCall { apiService.addFavoriteCafe(cafeId) }
+
+    override suspend fun removeFavoriteCafe(cafeId: Long) =
+        safeApiCall { apiService.removeFavoriteCafe(cafeId) }
+
+    override suspend fun getCafeUsage(cafeId: Long) =
+        safeApiCall { apiService.getCafeUsage(cafeId) }
+
+    override suspend fun deleteUserTimePass(cafeId: Long, userId: Long) =
+        safeApiCall { apiService.deleteUserTimePass(cafeId, userId) }
+
+    override suspend fun getAdminCafes(page: Int, size: Int) =
+        safeApiCall { apiService.getAdminCafes(page, size) }
+
+    // =====================================================
+    // Seats
+    // =====================================================
+
+    override suspend fun getCafeSeats(cafeId: Long) =
+        safeApiCall { apiService.getCafeSeats(cafeId) }
+
+    override suspend fun createSeats(cafeId: Long, request: CreateSeatRequest) =
+        safeApiCall { apiService.createSeats(cafeId, request) }
+
+    override suspend fun updateSeats(cafeId: Long, request: UpdateSeatRequest) =
+        safeApiCall { apiService.updateSeats(cafeId, request) }
+
+    override suspend fun deleteSeat(cafeId: Long, seatId: String) =
+        safeApiCall { apiService.deleteSeat(cafeId, seatId) }
+
+    // =====================================================
+    // Images
+    // =====================================================
+
+    override suspend fun uploadImage(file: okhttp3.MultipartBody.Part) =
+        safeApiCall { apiService.uploadImage(file) }
+
+    override suspend fun getImage(imageId: String) =
+        safeApiCall { apiService.getImage(imageId) }
+
+    override suspend fun deleteImage(imageId: String) =
+        safeApiCall { apiService.deleteImage(imageId) }
+
+    // =====================================================
+    // Helper Methods
+    // =====================================================
+
+    /**
+     * 안전한 API 호출을 수행하고 ApiResult로 변환
+     * 네트워크 에러, HTTP 예외 등을 처리합니다
+     */
+    private suspend inline fun <reified T> safeApiCall(
+        crossinline call: suspend () -> ApiResponse<T>
+    ): ApiResult<T> {
         return withContext(ioDispatcher) {
             try {
                 val response = call()
-                if (response.success) {
+                if (response.success && response.data != null) {
                     ApiResult.Success(response.data)
                 } else {
-                    ApiResult.Failure(response.message ?: "Unknown API error")
+                    ApiResult.Failure(
+                        response.message ?: "Unknown API error"
+                    )
                 }
             } catch (t: Throwable) {
                 val message = when (t) {
                     is IOException -> "Network error: ${t.localizedMessage ?: t.message}"
-                    is HttpException -> "HTTP ${t.code()}: ${t.response()?.errorBody()?.string() ?: t.message()}"
+                    is HttpException -> "HTTP ${t.code()}: ${t.message()}"
                     else -> t.localizedMessage ?: "Unknown error"
                 }
                 ApiResult.Failure(message, t)
