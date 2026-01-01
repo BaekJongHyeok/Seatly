@@ -23,10 +23,13 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +44,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
+import kr.jiyeok.seatly.presentation.viewmodel.PasswordRecoveryViewModel
 import kr.jiyeok.seatly.ui.component.AuthButton
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 
@@ -50,11 +55,23 @@ fun PasswordScreen_2(
     onBack: () -> Unit,
     onVerifiedNavigate: () -> Unit
 ) {
+    // Observe ViewModel states
+    val codeValiditySeconds by viewModel.codeValiditySeconds.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    val currentStep by viewModel.currentStep.collectAsState()
+    
     var code by remember { mutableStateOf("") }
-    // Observe the ViewModel's secondsLeft (Compose state) via direct read
-    val localSeconds by remember { derivedStateOf { viewModel.secondsLeft } }
     val isComplete = code.length == 6
     val focusManager = LocalFocusManager.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Navigate when step changes to 3
+    LaunchedEffect(currentStep) {
+        if (currentStep == 3) {
+            onVerifiedNavigate()
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         // AppTopBar 사용 (일관된 상단 바)
@@ -167,13 +184,15 @@ fun PasswordScreen_2(
                 Text(text = "코드를 받지 못했나요?", fontSize = 12.sp, color = Color(0xFF888888))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(text = "다시 전송", fontSize = 12.sp, color = Color(0xFFFF6633), modifier = Modifier.clickable {
-                    viewModel.resendSecurityCode()
+                    coroutineScope.launch {
+                        viewModel.resendSecurityCode()
+                    }
                 })
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = "|", fontSize = 12.sp, color = Color(0xFFCCCCCC))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = String.format("%02d:%02d", localSeconds / 60, localSeconds % 60),
+                    text = String.format("%02d:%02d", codeValiditySeconds / 60, codeValiditySeconds % 60),
                     fontSize = 12.sp,
                     color = Color(0xFF888888),
                     fontFamily = FontFamily.Monospace
@@ -185,14 +204,14 @@ fun PasswordScreen_2(
             Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), contentAlignment = Alignment.Center) {
                 Box(modifier = Modifier.fillMaxWidth().shadow(elevation = 18.dp, shape = RoundedCornerShape(26.dp), clip = false)) {
                     AuthButton(
-                        text = if (viewModel.isLoading) "검증 중..." else "검증",
+                        text = if (isLoading) "검증 중..." else "검증",
                         onClick = {
                             focusManager.clearFocus()
-                            viewModel.verifyCode(code, onSuccess = {
-                                onVerifiedNavigate()
-                            })
+                            coroutineScope.launch {
+                                viewModel.verifyCode(code)
+                            }
                         },
-                        enabled = isComplete && !viewModel.isLoading,
+                        enabled = isComplete && !isLoading,
                         backgroundColor = Color(0xFFFF6633),
                         modifier = Modifier.fillMaxWidth().height(60.dp)
                     )
@@ -201,7 +220,7 @@ fun PasswordScreen_2(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            viewModel.errorMessage?.let { err ->
+            error?.let { err ->
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(text = err, color = Color(0xFFFF3B30), fontSize = 13.sp)
             }

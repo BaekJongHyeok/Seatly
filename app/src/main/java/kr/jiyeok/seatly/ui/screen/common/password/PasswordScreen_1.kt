@@ -22,9 +22,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +37,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
+import kr.jiyeok.seatly.presentation.viewmodel.PasswordRecoveryViewModel
 import kr.jiyeok.seatly.ui.component.AuthButton
 import kr.jiyeok.seatly.ui.component.EmailInputField
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
@@ -45,13 +49,24 @@ fun PasswordScreen_1(
     onBack: () -> Unit,
     onNextNavigate: () -> Unit
 ) {
-    // Bind viewModel email to local text state for two-way binding convenience
-    var localEmail by remember { mutableStateOf(viewModel.email) }
+    // Observe ViewModel states
+    val email by viewModel.email.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    val currentStep by viewModel.currentStep.collectAsState()
+    
+    // Local text state for input
+    var localEmail by remember { mutableStateOf(email) }
+    
+    // Navigate when step changes to 2
+    LaunchedEffect(currentStep) {
+        if (currentStep == 2) {
+            onNextNavigate()
+        }
+    }
 
     LaunchedEffect(localEmail) {
-        if (localEmail != viewModel.email) {
-            viewModel.updateEmail(localEmail)
-        }
+        viewModel.updateEmail(localEmail)
     }
 
     val isEmailValid = Patterns.EMAIL_ADDRESS.matcher(localEmail).matches()
@@ -148,18 +163,16 @@ fun PasswordScreen_1(
 
             // Button area
             Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), contentAlignment = Alignment.Center) {
+                val coroutineScope = rememberCoroutineScope()
                 Box(modifier = Modifier.fillMaxWidth().shadow(elevation = 16.dp, shape = RoundedCornerShape(18.dp), clip = false)) {
                     AuthButton(
-                        text = if (viewModel.isLoading) "전송 중..." else "보안 코드 전송",
+                        text = if (isLoading) "전송 중..." else "보안 코드 전송",
                         onClick = {
-                            viewModel.updateEmail(localEmail)
-                            viewModel.requestSecurityCode(
-                                onSuccess = {
-                                    onNextNavigate()
-                                }
-                            )
+                            coroutineScope.launch {
+                                viewModel.requestSecurityCode()
+                            }
                         },
-                        enabled = isEmailValid && !viewModel.isLoading,
+                        enabled = isEmailValid && !isLoading,
                         backgroundColor = Color(0xFFFF6633),
                         modifier = Modifier.fillMaxWidth().height(56.dp)
                     )
@@ -169,7 +182,7 @@ fun PasswordScreen_1(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Error / success feedback
-            viewModel.errorMessage?.let { err ->
+            error?.let { err ->
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(text = err, color = Color(0xFFFF3B30), fontSize = errorTextSize)
             }
