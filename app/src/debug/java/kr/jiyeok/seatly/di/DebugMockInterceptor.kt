@@ -123,8 +123,8 @@ class DebugMockInterceptor : Interceptor {
                 .build()
         }
 
-        // GET /user (현재 사용자 정보)
-        if (method == "GET" && path == "/user") {
+        // GET /users/me or /user/me
+        if (method == "GET" && (path.contains("/users/me") || path.contains("/user/me") || path.contains("/auth/me"))) {
             val authHeader = req.header("Authorization") ?: ""
             val isAdmin = authHeader.contains("fake-admin-access-token")
             
@@ -211,9 +211,26 @@ class DebugMockInterceptor : Interceptor {
                 .build()
         }
 
+        // GET /users/me/current-cafe - Mock current cafe usage (empty for now to avoid null pointer)
+        if (method == "GET" && path.contains("/users/me/current-cafe")) {
+            val json = """
+                {
+                  "success": true,
+                  "message": null,
+                  "data": null
+                }
+            """.trimIndent()
 
+            return Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(json.toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                .build()
+        }
 
-        // GET /study-cafes - Mock study cafes list (StudyCafeSummaryDto)
+        // GET /study-cafes - Mock study cafes list
         if (method == "GET" && path.contains("/study-cafes") && !path.contains("/study-cafes/")) {
             val json = """{
               "success": true,
@@ -224,36 +241,51 @@ class DebugMockInterceptor : Interceptor {
                     "id": 1,
                     "name": "명지 스터디카페",
                     "address": "서울시 강서구 마곡로 100",
-                    "mainImageUrl": "https://images.unsplash.com/photo-1554118811-1e0d58224f24",
-                    "isOpen": true
+                    "imageUrls": ["https://images.unsplash.com/photo-1554118811-1e0d58224f24"],
+                    "phoneNumber": "010-1234-5678",
+                    "facilities": ["WIFI", "AC"],
+                    "openingHours": "연중무휴",
+                    "description": ""
                   },
                   {
                     "id": 2,
                     "name": "더존 프리미엄 독서실",
                     "address": "서울시 강남구 테헤란로 123",
-                    "mainImageUrl": "https://images.unsplash.com/photo-1521017432531-fbd92d768814",
-                    "isOpen": true
+                    "imageUrls": ["https://images.unsplash.com/photo-1521017432531-fbd92d768814"],
+                    "phoneNumber": "010-1234-5678",
+                    "facilities": ["WIFI", "AC"],
+                    "openingHours": "연중무휴",
+                    "description": ""
                   },
                   {
                     "id": 3,
                     "name": "어반 라이브러리",
                     "address": "서울시 마포구 양화로 45",
-                    "mainImageUrl": "https://images.unsplash.com/photo-1497366754035-f200968a6e72",
-                    "isOpen": true
+                    "imageUrls": ["https://images.unsplash.com/photo-1497366754035-f200968a6e72"],
+                    "phoneNumber": "010-1234-5678",
+                    "facilities": ["WIFI", "AC"],
+                    "openingHours": "연중무휴",
+                    "description": ""
                   },
                   {
                     "id": 4,
                     "name": "포커스 온",
                     "address": "경기도 성남시 분당구 판교로 67",
-                    "mainImageUrl": "https://images.unsplash.com/photo-1517502884422-41eaead166d4",
-                    "isOpen": true
+                    "imageUrls": ["https://images.unsplash.com/photo-1517502884422-41eaead166d4"],
+                    "phoneNumber": "010-1234-5678",
+                    "facilities": ["WIFI", "AC"],
+                    "openingHours": "연중무휴",
+                    "description": ""
                   },
                   {
                     "id": 5,
                     "name": "스타벅스 스터디룸",
                     "address": "서울시 서초구 서초대로 89",
-                    "mainImageUrl": "https://images.unsplash.com/photo-1481277542470-605612bd2d61",
-                    "isOpen": false
+                    "imageUrls": ["https://images.unsplash.com/photo-1481277542470-605612bd2d61"],
+                    "phoneNumber": "010-1234-5678",
+                    "facilities": ["WIFI", "AC"],
+                    "openingHours": "연중무휴",
+                    "description": ""
                   }
                 ],
                 "page": 0,
@@ -274,37 +306,39 @@ class DebugMockInterceptor : Interceptor {
         }
 
         // GET /sessions - Mock active sessions for logged-in user
-        if (method == "GET" && path == "/sessions") {
+        if (method == "GET" && path.contains("/sessions")) {
             // Check if user has an active session based on access token
             val authHeader = req.header("Authorization") ?: ""
-            val hasSession = authHeader.contains("fake-user-access-token")
+            val isAdmin = authHeader.contains("fake-admin-access-token")
             
-            // Return active session for USER only (SessionDto structure)
-            val json = if (hasSession) {
-                """
+            // Return active session for demo purposes (can be toggled based on user)
+            val json = """
                 {
                   "success": true,
                   "message": null,
                   "data": [
                     {
                         "id": 1,
-                        "seatId": "A-1",
                         "userId": 1,
-                        "status": "IN_USE",
+                        "seat": {
+                            "studyCafeId": 1,
+                            "leftTime": 7200,
+                            "totalTime": 14400
+                        },
+                        "studyCafe": {
+                            "id": 1,
+                            "name": "스터디 카페 A",
+                            "address": "서울시 강남구",
+                            "latitude": 37.4979,
+                            "longitude": 127.0276,
+                            "avgRating": 4.5,
+                            "reviewCount": 128
+                        },
                         "startTime": 1704110280000
                     }
                  ]
                 }
-                """.trimIndent()
-            } else {
-                """
-                {
-                  "success": true,
-                  "message": null,
-                  "data": []
-                }
-                """.trimIndent()
-            }
+            """.trimIndent()
 
             return Response.Builder()
                 .request(req)
@@ -319,51 +353,9 @@ class DebugMockInterceptor : Interceptor {
         if (method == "POST" && path.contains("/auth/refresh")) {
             val json = """
                 {
-                  "success": true,
-                  "message": null,
-                  "data": {
-                    "accessToken": "fake-refreshed-access",
-                    "refreshToken": "fake-refreshed-refresh",
-                    "expiresIn": 3600
-                  }
-                }
-            """.trimIndent()
-
-            return Response.Builder()
-                .request(req)
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(json.toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
-                .build()
-        }
-        
-        // POST /auth/register (회원가입 시뮬레이션)
-        if (method == "POST" && path.contains("/auth/register")) {
-            val json = """
-                {
-                  "success": true,
-                  "message": "회원가입이 완료되었습니다",
-                  "data": null
-                }
-            """.trimIndent()
-
-            return Response.Builder()
-                .request(req)
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(json.toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
-                .build()
-        }
-        
-        // POST /auth/logout (로그아웃 시뮬레이션)
-        if (method == "POST" && path.contains("/auth/logout")) {
-            val json = """
-                {
-                  "success": true,
-                  "message": "로그아웃되었습니다",
-                  "data": null
+                  "accessToken": "fake-refreshed-access",
+                  "refreshToken": "fake-refreshed-refresh",
+                  "expiresIn": 3600
                 }
             """.trimIndent()
 
