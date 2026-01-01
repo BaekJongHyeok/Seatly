@@ -76,8 +76,10 @@ fun HomeScreen(
         )
     }
 
-    // Filter cafes that are in favorites
-    val favoriteCafes = cafesPage?.content?.filter { it.id in favoriteCafeIds }?.map { mapSummaryToCafeInfo(it) } ?: emptyList()
+    // Filter cafes that are in favorites - use derivedStateOf to avoid unnecessary recompositions
+    val favoriteCafes = remember(cafesPage, favoriteCafeIds) {
+        cafesPage?.content?.filter { it.id in favoriteCafeIds }?.map { mapSummaryToCafeInfo(it) } ?: emptyList()
+    }
 
     // --- UI 시작 ---
     Column(
