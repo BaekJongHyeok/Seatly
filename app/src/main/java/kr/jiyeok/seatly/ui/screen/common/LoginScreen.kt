@@ -76,7 +76,7 @@ fun LoginScreen(
                     email = savedEmail
                     password = savedPassword
                     isAutoLogin = true
-                    viewModel.login(LoginRequest(savedEmail, savedPassword))
+                    viewModel.login(savedEmail, savedPassword)
                 } else {
                     // Clear invalid auto-login state
                     try {
@@ -206,7 +206,7 @@ fun LoginScreen(
             } else {
                 stringResource(id = R.string.login_button)
             },
-            onClick = { viewModel.login(LoginRequest(email, password)) },
+            onClick = { viewModel.login(email, password) },
             enabled = authState !is AuthUiState.Loading,
         )
 

@@ -42,20 +42,15 @@ fun HomeScreen(
 
     // Observe data
     val userData by authViewModel.userData.collectAsState()
-    val favoritePage by viewModel.favoritePage.collectAsState()
-    val favoriteCafeIds by authViewModel.favoriteCafeIds.collectAsState()
+    val cafesPage by viewModel.cafesPage.collectAsState()
+    val favoriteCafeIds by viewModel.favoriteCafeIds.collectAsState()
 
     // 1. 초기 데이터 로드
     LaunchedEffect(Unit) {
         viewModel.loadHomeData()
         if (userData == null) {
-            authViewModel.fetchUserData()
+            authViewModel.getUserInfo()
         }
-    }
-
-    // 2. 찜한 목록 실시간 동기화
-    LaunchedEffect(favoriteCafeIds) {
-        viewModel.loadFavoriteCafesFromIds(favoriteCafeIds)
     }
 
     // 3. 시간 업데이트 트리거 (1분마다 갱신)
@@ -81,7 +76,8 @@ fun HomeScreen(
         )
     }
 
-    val favoriteCafes = favoritePage?.content?.map { mapSummaryToCafeInfo(it) } ?: emptyList()
+    // Filter cafes that are in favorites
+    val favoriteCafes = cafesPage?.content?.filter { it.id in favoriteCafeIds }?.map { mapSummaryToCafeInfo(it) } ?: emptyList()
 
     // --- UI 시작 ---
     Column(

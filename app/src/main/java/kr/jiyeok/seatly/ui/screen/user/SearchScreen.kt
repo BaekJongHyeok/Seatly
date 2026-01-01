@@ -106,7 +106,7 @@ fun SearchScreen(
     val showFilterSheet = remember { mutableStateOf(false) }
 
     // Observe cafe list, search query, and favorite cafe IDs from ViewModel
-    val cafes by viewModel.cafes.collectAsState()
+    val cafes by viewModel.filteredCafes.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val favoriteCafeIds by viewModel.favoriteCafeIds.collectAsState()
@@ -309,7 +309,7 @@ fun SearchScreen(
                             cafe = cafe,
                             isFavorite = cafe.id in favoriteCafeIds,
                             onFavoriteClick = {
-                                authViewModel.toggleFavorite(cafe.id)
+                                viewModel.toggleFavoriteCafe(cafe.id)
                             },
                             onCardClick = {
                                 navController.navigate("cafe_detail/${cafe.id}")
