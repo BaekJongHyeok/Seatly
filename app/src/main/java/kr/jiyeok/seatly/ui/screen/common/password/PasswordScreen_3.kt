@@ -132,7 +132,7 @@ fun PasswordScreen_3(
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
-                Text(text = viewModel.email.ifBlank { emailArg ?: "example@email.com" }, fontSize = 16.sp, color = Color(0xFF1A1A1A))
+                Text(text = email.ifBlank { emailArg ?: "example@email.com" }, fontSize = 16.sp, color = Color(0xFF1A1A1A))
             }
 
             Spacer(modifier = Modifier.height(20.dp))

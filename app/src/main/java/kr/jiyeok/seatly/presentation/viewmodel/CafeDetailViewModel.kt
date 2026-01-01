@@ -133,7 +133,7 @@ class CafeDetailViewModel @Inject constructor(
             try {
                 when (val result = getCafeSeatsUseCase(cafeId)) {
                     is ApiResult.Success -> {
-                        _seats.value = result.data ?: emptyList()
+                        _seats.value = result.data?.seats ?: emptyList()
                         _uiState.value = CafeDetailUiState.Success("좌석 정보 로드 완료")
                     }
                     is ApiResult.Failure -> {

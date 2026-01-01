@@ -114,7 +114,7 @@ fun LoginScreen(
                 }
                 
                 // Navigate based on user role
-                val destination = if (userRole == ERole.ADMIN) {
+                val destination = if (userRole == "ADMIN") {
                     "admin_home"
                 } else {
                     "home"
@@ -125,7 +125,7 @@ fun LoginScreen(
                 }
             } catch (e: SecurityException) {
                 // Handle error but continue with navigation
-                val destination = if (userRole == ERole.ADMIN) {
+                val destination = if (userRole == "ADMIN") {
                     "admin_home"
                 } else {
                     "home"

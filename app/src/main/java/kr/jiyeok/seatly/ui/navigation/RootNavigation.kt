@@ -50,7 +50,7 @@ fun RootNavigation(isOwner: Boolean = true) {
     val currentRoute = navBackStackEntry?.destination?.route
 
     // Determine ownerState based on user role from AuthViewModel
-    val ownerState = userRole == ERole.ADMIN
+    val ownerState = userRole == "ADMIN"
     var isAuthenticated by remember { mutableStateOf(false) }
 
     val ownerBottomRoutes = listOf("dashboard", "home", "reservation_management", "payments", "settings")
