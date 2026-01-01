@@ -216,7 +216,7 @@ interface SeatlyRepository {
      * GET /study-cafes/{id}/seats
      * 좌석 정보 조회
      */
-    suspend fun getCafeSeats(cafeId: Long): ApiResult<GetSeatResponse>
+    suspend fun getCafeSeats(cafeId: Long): ApiResult<List<SeatDto>>
 
     /**
      * POST /study-cafes/{id}/seats

@@ -1,5 +1,7 @@
 package kr.jiyeok.seatly.data.remote.response
 
+import kr.jiyeok.seatly.domain.model.ERole
+
 /**
  * Generic API Response Wrapper
  */
@@ -62,7 +64,7 @@ data class UserResponseDto(
     val favoriteCafeIds: List<Long> = emptyList(),
     val sessions: List<Session> = emptyList(),
     val timePassess: List<UserTimePass> = emptyList(),
-    val role: String  // USER, ADMIN
+    val role: ERole  // USER, ADMIN
 )
 
 /**

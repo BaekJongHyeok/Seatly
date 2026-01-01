@@ -42,15 +42,18 @@ import androidx.compose.foundation.layout.Box as ComposeBox
 
 @Composable
 fun RootNavigation(isOwner: Boolean = true) {
+    // ★ 최상위에서 AuthViewModel 생성 (이 인스턴스를 공유해야 함)
     val authViewModel: AuthViewModel = hiltViewModel()
     val userRole by authViewModel.userRole.collectAsState()
-    
+
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
     // Determine ownerState based on user role from AuthViewModel
     val ownerState = userRole == ERole.ADMIN
+
+    // (isAuthenticated 변수는 AuthViewModel의 state로 대체하는 것이 좋지만 일단 유지)
     var isAuthenticated by remember { mutableStateOf(false) }
 
     val ownerBottomRoutes = listOf("dashboard", "home", "reservation_management", "payments", "settings")
@@ -86,119 +89,89 @@ fun RootNavigation(isOwner: Boolean = true) {
             NavHost(navController = navController, startDestination = "login", modifier = Modifier.fillMaxSize()) {
 
                 // ========================= 로그인 관련 =========================
+
                 // 로그인
-                composable("login") { LoginScreen(navController = navController) }
+                composable("login") {
+                    // ★ 중요: 상위 authViewModel 인스턴스를 전달
+                    LoginScreen(navController = navController, viewModel = authViewModel)
+                }
 
                 // 회원 가입
                 composable("signup") {
                     SignupScreen(onBack = { navController.popBackStack() }, onNext = { _, _ -> navController.navigate("login") })
                 }
 
-                // 비밀번호 찾기 1
-                // NOTE: 경로명을 LoginScreen에서 사용하는 "password_step1"으로 통일
+                // 비밀번호 찾기 (step 1~3)
                 composable("password_step1") {
                     PasswordScreen_1(onBack = { navController.popBackStack() }, onNextNavigate = { navController.navigate("password_step2") })
                 }
-
-                // 비밀번호 찾기 2
                 composable("password_step2") {
                     PasswordScreen_2(onBack = { navController.popBackStack()}, onVerifiedNavigate = { navController.navigate("password_step3")} )
                 }
-
-                // 비밀번호 찾기 3
                 composable("password_step3") {
                     PasswordScreen_3(onBack = { navController.popBackStack()}, onCompleteNavigate = { navController.navigate("login")})
                 }
 
-                // 알림
                 composable("notifications") { ComposeBox(modifier = Modifier.fillMaxSize()) }
 
-
                 // ========================= 유저 관련 =========================
+
                 // 유저 홈
                 composable("home") {
-                    if (ownerState) AdminHomeScreen(navController = navController) else HomeScreen(navController = navController)
+                    // ★ 중요: 여기서도 상위 authViewModel 전달
+                    if (ownerState) {
+                        AdminHomeScreen(navController = navController) // AdminScreen에도 필요하면 전달
+                    } else {
+                        HomeScreen(navController = navController, authViewModel = authViewModel)
+                    }
                 }
 
-                composable("dashboard") { if (ownerState) AdminHomeScreen(navController = navController) else DashboardScreen(navController = navController) }
+                composable("dashboard") {
+                    if (ownerState) AdminHomeScreen(navController = navController)
+                    else DashboardScreen(navController = navController)
+                }
 
-                // 찜한 카페
                 composable("favorites") { ComposeBox(modifier = Modifier.fillMaxSize()) }
-
-                // 카페 검색
                 composable("search") { SearchScreen(navController = navController) }
-
-                // 카페 예약
                 composable("reservation") { ComposeBox(modifier = Modifier.fillMaxSize()) }
-
-                // 유저 마이페이지
                 composable("mypage") { ComposeBox(modifier = Modifier.fillMaxSize()) }
 
-
-
                 // ========================= 관리자 관련 =========================
-                // 관리자 홈
-                composable("admin_home") {
-                    AdminHomeScreen(navController = navController)
-                }
 
-                // 등록 카페 리스트
-                composable("cafe_list") {
-                    StudyCafeListScreen(navController = navController)
-                }
+                composable("admin_home") { AdminHomeScreen(navController = navController) }
 
-                // 카페 상세 정보
-                composable(route = "cafe_detail/{cafeId}", arguments = listOf(navArgument("cafeId") { type = NavType.StringType })) { backStackEntry ->
+                composable("cafe_list") { StudyCafeListScreen(navController = navController) }
+
+                composable(
+                    route = "cafe_detail/{cafeId}",
+                    arguments = listOf(navArgument("cafeId") { type = NavType.StringType })
+                ) { backStackEntry ->
                     val cafeId = backStackEntry.arguments?.getString("cafeId")
                     CafeDetailScreen(navController = navController, cafeId = cafeId)
-//                    StudyCafeDetailScreen(navController = navController, cafeId = cafeId.toString())
                 }
 
-                // 카페 등록 1
-                composable("register_cafe_1") {
-                    RegisterCafeScreen1(navController = navController)
-                }
+                composable("register_cafe_1") { RegisterCafeScreen1(navController = navController) }
+                composable("register_cafe_2") { RegisterCafeScreen2(navController = navController) }
 
-                // 카페 등록 2
-                composable("register_cafe_2") {
-                    RegisterCafeScreen2(navController = navController)
-                }
-
-                // 좌석 편집
                 composable("seat_management") {
-                    SeatLayoutScreen(onSave = { seats ->
-                        // TODO: persist seats
-                        navController.popBackStack()
-                    }, onBack = {
-                        navController.popBackStack()
-                    })
+                    SeatLayoutScreen(
+                        onSave = { seats -> navController.popBackStack() },
+                        onBack = { navController.popBackStack() }
+                    )
                 }
 
-                composable("admin_mypage") {
-                    AdminMyPageScreen(navController = navController)
-                }
+                composable("admin_mypage") { AdminMyPageScreen(navController = navController) }
 
-
-                // Current seat screen (owner -> "좌석 관리")
                 composable("current_seat") {
                     CurrentSeatScreen(navController = navController, onBack = { navController.popBackStack() })
                 }
 
-                // 최근 활동
-                composable("recent_activities") {
-                    ActivitiesScreen(navController = navController)
-                }
+                composable("recent_activities") { ActivitiesScreen(navController = navController) }
 
                 composable("reservation_management") { ComposeBox(modifier = Modifier.fillMaxSize()) }
                 composable("settings") { ComposeBox(modifier = Modifier.fillMaxSize()) }
-
-
                 composable("recent") { ComposeBox(modifier = Modifier.fillMaxSize()) }
-
-
                 composable("current_usage_detail") { ComposeBox(modifier = Modifier.fillMaxSize()) }
-
-
             }
         }
     }

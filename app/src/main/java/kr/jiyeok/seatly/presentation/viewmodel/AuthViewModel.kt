@@ -10,6 +10,7 @@ import kr.jiyeok.seatly.data.remote.request.*
 import kr.jiyeok.seatly.data.remote.response.LoginResponse
 import kr.jiyeok.seatly.data.remote.response.UserResponseDto
 import kr.jiyeok.seatly.data.repository.ApiResult
+import kr.jiyeok.seatly.domain.model.ERole
 import kr.jiyeok.seatly.domain.usecase.*
 import javax.inject.Inject
 
@@ -78,8 +79,8 @@ class AuthViewModel @Inject constructor(
      * 사용자 역할
      * USER, ADMIN
      */
-    private val _userRole = MutableStateFlow<String>("USER")
-    val userRole: StateFlow<String> = _userRole.asStateFlow()
+    private val _userRole = MutableStateFlow<ERole>(ERole.USER)
+    val userRole: StateFlow<ERole> = _userRole.asStateFlow()
 
     /**
      * 로딩 상태
@@ -112,7 +113,7 @@ class AuthViewModel @Inject constructor(
                         val loginResponse = result.data
                         _loginData.value = loginResponse
                         _userData.value = loginResponse?.user
-                        _userRole.value = loginResponse?.user?.role ?: "USER"
+                        _userRole.value = loginResponse?.user?.role ?: ERole.USER
                         _authState.value = AuthUiState.Success(loginResponse?.user)
                         _events.send("로그인 성공")
                     }
@@ -139,7 +140,7 @@ class AuthViewModel @Inject constructor(
                     is ApiResult.Success -> {
                         _loginData.value = null
                         _userData.value = null
-                        _userRole.value = "USER"
+                        _userRole.value = ERole.USER
                         _authState.value = AuthUiState.Success(Unit)
                         _events.send("로그아웃 되었습니다")
                     }
@@ -296,7 +297,7 @@ class AuthViewModel @Inject constructor(
                 when (val result = getUserInfoUseCase()) {
                     is ApiResult.Success -> {
                         _userData.value = result.data
-                        _userRole.value = result.data?.role ?: "USER"
+                        _userRole.value = result.data?.role ?: ERole.USER
                         _authState.value = AuthUiState.Success(result.data)
                     }
                     is ApiResult.Failure -> {

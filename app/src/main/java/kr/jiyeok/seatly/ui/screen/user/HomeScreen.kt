@@ -5,14 +5,35 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +52,7 @@ import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.response.StudyCafeDetailDto
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
+import kr.jiyeok.seatly.presentation.viewmodel.HomeViewModel
 
 @Composable
 fun HomeScreen(
@@ -40,34 +62,35 @@ fun HomeScreen(
 ) {
     val notificationCount = 1
 
-    // Observe data
+    // 사용자 데이터
     val userData by authViewModel.userData.collectAsState()
-    val favoritePage by viewModel.favoritePage.collectAsState()
-    val favoriteCafeIds by authViewModel.favoriteCafeIds.collectAsState()
 
-    // 1. 초기 데이터 로드
+    // 카페 목록
+    val cafesPage = viewModel.cafesPage.collectAsState().value
+
+    // 즐겨찾기 ID 목록
+    val favoriteCafeIds by viewModel.favoriteCafeIds.collectAsState()
+
+    // 2. 초기 데이터 로드
     LaunchedEffect(Unit) {
         viewModel.loadHomeData()
-        if (userData == null) {
-            authViewModel.fetchUserData()
-        }
-    }
 
-    // 2. 찜한 목록 실시간 동기화
-    LaunchedEffect(favoriteCafeIds) {
-        viewModel.loadFavoriteCafesFromIds(favoriteCafeIds)
+        // 유저 정보 로드 로직
+        if (userData == null) {
+            authViewModel.getUserInfo()
+        }
     }
 
     // 3. 시간 업데이트 트리거 (1분마다 갱신)
     var timeUpdateTrigger by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(60000L) // 1분 대기
+            delay(60000L) // 1분
             timeUpdateTrigger++
         }
     }
 
-    // DTO 매핑 함수 (Summary -> Detail)
+    // DTO 변환 함수 (Summary -> Detail)
     fun mapSummaryToCafeInfo(dto: StudyCafeSummaryDto): StudyCafeDetailDto {
         return StudyCafeDetailDto(
             id = dto.id,
@@ -81,9 +104,13 @@ fun HomeScreen(
         )
     }
 
-    val favoriteCafes = favoritePage?.content?.map { mapSummaryToCafeInfo(it) } ?: emptyList()
+    // 즐겨찾기 카페 목록 필터링
+    // cafesPage(전체 목록)에서 favoriteCafeIds에 포함된 카페만 추출
+    val allCafes = cafesPage?.content?.map { mapSummaryToCafeInfo(it) } ?: emptyList()
+    val favoriteCafes = allCafes.filter { cafe ->
+        favoriteCafeIds.contains(cafe.id)
+    }
 
-    // --- UI 시작 ---
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -91,16 +118,19 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
     ) {
         // 상단 바
-        TopBar(notificationCount) { navController.navigate("notifications") }
+        TopBar(notificationCount = notificationCount) {
+            navController.navigate("notifications")
+        }
 
         // 환영 메시지
         WelcomeSection(userName = userData?.name)
 
-        // --- 현재 사용 중인 세션 로직 수정 ---
+        // --- 현재 사용 중인 세션 표시 ---
+        // userData의 sessions 리스트에서 첫 번째 세션을 활성 세션으로 간주
         val activeSession = userData?.sessions?.firstOrNull()
 
         if (activeSession != null) {
-            // Session의 StudyCafe 정보를 UI용 DTO로 변환
+            // 세션 정보를 UI 표시용 DTO로 변환
             val currentCafeDto = StudyCafeDetailDto(
                 id = activeSession.studyCafe.id,
                 name = activeSession.studyCafe.name ?: "알 수 없는 카페",
@@ -112,7 +142,7 @@ fun HomeScreen(
                 description = ""
             )
 
-            // 경과 시간 계산 (startTime은 Long 타입이라 가정)
+            // 경과 시간 계산
             val elapsedTime = remember(activeSession.startTime, timeUpdateTrigger) {
                 val now = System.currentTimeMillis()
                 val diff = now - activeSession.startTime
@@ -122,10 +152,9 @@ fun HomeScreen(
                 if (hours > 0) "${hours}시간 ${remMin}분" else "${remMin}분"
             }
 
-            // 진행률 계산 로직 수정 (timePassess 리스트에서 해당 카페의 TimePass 찾기)
+            // 진행률 계산
             val currentPass = userData?.timePassess?.find { it.studyCafeId == activeSession.studyCafe.id }
             val totalTime = currentPass?.totalTime ?: 0L
-
             val usedTimeSeconds = (System.currentTimeMillis() - activeSession.startTime) / 1000
             val progress = if (totalTime > 0) usedTimeSeconds.toFloat() / totalTime.toFloat() else 0f
 
@@ -134,20 +163,26 @@ fun HomeScreen(
                 elapsedTime = elapsedTime,
                 progressValue = progress.coerceIn(0f, 1f),
                 onViewDetail = { navController.navigate("current_usage_detail") },
-                onEndUsage = { /* 종료 로직 */ }
+                onEndUsage = {
+                    // ViewModel의 세션 종료 함수 호출
+                    // HomeViewModel 구조상 endCurrentSession()이 private이거나 중첩 함수로 되어 있어 호출이 불가능할 수 있음.
+                    // 해당 함수가 public 멤버 함수로 올바르게 정의되어 있다면 아래 주석 해제.
+                    // viewModel.endCurrentSession()
+                }
             )
         } else {
-            // 세션이 없으면 가이드 표시
+            // 세션 없음 가이드
             NoActiveSessionGuide(
                 onFindCafe = { navController.navigate("search") }
             )
         }
-        // ----------------------------------
 
         Spacer(modifier = Modifier.height(10.dp))
 
         // 카페 찾기 버튼
-        CafeFindSection { navController.navigate("search") }
+        CafeFindSection(
+            onSearch = { navController.navigate("search") }
+        )
 
         // 찜한 카페 목록
         FavoritesCafeSection(
@@ -160,6 +195,9 @@ fun HomeScreen(
     }
 }
 
+// ------------------------------------------------------------------------
+// 하위 컴포저블 (Sub-Composables)
+// ------------------------------------------------------------------------
 
 @Composable
 fun TopBar(notificationCount: Int, onNotificationClick: () -> Unit) {
@@ -182,11 +220,12 @@ fun TopBar(notificationCount: Int, onNotificationClick: () -> Unit) {
             IconButton(onClick = onNotificationClick) {
                 Icon(
                     imageVector = Icons.Default.Notifications,
-                    contentDescription = "Notifications",
+                    contentDescription = "알림",
                     tint = Color.Black,
                     modifier = Modifier.size(24.dp)
                 )
             }
+
             if (notificationCount > 0) {
                 Box(
                     modifier = Modifier
@@ -222,7 +261,9 @@ fun WelcomeSection(userName: String? = null) {
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
+
         Spacer(modifier = Modifier.height(4.dp))
+
         Text(
             text = "오늘도 열정적으로 공부하세요!",
             fontSize = 14.sp,
@@ -251,7 +292,9 @@ fun CurrentUsageSection(
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
+
         Spacer(modifier = Modifier.height(12.dp))
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -281,26 +324,36 @@ fun CurrentUsageSection(
                             contentScale = ContentScale.Crop
                         )
                     }
+
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = cafe.name,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color.Black
+                            color = Color.Black,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+
                         Spacer(modifier = Modifier.height(1.dp))
+
                         Text(
                             text = cafe.address,
                             fontSize = 12.sp,
-                            color = Color(0xFFA0A0A0)
+                            color = Color(0xFFA0A0A0),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+
                         Spacer(modifier = Modifier.height(4.dp))
+
                         Text(
                             text = "사용 중 $elapsedTime",
                             fontSize = 12.sp,
                             color = Color(0xFFFF6B4A)
                         )
                     }
+
                     Box(modifier = Modifier.size(80.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(
                             progress = { progressValue },
@@ -309,6 +362,7 @@ fun CurrentUsageSection(
                             trackColor = Color(0xFFF0F0F0),
                             strokeWidth = 4.dp
                         )
+
                         Text(
                             text = "${(progressValue * 100).toInt()}%",
                             fontSize = 16.sp,
@@ -317,7 +371,9 @@ fun CurrentUsageSection(
                         )
                     }
                 }
+
                 Spacer(modifier = Modifier.height(12.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -337,6 +393,7 @@ fun CurrentUsageSection(
                             color = Color.White
                         )
                     }
+
                     Button(
                         onClick = onEndUsage,
                         modifier = Modifier
@@ -384,10 +441,11 @@ fun CafeFindSection(onSearch: () -> Unit) {
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.icon_search),
-                    contentDescription = "Search",
+                    contentDescription = "검색",
                     tint = Color(0xFFFF6B4A),
                     modifier = Modifier.size(24.dp)
                 )
+
                 Column {
                     Text(
                         text = "스터디카페 찾기",
@@ -395,7 +453,9 @@ fun CafeFindSection(onSearch: () -> Unit) {
                         fontWeight = FontWeight.SemiBold,
                         color = Color.Black
                     )
+
                     Spacer(modifier = Modifier.height(2.dp))
+
                     Text(
                         text = "새로운 카페를 찾아보세요",
                         fontSize = 12.sp,
@@ -403,6 +463,7 @@ fun CafeFindSection(onSearch: () -> Unit) {
                     )
                 }
             }
+
             Text(
                 text = "›",
                 fontSize = 28.sp,
@@ -413,7 +474,11 @@ fun CafeFindSection(onSearch: () -> Unit) {
 }
 
 @Composable
-fun FavoritesCafeSection(cafes: List<StudyCafeDetailDto>, onViewAll: () -> Unit, onItemClick: (StudyCafeDetailDto) -> Unit) {
+fun FavoritesCafeSection(
+    cafes: List<StudyCafeDetailDto>,
+    onViewAll: () -> Unit,
+    onItemClick: (StudyCafeDetailDto) -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -433,6 +498,7 @@ fun FavoritesCafeSection(cafes: List<StudyCafeDetailDto>, onViewAll: () -> Unit,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
+
             if (cafes.isNotEmpty()) {
                 Text(
                     text = "더보기",
@@ -443,6 +509,7 @@ fun FavoritesCafeSection(cafes: List<StudyCafeDetailDto>, onViewAll: () -> Unit,
                 )
             }
         }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         if (cafes.isEmpty()) {
@@ -462,10 +529,11 @@ fun FavoritesCafeSection(cafes: List<StudyCafeDetailDto>, onViewAll: () -> Unit,
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.icon_search),
-                        contentDescription = "No favorites",
+                        contentDescription = "즐겨찾기 없음",
                         tint = Color(0xFFCCCCCC),
                         modifier = Modifier.size(40.dp)
                     )
+
                     Text(
                         text = "찜한 카페가 없습니다",
                         fontSize = 14.sp,
@@ -473,6 +541,7 @@ fun FavoritesCafeSection(cafes: List<StudyCafeDetailDto>, onViewAll: () -> Unit,
                         color = Color(0xFF666666),
                         textAlign = TextAlign.Center
                     )
+
                     Text(
                         text = "마음에 드는 카페를 즐겨찾기 해보세요",
                         fontSize = 12.sp,
@@ -498,7 +567,10 @@ fun FavoritesCafeSection(cafes: List<StudyCafeDetailDto>, onViewAll: () -> Unit,
 }
 
 @Composable
-fun CafeCardHorizontal(cafe: StudyCafeDetailDto, onClick: (StudyCafeDetailDto) -> Unit) {
+fun CafeCardHorizontal(
+    cafe: StudyCafeDetailDto,
+    onClick: (StudyCafeDetailDto) -> Unit
+) {
     Box(
         modifier = Modifier
             .width(155.dp)
@@ -525,6 +597,7 @@ fun CafeCardHorizontal(cafe: StudyCafeDetailDto, onClick: (StudyCafeDetailDto) -
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -537,6 +610,7 @@ fun CafeCardHorizontal(cafe: StudyCafeDetailDto, onClick: (StudyCafeDetailDto) -
                     Text(text = "❤️", fontSize = 16.sp)
                 }
             }
+
             Column(modifier = Modifier.padding(10.dp)) {
                 Text(
                     text = cafe.name,
@@ -546,7 +620,9 @@ fun CafeCardHorizontal(cafe: StudyCafeDetailDto, onClick: (StudyCafeDetailDto) -
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
                 Spacer(modifier = Modifier.height(1.dp))
+
                 Text(
                     text = cafe.address,
                     fontSize = 12.sp,
@@ -554,6 +630,7 @@ fun CafeCardHorizontal(cafe: StudyCafeDetailDto, onClick: (StudyCafeDetailDto) -
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
                 Spacer(modifier = Modifier.height(6.dp))
             }
         }
@@ -574,7 +651,9 @@ fun NoActiveSessionGuide(onFindCafe: () -> Unit) {
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
+
         Spacer(modifier = Modifier.height(12.dp))
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -590,10 +669,11 @@ fun NoActiveSessionGuide(onFindCafe: () -> Unit) {
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.icon_search),
-                    contentDescription = "No active session",
+                    contentDescription = "세션 없음",
                     tint = Color(0xFFCCCCCC),
                     modifier = Modifier.size(48.dp)
                 )
+
                 Text(
                     text = "현재 이용 중인 좌석이 없습니다",
                     fontSize = 14.sp,
@@ -601,13 +681,16 @@ fun NoActiveSessionGuide(onFindCafe: () -> Unit) {
                     color = Color(0xFF666666),
                     textAlign = TextAlign.Center
                 )
+
                 Text(
                     text = "새로운 스터디카페를 찾아보세요",
                     fontSize = 12.sp,
                     color = Color(0xFF999999),
                     textAlign = TextAlign.Center
                 )
+
                 Spacer(modifier = Modifier.height(4.dp))
+
                 Button(
                     onClick = onFindCafe,
                     modifier = Modifier

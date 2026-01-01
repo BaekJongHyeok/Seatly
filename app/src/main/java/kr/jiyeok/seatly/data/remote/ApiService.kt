@@ -230,7 +230,7 @@ interface ApiService {
      * 좌석 정보 조회
      */
     @GET("study-cafes/{id}/seats")
-    suspend fun getCafeSeats(@Path("id") cafeId: Long): ApiResponse<GetSeatResponse>
+    suspend fun getCafeSeats(@Path("id") cafeId: Long): ApiResponse<List<SeatDto>>
 
     /**
      * POST /study-cafes/{id}/seats

@@ -393,7 +393,7 @@ class GetCafeSeatsUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(cafeId: Long): ApiResult<GetSeatResponse> =
+    suspend operator fun invoke(cafeId: Long): ApiResult<List<SeatDto>> =
         withContext(ioDispatcher) { repository.getCafeSeats(cafeId) }
 }
 

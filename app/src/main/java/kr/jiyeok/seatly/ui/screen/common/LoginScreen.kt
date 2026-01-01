@@ -71,12 +71,12 @@ fun LoginScreen(
             if (SharedPreferencesHelper.isAutoLoginEnabled(context)) {
                 val savedEmail = SharedPreferencesHelper.getSavedEmail(context)
                 val savedPassword = SharedPreferencesHelper.getSavedPassword(context)
-                
+
                 if (savedEmail.isNotEmpty() && savedPassword.isNotEmpty()) {
                     email = savedEmail
                     password = savedPassword
                     isAutoLogin = true
-                    viewModel.login(LoginRequest(savedEmail, savedPassword))
+                    viewModel.login(savedEmail, savedPassword)
                 } else {
                     // Clear invalid auto-login state
                     try {
@@ -112,14 +112,14 @@ fun LoginScreen(
                 } else {
                     SharedPreferencesHelper.clearAutoLoginCredentials(context)
                 }
-                
+
                 // Navigate based on user role
                 val destination = if (userRole == ERole.ADMIN) {
                     "admin_home"
                 } else {
                     "home"
                 }
-                
+
                 navController.navigate(destination) {
                     popUpTo("login") { inclusive = true }
                 }
@@ -130,7 +130,7 @@ fun LoginScreen(
                 } else {
                     "home"
                 }
-                
+
                 navController.navigate(destination) {
                     popUpTo("login") { inclusive = true }
                 }
@@ -206,7 +206,7 @@ fun LoginScreen(
             } else {
                 stringResource(id = R.string.login_button)
             },
-            onClick = { viewModel.login(LoginRequest(email, password)) },
+            onClick = { viewModel.login(email, password) },
             enabled = authState !is AuthUiState.Loading,
         )
 

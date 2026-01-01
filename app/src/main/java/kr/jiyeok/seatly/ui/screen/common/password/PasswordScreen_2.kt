@@ -23,10 +23,12 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +43,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
+import kr.jiyeok.seatly.presentation.viewmodel.PasswordRecoveryViewModel
 import kr.jiyeok.seatly.ui.component.AuthButton
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 
@@ -50,14 +54,25 @@ fun PasswordScreen_2(
     onBack: () -> Unit,
     onVerifiedNavigate: () -> Unit
 ) {
+    // 1. StateFlow Collection
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.error.collectAsState() // or viewModel.errorMessage
+    val secondsLeft by viewModel.codeValiditySeconds.collectAsState()
+    val currentStep by viewModel.currentStep.collectAsState()
+
     var code by remember { mutableStateOf("") }
-    // Observe the ViewModel's secondsLeft (Compose state) via direct read
-    val localSeconds by remember { derivedStateOf { viewModel.secondsLeft } }
     val isComplete = code.length == 6
     val focusManager = LocalFocusManager.current
+    val scope = rememberCoroutineScope()
+
+    // 2. Navigation Logic (Observe Step Change)
+    LaunchedEffect(currentStep) {
+        if (currentStep == 3) {
+            onVerifiedNavigate()
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        // AppTopBar 사용 (일관된 상단 바)
         AppTopBar(
             title = "비밀번호 찾기",
             leftContent = {
@@ -71,13 +86,13 @@ fun PasswordScreen_2(
             minHeight = 64.dp
         )
 
-        // divider + spacing to separate topbar from content
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
                 .background(Color(0xFFEEEEEE))
         )
+
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(
@@ -91,7 +106,6 @@ fun PasswordScreen_2(
             Text(text = "보안 코드 검증", fontSize = 18.sp, color = Color(0xFF1A1A1A))
             Spacer(modifier = Modifier.height(6.dp))
             Text(text = "이메일로 전송된 6자리 보안 코드를 입력해주세요", fontSize = 12.sp, color = Color(0xFF888888))
-
             Spacer(modifier = Modifier.height(28.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
@@ -108,6 +122,7 @@ fun PasswordScreen_2(
                     .padding(horizontal = 18.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
+                // 3. Fix BasicTextField Decoration Box
                 BasicTextField(
                     value = code,
                     onValueChange = { input ->
@@ -120,34 +135,40 @@ fun PasswordScreen_2(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
-                ) { innerTextField ->
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-                        if (code.isEmpty()) {
-                            Text(
-                                text = "000000",
-                                fontSize = 16.sp,
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFBDBDBD),
-                                letterSpacing = 12.sp
-                            )
-                        } else {
-                            val spaced = code.chunked(1).joinToString(" ")
-                            Text(
-                                text = spaced,
-                                fontSize = 16.sp,
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF2C2C2C),
-                                letterSpacing = 12.sp
-                            )
-                        }
+                        .height(56.dp),
+                    decorationBox = { innerTextField -> // Explicit parameter name
+                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                            if (code.isEmpty()) {
+                                Text(
+                                    text = "000000",
+                                    fontSize = 16.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFBDBDBD),
+                                    letterSpacing = 12.sp
+                                )
+                            } else {
+                                val spaced = code.chunked(1).joinToString(" ")
+                                Text(
+                                    text = spaced,
+                                    fontSize = 16.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF2C2C2C),
+                                    letterSpacing = 12.sp
+                                )
+                            }
 
-                        Box(modifier = Modifier.matchParentSize()) {
-                            innerTextField()
+                            // Important: Call the inner text field!
+                            // But since we want to hide the original text (we draw custom text above),
+                            // we can place it here but make the textStyle transparent (already done above).
+                            // Just ensure it's in the box so it receives clicks.
+                            Box(modifier = Modifier.matchParentSize()) {
+                                innerTextField()
+                            }
                         }
                     }
-                }
+                )
 
+                // Icons and overlays should be OUTSIDE BasicTextField or carefully positioned
                 Box(modifier = Modifier.align(Alignment.CenterEnd).size(36.dp), contentAlignment = Alignment.Center) {
                     if (isComplete) {
                         Icon(imageVector = Icons.Filled.CheckCircle, contentDescription = "완료", tint = Color(0xFFFF6633), modifier = Modifier.size(22.dp))
@@ -159,21 +180,27 @@ fun PasswordScreen_2(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text(text = "이메일로 전송된 6자리 코드를 입력하세요", fontSize = 12.sp, color = Color(0xFF888888))
-
-            Spacer(modifier = Modifier.height(6.dp))
-
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                 Text(text = "코드를 받지 못했나요?", fontSize = 12.sp, color = Color(0xFF888888))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "다시 전송", fontSize = 12.sp, color = Color(0xFFFF6633), modifier = Modifier.clickable {
-                    viewModel.resendSecurityCode()
-                })
+                Text(
+                    text = "다시 전송",
+                    fontSize = 12.sp,
+                    color = Color(0xFFFF6633),
+                    modifier = Modifier.clickable {
+                        // 4. Suspend call inside scope
+                        scope.launch {
+                            viewModel.resendSecurityCode()
+                        }
+                    }
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = "|", fontSize = 12.sp, color = Color(0xFFCCCCCC))
                 Spacer(modifier = Modifier.width(8.dp))
+
+                // 5. Timer formatting
                 Text(
-                    text = String.format("%02d:%02d", localSeconds / 60, localSeconds % 60),
+                    text = String.format("%02d:%02d", secondsLeft / 60, secondsLeft % 60),
                     fontSize = 12.sp,
                     color = Color(0xFF888888),
                     fontFamily = FontFamily.Monospace
@@ -185,14 +212,15 @@ fun PasswordScreen_2(
             Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), contentAlignment = Alignment.Center) {
                 Box(modifier = Modifier.fillMaxWidth().shadow(elevation = 18.dp, shape = RoundedCornerShape(26.dp), clip = false)) {
                     AuthButton(
-                        text = if (viewModel.isLoading) "검증 중..." else "검증",
+                        text = if (isLoading) "검증 중..." else "검증",
                         onClick = {
                             focusManager.clearFocus()
-                            viewModel.verifyCode(code, onSuccess = {
-                                onVerifiedNavigate()
-                            })
+                            // 6. Suspend call inside scope & remove onSuccess callback
+                            scope.launch {
+                                viewModel.verifyCode(code)
+                            }
                         },
-                        enabled = isComplete && !viewModel.isLoading,
+                        enabled = isComplete && !isLoading,
                         backgroundColor = Color(0xFFFF6633),
                         modifier = Modifier.fillMaxWidth().height(60.dp)
                     )
@@ -201,7 +229,7 @@ fun PasswordScreen_2(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            viewModel.errorMessage?.let { err ->
+            errorMessage?.let { err ->
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(text = err, color = Color(0xFFFF3B30), fontSize = 13.sp)
             }

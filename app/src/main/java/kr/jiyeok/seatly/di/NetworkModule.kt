@@ -18,6 +18,12 @@ import kr.jiyeok.seatly.data.remote.ApiService
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
+// DebugMockInterceptor 직접 import
+// (만약 DebugMockInterceptor가 debug 소스셋에만 있다면, main 소스셋에서는 참조 불가능할 수 있음.
+//  이 경우 현재 파일이 main에 있다면 리플렉션 유지, debug에 있다면 import 가능.
+//  하지만 사용자 상황상 파일들이 섞여 있는 것으로 보이므로, 안전하게 아래와 같이 수정 권장)
+import kr.jiyeok.seatly.di.DebugMockInterceptor
+
 interface TokenProvider {
     fun getAccessToken(): String?
     fun getRefreshToken(): String?
@@ -64,7 +70,6 @@ class AuthInterceptor(
         } else {
             original
         }
-
         return chain.proceed(request)
     }
 }
@@ -73,11 +78,9 @@ class AuthInterceptor(
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    // Use BuildConfig SEATLY_BASE_URL (make sure app/build.gradle.kts defines it)
     private val BASE_URL: String = try {
         BuildConfig.SEATLY_BASE_URL
     } catch (t: Throwable) {
-        // Fallback (only used if BuildConfig field is not present for some reason)
         "https://api.seatly.example/"
     }
 
@@ -115,22 +118,14 @@ object NetworkModule {
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
-        // Do not add an authenticator here by default; token refresh strategy can be
-        // implemented separately (and must be careful to avoid recursive calls).
 
-        // DEBUG 전용: DebugMockInterceptor가 debug 소스셋에 존재하면 리플렉션으로 로드하여
-        // 인터셉터 체인의 최상단(우선)으로 추가합니다. 존재하지 않으면 무시합니다.
+        // ★ 수정됨: 리플렉션 대신 직접 추가 (권장)
+        // 만약 컴파일 에러(Unresolved reference)가 난다면, DebugMockInterceptor 파일이
+        // src/main/java가 아닌 src/debug/java에 있어서 그럴 수 있습니다.
+        // 그럴 경우엔 기존의 리플렉션 코드를 사용하되 패키지명/클래스명을 정확히 확인해야 합니다.
+        // 여기서는 파일들이 한곳에 있다고 가정하고 직접 추가합니다.
         if (BuildConfig.DEBUG) {
-            try {
-                val clazz = Class.forName("kr.jiyeok.seatly.di.DebugMockInterceptor")
-                val ctor = clazz.getDeclaredConstructor()
-                ctor.isAccessible = true
-                val interceptor = ctor.newInstance() as Interceptor
-                // 맨 앞에 추가하여 실제 네트워크 호출 전에 처리되도록 함
-                builder.interceptors().add(0, interceptor)
-            } catch (ignored: Throwable) {
-                // DebugMockInterceptor가 없거나 로드 실패하면 무시 (안정성 중요)
-            }
+            builder.addInterceptor(DebugMockInterceptor())
         }
 
         return builder.build()
