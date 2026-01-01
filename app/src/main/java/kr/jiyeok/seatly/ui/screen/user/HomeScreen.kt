@@ -31,6 +31,7 @@ import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.response.StudyCafeDetailDto
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
+import kr.jiyeok.seatly.presentation.viewmodel.HomeViewModel
 
 @Composable
 fun HomeScreen(

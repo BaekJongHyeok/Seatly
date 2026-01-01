@@ -681,7 +681,6 @@ fun CafeCardItem(
         modifier = Modifier
             .fillMaxWidth()
             .height(140.dp)
-            // 카드 전체 클릭은 상세 이동; 내부 버튼은 자체적으로 클릭 처리
             .clickable { onCardClick() }
             .shadow(elevation = 6.dp, shape = RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp)
@@ -693,7 +692,8 @@ fun CafeCardItem(
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // image area
+
+            /** 이미지 영역 */
             Box(
                 modifier = Modifier
                     .width(100.dp)
@@ -704,47 +704,22 @@ fun CafeCardItem(
                 AsyncImage(
                     model = cafe.mainImageUrl,
                     contentDescription = "Cafe Thumbnail",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(116.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
-                    // use a safe built-in placeholder so build won't fail; replace later if desired
                     placeholder = painterResource(id = R.drawable.ic_menu_report_image),
                     error = painterResource(id = R.drawable.ic_menu_report_image)
                 )
-                
-                // Show status badge if cafe is not open
-                if (!cafe.isOpen) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp)
-                            .background(
-                                color = Colors.AMBER_500,
-                                shape = RoundedCornerShape(6.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "준비중",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
             }
 
-            // info area
+            /** 정보 영역 (Row의 자식이므로 weight 가능) */
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    // Cafe name
+
+                Column {
                     Text(
                         text = cafe.name ?: "이름 없음",
                         fontSize = 15.sp,
@@ -754,86 +729,56 @@ fun CafeCardItem(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    // Address (removed distance)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = cafe.address ?: "주소 정보 없음",
-                            fontSize = 13.sp,
-                            color = Colors.TEXT_SECONDARY,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Text(
+                        text = cafe.address ?: "주소 정보 없음",
+                        fontSize = 13.sp,
+                        color = Colors.TEXT_SECONDARY,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
-                // bottom row: open status + right-side favorite + reserve buttons
+                /** 하단 영역 */
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // left: open status
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (cafe.isOpen) "영업중" else "준비중",
+                            text = "영업중",
                             fontSize = 12.sp,
-                            color = if (cafe.isOpen) Colors.TEXT_PRIMARY else Colors.AMBER_500,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            color = Colors.TEXT_PRIMARY
                         )
-                        if (cafe.isOpen) {
-                            Text(text = "  |  24시", fontSize = 12.sp, color = Colors.TEXT_SECONDARY)
-                        }
+                        Text(
+                            text = "  |  24시",
+                            fontSize = 12.sp,
+                            color = Colors.TEXT_SECONDARY
+                        )
                     }
 
-                    // right: favorite + reservation buttons
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { onFavoriteClick() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                contentDescription = "즐겨찾기",
-                                tint = if (isFavorite) Colors.PRIMARY else Colors.TEXT_SECONDARY,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        val isDisabled = !cafe.isOpen
-                        val reserveShape = RoundedCornerShape(8.dp)
-                        Box(
-                            modifier = Modifier
-                                .width(56.dp)
-                                .height(36.dp)
-                                .then(if (!isDisabled) Modifier.shadow(6.dp, reserveShape) else Modifier)
-                                .clip(reserveShape)
-                                .background(if (isDisabled) Colors.GRAY_200 else Colors.PRIMARY)
-                                .border(
-                                    width = if (isDisabled) 1.dp else 0.dp,
-                                    color = if (isDisabled) Colors.GRAY_300 else Color.Transparent,
-                                    shape = reserveShape
-                                )
-                                .clickable(enabled = !isDisabled) { /* 예약 동작 */ },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (isDisabled) "불가" else "예약",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isDisabled) Colors.GRAY_400 else Color.White
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onFavoriteClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite)
+                                Icons.Filled.Favorite
+                            else
+                                Icons.Outlined.FavoriteBorder,
+                            contentDescription = "즐겨찾기",
+                            tint = if (isFavorite)
+                                Colors.PRIMARY
+                            else
+                                Colors.TEXT_SECONDARY,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             }
