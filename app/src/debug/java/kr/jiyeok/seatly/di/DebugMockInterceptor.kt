@@ -123,8 +123,8 @@ class DebugMockInterceptor : Interceptor {
                 .build()
         }
 
-        // GET /users/me or /user/me
-        if (method == "GET" && (path.contains("/users/me") || path.contains("/user/me") || path.contains("/auth/me"))) {
+        // GET /user or /users/me or /user/me or /auth/me
+        if (method == "GET" && (path == "/user" || path.contains("/users/me") || path.contains("/user/me") || path.contains("/auth/me"))) {
             val authHeader = req.header("Authorization") ?: ""
             val isAdmin = authHeader.contains("fake-admin-access-token")
             
@@ -306,7 +306,7 @@ class DebugMockInterceptor : Interceptor {
         }
 
         // GET /sessions - Mock active sessions for logged-in user
-        if (method == "GET" && path.contains("/sessions")) {
+        if (method == "GET" && (path == "/sessions" || path.startsWith("/sessions?"))) {
             // Check if user has an active session based on access token
             val authHeader = req.header("Authorization") ?: ""
             val isAdmin = authHeader.contains("fake-admin-access-token")

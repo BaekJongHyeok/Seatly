@@ -129,12 +129,17 @@ data class UserTimePass(
 
 /**
  * 좌석 정보
+ * 세션에서 사용될 때는 studyCafeId, leftTime, totalTime 포함
+ * 좌석 목록에서 사용될 때는 id, name, status, position 포함
  */
 data class SeatDto(
-    val id: String,
-    val name: String,
-    val status: String,  // AVAILABLE, UNAVAILABLE
-    val position: String  // window, middle, wall, etc.
+    val id: String? = null,
+    val name: String? = null,
+    val status: String? = null,  // AVAILABLE, UNAVAILABLE
+    val position: String? = null,  // window, middle, wall, etc.
+    val studyCafeId: Long? = null,  // 세션 정보에서 사용
+    val leftTime: Long? = null,  // 세션 정보에서 사용 (남은 시간, 초)
+    val totalTime: Long? = null  // 세션 정보에서 사용 (전체 시간, 초)
 )
 
 /**
@@ -201,6 +206,9 @@ data class OpeningHourDto(
 /**
  * 세션과 함께 반환되는 카페 정보
  */
+/**
+ * 카페 간단 정보 (세션, 즐겨찾기 등에서 사용)
+ */
 data class StudyCafe(
     val id: Long,
     val name: String,
@@ -208,7 +216,9 @@ data class StudyCafe(
     val mainImageUrl: String? = null,
     val phoneNumber: String? = null,
     val avgRating: Double? = null,
-    val reviewCount: Int? = null
+    val reviewCount: Int? = null,
+    val latitude: Double? = null,  // 위도 (세션 정보에서 사용)
+    val longitude: Double? = null  // 경도 (세션 정보에서 사용)
 )
 
 /**
