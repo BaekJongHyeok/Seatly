@@ -165,19 +165,74 @@ class DebugMockInterceptor : Interceptor {
 
         // GET /users/me/favorites - Mock favorite cafes
         if (method == "GET" && path.contains("/users/me/favorites")) {
-            val json = """
+            // Determine role based on access token
+            val authHeader = req.header("Authorization") ?: ""
+            val isAdmin = authHeader.contains("fake-admin-access-token")
+            
+            // Return favorites based on user
+            // User has favorites: [1, 3]
+            // Admin has favorites: [2]
+            val json = if (isAdmin) {
+                """
                 {
                   "success": true,
                   "message": null,
                   "data": {
-                    "content": [],
+                    "content": [
+                      {
+                        "id": 2,
+                        "name": "더존 프리미엄 독서실",
+                        "mainImageUrl": "https://images.unsplash.com/photo-1521017432531-fbd92d768814",
+                        "address": "서울시 강남구 테헤란로 123",
+                        "rating": 4.5,
+                        "isFavorite": true,
+                        "isOpen": true,
+                        "distanceMeters": 500
+                      }
+                    ],
                     "page": 0,
                     "size": 10,
-                    "totalElements": 0,
-                    "totalPages": 0
+                    "totalElements": 1,
+                    "totalPages": 1
                   }
                 }
-            """.trimIndent()
+                """.trimIndent()
+            } else {
+                """
+                {
+                  "success": true,
+                  "message": null,
+                  "data": {
+                    "content": [
+                      {
+                        "id": 1,
+                        "name": "명지 스터디카페",
+                        "mainImageUrl": "https://images.unsplash.com/photo-1554118811-1e0d58224f24",
+                        "address": "서울시 강서구 마곡로 100",
+                        "rating": 4.8,
+                        "isFavorite": true,
+                        "isOpen": true,
+                        "distanceMeters": 1200
+                      },
+                      {
+                        "id": 3,
+                        "name": "어반 라이브러리",
+                        "mainImageUrl": "https://images.unsplash.com/photo-1497366754035-f200968a6e72",
+                        "address": "서울시 마포구 양화로 45",
+                        "rating": null,
+                        "isFavorite": true,
+                        "isOpen": false,
+                        "distanceMeters": 3200
+                      }
+                    ],
+                    "page": 0,
+                    "size": 10,
+                    "totalElements": 2,
+                    "totalPages": 1
+                  }
+                }
+                """.trimIndent()
+            }
 
             return Response.Builder()
                 .request(req)
