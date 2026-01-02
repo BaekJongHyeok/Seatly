@@ -5,35 +5,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EventSeat
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.response.StudyCafeDetailDto
@@ -58,7 +41,7 @@ import kr.jiyeok.seatly.presentation.viewmodel.HomeViewModel
 fun HomeScreen(
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel(),
-    authViewModel: AuthViewModel = hiltViewModel()
+    authViewModel: AuthViewModel // RootNavigation에서 전달받은 인스턴스
 ) {
     val notificationCount = 1
 
@@ -74,10 +57,13 @@ fun HomeScreen(
     // 2. 초기 데이터 로드
     LaunchedEffect(Unit) {
         viewModel.loadHomeData()
+        authViewModel.getUserInfo()
+    }
 
-        // 유저 정보 로드 로직
-        if (userData == null) {
-            authViewModel.getUserInfo()
+    // ★ 기능 수정: 찜 목록 동기화
+    LaunchedEffect(userData) {
+        userData?.favoriteCafeIds?.let { ids ->
+            viewModel.updateFavoriteIds(ids)
         }
     }
 
@@ -94,9 +80,10 @@ fun HomeScreen(
     fun mapSummaryToCafeInfo(dto: StudyCafeSummaryDto): StudyCafeDetailDto {
         return StudyCafeDetailDto(
             id = dto.id,
-            name = dto.name ?: "",
-            address = dto.address ?: "",
-            imageUrls = listOfNotNull(dto.mainImageUrl),
+            name = dto.name,
+            address = dto.address,
+            // ★ 수정: mainImageUrl을 리스트로 변환 (값이 없으면 빈 리스트)
+            imageUrls = if (dto.mainImageUrl != null) listOf(dto.mainImageUrl) else emptyList(),
             phoneNumber = "010-0000-0000",
             facilities = listOf("cctv", "와이파이"),
             openingHours = "연중 무휴",
@@ -105,11 +92,10 @@ fun HomeScreen(
     }
 
     // 즐겨찾기 카페 목록 필터링
-    // cafesPage(전체 목록)에서 favoriteCafeIds에 포함된 카페만 추출
     val allCafes = cafesPage?.content?.map { mapSummaryToCafeInfo(it) } ?: emptyList()
-    val favoriteCafes = allCafes.filter { cafe ->
-        favoriteCafeIds.contains(cafe.id)
-    }
+
+    // ★ 수정: 동기화된 favoriteCafeIds를 사용하여 필터링
+    val favoriteCafes = allCafes.filter { favoriteCafeIds.contains(it.id) }
 
     Column(
         modifier = Modifier
@@ -126,20 +112,16 @@ fun HomeScreen(
         WelcomeSection(userName = userData?.name)
 
         // --- 현재 사용 중인 세션 표시 ---
-        // userData의 sessions 리스트에서 첫 번째 세션을 활성 세션으로 간주
         val activeSession = userData?.sessions?.firstOrNull()
-
         if (activeSession != null) {
-            // 세션 정보를 UI 표시용 DTO로 변환
             val currentCafeDto = StudyCafeDetailDto(
                 id = activeSession.studyCafe.id,
-                name = activeSession.studyCafe.name ?: "알 수 없는 카페",
-                address = activeSession.studyCafe.address ?: "주소 정보 없음",
+                name = activeSession.studyCafe.name,
+                address = activeSession.studyCafe.address,
                 imageUrls = emptyList(),
                 phoneNumber = "",
                 facilities = emptyList(),
-                openingHours = "",
-                description = ""
+                openingHours = ""
             )
 
             // 경과 시간 계산
@@ -152,23 +134,17 @@ fun HomeScreen(
                 if (hours > 0) "${hours}시간 ${remMin}분" else "${remMin}분"
             }
 
-            // 진행률 계산
-            val currentPass = userData?.timePassess?.find { it.studyCafeId == activeSession.studyCafe.id }
-            val totalTime = currentPass?.totalTime ?: 0L
-            val usedTimeSeconds = (System.currentTimeMillis() - activeSession.startTime) / 1000
-            val progress = if (totalTime > 0) usedTimeSeconds.toFloat() / totalTime.toFloat() else 0f
+            // 진행률 계산 (totalTime이 없으므로 임시값 사용)
+            val totalTime = 14400000L // 4시간
+            val usedTimeMillis = System.currentTimeMillis() - activeSession.startTime
+            val progress = if (totalTime > 0) usedTimeMillis.toFloat() / totalTime.toFloat() else 0f
 
             CurrentUsageSection(
                 cafe = currentCafeDto,
                 elapsedTime = elapsedTime,
                 progressValue = progress.coerceIn(0f, 1f),
                 onViewDetail = { navController.navigate("current_usage_detail") },
-                onEndUsage = {
-                    // ViewModel의 세션 종료 함수 호출
-                    // HomeViewModel 구조상 endCurrentSession()이 private이거나 중첩 함수로 되어 있어 호출이 불가능할 수 있음.
-                    // 해당 함수가 public 멤버 함수로 올바르게 정의되어 있다면 아래 주석 해제.
-                    // viewModel.endCurrentSession()
-                }
+                onEndUsage = { viewModel.endCurrentSession() }
             )
         } else {
             // 세션 없음 가이드
@@ -225,7 +201,6 @@ fun TopBar(notificationCount: Int, onNotificationClick: () -> Unit) {
                     modifier = Modifier.size(24.dp)
                 )
             }
-
             if (notificationCount > 0) {
                 Box(
                     modifier = Modifier
@@ -261,9 +236,7 @@ fun WelcomeSection(userName: String? = null) {
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
-
         Spacer(modifier = Modifier.height(4.dp))
-
         Text(
             text = "오늘도 열정적으로 공부하세요!",
             fontSize = 14.sp,
@@ -310,6 +283,7 @@ fun CurrentUsageSection(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.Top
                 ) {
+                    // ★ 수정: 이미지를 AsyncImage로 대체 (리소스 없음)
                     Box(
                         modifier = Modifier
                             .size(60.dp)
@@ -317,8 +291,8 @@ fun CurrentUsageSection(
                             .background(Color(0xFFD4C5B9)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.icon_cafe_sample_1),
+                        AsyncImage(
+                            model = cafe.imageUrls.firstOrNull(),
                             contentDescription = cafe.name,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
@@ -334,9 +308,7 @@ fun CurrentUsageSection(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-
                         Spacer(modifier = Modifier.height(1.dp))
-
                         Text(
                             text = cafe.address,
                             fontSize = 12.sp,
@@ -344,9 +316,7 @@ fun CurrentUsageSection(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-
                         Spacer(modifier = Modifier.height(4.dp))
-
                         Text(
                             text = "사용 중 $elapsedTime",
                             fontSize = 12.sp,
@@ -362,7 +332,6 @@ fun CurrentUsageSection(
                             trackColor = Color(0xFFF0F0F0),
                             strokeWidth = 4.dp
                         )
-
                         Text(
                             text = "${(progressValue * 100).toInt()}%",
                             fontSize = 16.sp,
@@ -423,52 +392,56 @@ fun CafeFindSection(onSearch: () -> Unit) {
             .fillMaxWidth()
             .background(Color.White)
             .padding(horizontal = 20.dp, vertical = 10.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFFFBFAF8))
-            .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(18.dp))
-            .clickable { onSearch() }
-            .padding(14.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFFFBFAF8))
+                .border(1.dp, Color(0xFFE8E6E1), RoundedCornerShape(18.dp))
+                .clickable { onSearch() }
+                .padding(14.dp)
         ) {
             Row(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.icon_search),
-                    contentDescription = "검색",
-                    tint = Color(0xFFFF6B4A),
-                    modifier = Modifier.size(24.dp)
-                )
-
-                Column {
-                    Text(
-                        text = "스터디카페 찾기",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.Black
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // ★ 수정: 아이콘 대체 (Icons.Default.Search)
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "검색",
+                        tint = Color(0xFFFF6B4A),
+                        modifier = Modifier.size(24.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Text(
-                        text = "새로운 카페를 찾아보세요",
-                        fontSize = 12.sp,
-                        color = Color(0xFFA0A0A0)
-                    )
+                    Column {
+                        Text(
+                            text = "스터디카페 찾기",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "새로운 카페를 찾아보세요",
+                            fontSize = 12.sp,
+                            color = Color(0xFFA0A0A0)
+                        )
+                    }
                 }
-            }
 
-            Text(
-                text = "›",
-                fontSize = 28.sp,
-                color = Color(0xFFCCCCCC)
-            )
+                Text(
+                    text = "›",
+                    fontSize = 28.sp,
+                    color = Color(0xFFCCCCCC)
+                )
+            }
         }
     }
 }
@@ -527,8 +500,9 @@ fun FavoritesCafeSection(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // ★ 수정: 아이콘 대체
                     Icon(
-                        painter = painterResource(id = R.drawable.icon_search),
+                        imageVector = Icons.Default.Search,
                         contentDescription = "즐겨찾기 없음",
                         tint = Color(0xFFCCCCCC),
                         modifier = Modifier.size(40.dp)
@@ -591,8 +565,9 @@ fun CafeCardHorizontal(
                     .height(130.dp)
                     .background(Color(0xFFD4C5B9))
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.icon_cafe_sample_1),
+                // ★ 수정: 이미지 대체
+                AsyncImage(
+                    model = cafe.imageUrls.firstOrNull(),
                     contentDescription = cafe.name,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -667,8 +642,9 @@ fun NoActiveSessionGuide(onFindCafe: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // ★ 수정: 아이콘 대체
                 Icon(
-                    painter = painterResource(id = R.drawable.icon_search),
+                    imageVector = Icons.Default.EventSeat,
                     contentDescription = "세션 없음",
                     tint = Color(0xFFCCCCCC),
                     modifier = Modifier.size(48.dp)

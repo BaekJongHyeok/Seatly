@@ -33,6 +33,7 @@ class DebugMockInterceptor : Interceptor {
                             "phone": "010-9876-5432",
                             "imageUrl": null,
                             "role": "USER",
+                            "favoriteCafeIds": [1, 3, 4],
                             "sessions": [
                                 {
                                     "id": 101,
@@ -82,7 +83,6 @@ class DebugMockInterceptor : Interceptor {
         }
 
         // 3. 카페 목록 조회 (GET /study-cafes)
-        // ★ 수정됨: 불필요한 필드(평점, 좌표, 리뷰수 등)를 모두 제거하고, DTO에 맞춰 4개 필드만 반환합니다.
         if (method == "GET" && path.contains("study-cafes") && !path.matches(Regex(".*study-cafes/\\d+$"))) {
             Log.d("MockInterceptor", "<-- Mocking Cafe List (Clean Version)")
 
