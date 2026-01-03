@@ -12,6 +12,7 @@ import kr.jiyeok.seatly.domain.usecase.GetSessionsUseCase
 import kr.jiyeok.seatly.domain.usecase.EndSessionUseCase
 import kr.jiyeok.seatly.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
+import kr.jiyeok.seatly.data.remote.enums.EStatus
 import javax.inject.Inject
 
 /**
@@ -92,21 +93,21 @@ class SessionViewModel @Inject constructor(
     /**
      * 사용자의 모든 세션 로드
      */
-    fun loadSessions() {
+    fun loadSessions(studyCafeId: Long) {
         viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
             _sessionState.value = SessionUiState.Loading
             _error.value = null
             try {
-                when (val result = getSessionsUseCase()) {
+                when (val result = getSessionsUseCase(studyCafeId)) {
                     is ApiResult.Success -> {
                         val sessionList = result.data ?: emptyList()
                         _sessions.value = sessionList
 
                         // 활성 세션 추출 (IN_USE 또는 ASSIGNED 상태)
                         val activeSession = sessionList.firstOrNull { session ->
-                            session.status.equals("IN_USE", ignoreCase = true) ||
-                            session.status.equals("ASSIGNED", ignoreCase = true)
+                            session.status == EStatus.IN_USE ||
+                            session.status == EStatus.ASSIGNED
                         }
                         _currentSession.value = activeSession
 
@@ -127,17 +128,17 @@ class SessionViewModel @Inject constructor(
     /**
      * 현재 활성 세션 새로고침
      */
-    fun refreshCurrentSession() {
+    fun refreshCurrentSession(studyCafeId: Long) {
         viewModelScope.launch(ioDispatcher) {
-            when (val result = getSessionsUseCase()) {
+            when (val result = getSessionsUseCase(studyCafeId)) {
                 is ApiResult.Success -> {
                     val sessionList = result.data ?: emptyList()
                     _sessions.value = sessionList
 
                     // 활성 세션 업데이트
                     val activeSession = sessionList.firstOrNull { session ->
-                        session.status.equals("IN_USE", ignoreCase = true) ||
-                        session.status.equals("ASSIGNED", ignoreCase = true)
+                        session.status == EStatus.IN_USE ||
+                        session.status == EStatus.ASSIGNED
                     }
                     _currentSession.value = activeSession
                 }

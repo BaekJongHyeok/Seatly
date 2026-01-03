@@ -7,10 +7,9 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kr.jiyeok.seatly.data.remote.request.*
-import kr.jiyeok.seatly.data.remote.response.LoginResponse
-import kr.jiyeok.seatly.data.remote.response.UserResponseDto
 import kr.jiyeok.seatly.data.repository.ApiResult
-import kr.jiyeok.seatly.domain.model.ERole
+import kr.jiyeok.seatly.data.remote.enums.ERole
+import kr.jiyeok.seatly.data.remote.response.UserInfoDetailDto
 import kr.jiyeok.seatly.domain.usecase.*
 import javax.inject.Inject
 
@@ -40,15 +39,7 @@ sealed interface AuthUiState {
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
-    private val logoutUseCase: LogoutUseCase,
-    private val registerUseCase: RegisterUseCase,
-    private val refreshTokenUseCase: RefreshTokenUseCase,
-    private val socialRegisterUseCase: SocialRegisterUseCase,
-    private val forgotPasswordUseCase: ForgotPasswordUseCase,
-    private val verifyCodeUseCase: VerifyCodeUseCase,
-    private val getUserInfoUseCase: GetUserInfoUseCase,
-    private val updateUserInfoUseCase: UpdateUserInfoUseCase,
-    private val changePasswordUseCase: ChangePasswordUseCase
+    private val logoutUseCase: LogoutUseCase
 ) : ViewModel() {
 
     // =====================================================
@@ -66,14 +57,14 @@ class AuthViewModel @Inject constructor(
      * 로그인 응답 데이터
      * accessToken, refreshToken, user 정보 포함
      */
-    private val _loginData = MutableStateFlow<LoginResponse?>(null)
-    val loginData: StateFlow<LoginResponse?> = _loginData.asStateFlow()
+    private val _loginData = MutableStateFlow<UserInfoDetailDto?>(null)
+    val loginData: StateFlow<UserInfoDetailDto?> = _loginData.asStateFlow()
 
     /**
      * 현재 로그인한 사용자 정보
      */
-    private val _userData = MutableStateFlow<UserResponseDto?>(null)
-    val userData: StateFlow<UserResponseDto?> = _userData.asStateFlow()
+    private val _userData = MutableStateFlow<UserInfoDetailDto?>(null)
+    val userData: StateFlow<UserInfoDetailDto?> = _userData.asStateFlow()
 
     /**
      * 사용자 역할
@@ -110,12 +101,17 @@ class AuthViewModel @Inject constructor(
                 val request = LoginRequest(email, password)
                 when (val result = loginUseCase(request)) {
                     is ApiResult.Success -> {
-                        val loginResponse = result.data
-                        _loginData.value = loginResponse
-                        _userData.value = loginResponse?.user
-                        _userRole.value = loginResponse?.user?.role ?: ERole.USER
-                        _authState.value = AuthUiState.Success(loginResponse?.user)
-                        _events.send("로그인 성공")
+                        val userInfo = result.data
+
+                        if (userInfo != null) {
+                            _userData.value = userInfo
+                            _userRole.value = userInfo.role
+                            _authState.value = AuthUiState.Success(userInfo)
+                            _events.send("로그인 성공")
+                        } else {
+                            _authState.value = AuthUiState.Error("사용자 정보가 없습니다")
+                            _events.send("로그인 실패: 사용자 정보 없음")
+                        }
                     }
                     is ApiResult.Failure -> {
                         _authState.value = AuthUiState.Error(result.message ?: "로그인 실패")
@@ -153,219 +149,5 @@ class AuthViewModel @Inject constructor(
                 _isLoading.value = false
             }
         }
-    }
-
-    /**
-     * 회원가입
-     */
-    fun register(email: String, password: String, name: String, phone: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _authState.value = AuthUiState.Loading
-            try {
-                val request = RegisterRequest(email, password, name, phone)
-                when (val result = registerUseCase(request)) {
-                    is ApiResult.Success -> {
-                        _authState.value = AuthUiState.Success(Unit)
-                        _events.send("회원가입 완료")
-                    }
-                    is ApiResult.Failure -> {
-                        _authState.value = AuthUiState.Error(result.message ?: "회원가입 실패")
-                        _events.send(result.message ?: "회원가입 실패")
-                    }
-                }
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    /**
-     * 토큰 리프레시
-     */
-    fun refreshToken(refreshToken: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                val request = RefreshTokenRequest(refreshToken)
-                when (val result = refreshTokenUseCase(request)) {
-                    is ApiResult.Success -> {
-                        _authState.value = AuthUiState.Success(result.data)
-                        _events.send("토큰 갱신 완료")
-                    }
-                    is ApiResult.Failure -> {
-                        _authState.value = AuthUiState.Error(result.message ?: "토큰 갱신 실패")
-                        _events.send(result.message ?: "토큰 갱신 실패")
-                    }
-                }
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    /**
-     * 소셜 회원가입 (보류)
-     */
-    fun socialRegister(email: String, name: String, phone: String?, provider: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _authState.value = AuthUiState.Loading
-            try {
-                val request = SocialRegisterRequest(email, name, phone, provider)
-                when (val result = socialRegisterUseCase(request)) {
-                    is ApiResult.Success -> {
-                        _authState.value = AuthUiState.Success(Unit)
-                        _events.send("소셜 회원가입 완료")
-                    }
-                    is ApiResult.Failure -> {
-                        _authState.value = AuthUiState.Error(result.message ?: "소셜 회원가입 실패")
-                        _events.send(result.message ?: "소셜 회원가입 실패")
-                    }
-                }
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    // =====================================================
-    // Public Methods - Password Reset (보류)
-    // =====================================================
-
-    /**
-     * 비밀번호 초기화 요청 (보안 코드 전송)
-     */
-    fun forgotPassword(email: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _authState.value = AuthUiState.Loading
-            try {
-                val request = ForgotPasswordRequest(email)
-                when (val result = forgotPasswordUseCase(request)) {
-                    is ApiResult.Success -> {
-                        _authState.value = AuthUiState.Success(Unit)
-                        _events.send("보안 코드가 이메일로 발송되었습니다")
-                    }
-                    is ApiResult.Failure -> {
-                        _authState.value = AuthUiState.Error(result.message ?: "이메일 전송 실패")
-                        _events.send(result.message ?: "이메일 전송 실패")
-                    }
-                }
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    /**
-     * 비밀번호 초기화 코드 검증
-     */
-    fun verifyPasswordResetCode(email: String, code: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _authState.value = AuthUiState.Loading
-            try {
-                val request = VerifyCodeRequest(email, code)
-                when (val result = verifyCodeUseCase(request)) {
-                    is ApiResult.Success -> {
-                        _authState.value = AuthUiState.Success(Unit)
-                        _events.send("보안 코드 검증 완료")
-                    }
-                    is ApiResult.Failure -> {
-                        _authState.value = AuthUiState.Error(result.message ?: "코드 검증 실패")
-                        _events.send(result.message ?: "코드 검증 실패")
-                    }
-                }
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    // =====================================================
-    // Public Methods - User Profile
-    // =====================================================
-
-    /**
-     * 사용자 정보 조회
-     */
-    fun getUserInfo() {
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                when (val result = getUserInfoUseCase()) {
-                    is ApiResult.Success -> {
-                        _userData.value = result.data
-                        _userRole.value = result.data?.role ?: ERole.USER
-                        _authState.value = AuthUiState.Success(result.data)
-                    }
-                    is ApiResult.Failure -> {
-                        _authState.value = AuthUiState.Error(result.message ?: "사용자 정보 조회 실패")
-                        _events.send(result.message ?: "사용자 정보 조회 실패")
-                    }
-                }
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    /**
-     * 사용자 정보 수정
-     */
-    fun updateUserInfo(name: String?, phone: String?, imageUrl: String?) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                val request = UpdateUserRequest(name, phone, imageUrl)
-                when (val result = updateUserInfoUseCase(request)) {
-                    is ApiResult.Success -> {
-                        _userData.value = result.data
-                        _authState.value = AuthUiState.Success(result.data)
-                        _events.send("사용자 정보가 업데이트되었습니다")
-                    }
-                    is ApiResult.Failure -> {
-                        _authState.value = AuthUiState.Error(result.message ?: "정보 수정 실패")
-                        _events.send(result.message ?: "정보 수정 실패")
-                    }
-                }
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    /**
-     * 비밀번호 변경
-     */
-    fun changePassword(userId: Long, currentPassword: String, newPassword: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _authState.value = AuthUiState.Loading
-            try {
-                val request = ChangePasswordRequest(currentPassword, newPassword)
-                when (val result = changePasswordUseCase(userId, request)) {
-                    is ApiResult.Success -> {
-                        _authState.value = AuthUiState.Success(Unit)
-                        _events.send("비밀번호가 변경되었습니다")
-                    }
-                    is ApiResult.Failure -> {
-                        _authState.value = AuthUiState.Error(result.message ?: "비밀번호 변경 실패")
-                        _events.send(result.message ?: "비밀번호 변경 실패")
-                    }
-                }
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    /**
-     * 계정 삭제
-     * TODO: 추가 구현 필요
-     */
-    suspend fun deleteAccount() {
-        _events.runCatching { send("계정 삭제 기능은 아직 구현되지 않았습니다") }
     }
 }

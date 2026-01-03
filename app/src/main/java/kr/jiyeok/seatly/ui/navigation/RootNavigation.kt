@@ -17,7 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import kr.jiyeok.seatly.domain.model.ERole
+import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.ui.component.admin.AdminBottomNavigationBar
 import kr.jiyeok.seatly.ui.components.BottomNavigationBar
@@ -92,7 +92,6 @@ fun RootNavigation(isOwner: Boolean = true) {
 
                 // 로그인
                 composable("login") {
-                    // ★ 중요: 상위 authViewModel 인스턴스를 전달
                     LoginScreen(navController = navController, viewModel = authViewModel)
                 }
 
@@ -118,11 +117,10 @@ fun RootNavigation(isOwner: Boolean = true) {
 
                 // 유저 홈
                 composable("home") {
-                    // ★ 중요: 여기서도 상위 authViewModel 전달
                     if (ownerState) {
-                        AdminHomeScreen(navController = navController) // AdminScreen에도 필요하면 전달
+                        AdminHomeScreen(navController = navController)
                     } else {
-                        HomeScreen(navController = navController, authViewModel = authViewModel)
+                        HomeScreen(navController = navController)
                     }
                 }
 

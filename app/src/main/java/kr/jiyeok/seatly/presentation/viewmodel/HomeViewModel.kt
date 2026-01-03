@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kr.jiyeok.seatly.data.remote.enums.EStatus
 import kr.jiyeok.seatly.data.remote.response.*
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.di.IoDispatcher
@@ -30,8 +31,8 @@ class HomeViewModel @Inject constructor(
     private val _currentSession = MutableStateFlow<SessionDto?>(null)
     val currentSession: StateFlow<SessionDto?> = _currentSession.asStateFlow()
 
-    private val _cafesPage = MutableStateFlow<PageResponse<StudyCafeSummaryDto>?>(null)
-    val cafesPage: StateFlow<PageResponse<StudyCafeSummaryDto>?> = _cafesPage.asStateFlow()
+    private val _cafesPage = MutableStateFlow<List<StudyCafeSummaryDto>?>(null)
+    val cafesPage: StateFlow<List<StudyCafeSummaryDto>?> = _cafesPage.asStateFlow()
 
     // 찜한 카페 ID 목록 (UI 상태 관리용)
     private val _favoriteCafeIds = MutableStateFlow<List<Long>>(emptyList())
@@ -47,12 +48,22 @@ class HomeViewModel @Inject constructor(
     // Public Methods
     // =====================================================
 
-    fun loadHomeData() {
+    fun loadAllCafes() {
         viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
             try {
-                loadCurrentSession()
                 loadCafesForHome()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun loadHomeData(studyCafeId: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            _isLoading.value = true
+            try {
+                loadCurrentSession(studyCafeId)
             } finally {
                 _isLoading.value = false
             }
@@ -125,9 +136,9 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun refreshCurrentSession() {
+    fun refreshCurrentSession(studyCafeId: Long) {
         viewModelScope.launch(ioDispatcher) {
-            loadCurrentSession()
+            loadCurrentSession(studyCafeId)
         }
     }
 
@@ -135,13 +146,13 @@ class HomeViewModel @Inject constructor(
     // Private Helper Methods
     // =====================================================
 
-    private suspend fun loadCurrentSession() {
-        when (val result = getSessionsUseCase()) {
+    private suspend fun loadCurrentSession(studyCafeId: Long) {
+        when (val result = getSessionsUseCase(studyCafeId)) {
             is ApiResult.Success -> {
                 val sessions = result.data ?: emptyList()
                 val activeSession = sessions.firstOrNull { session ->
-                    session.status.equals("IN_USE", ignoreCase = true) ||
-                            session.status.equals("ASSIGNED", ignoreCase = true)
+                    session.status == EStatus.IN_USE ||
+                            session.status == EStatus.ASSIGNED
                 }
                 _currentSession.value = activeSession
             }
@@ -154,12 +165,9 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun loadCafesForHome() {
-        // ★ 수정: 전체 카페 목록을 가져오기 위해 size를 100으로 설정 (Mock 데이터 전체 로드)
-        when (val result = getStudyCafesUseCase(page = 0, size = 100)) {
+        when (val result = getStudyCafesUseCase()) {
             is ApiResult.Success -> {
                 _cafesPage.value = result.data
-                // ★ 수정: 여기서 _favoriteCafeIds를 초기화하는 로직 삭제함.
-                // 찜 목록은 updateFavoriteIds()를 통해 외부에서 주입받거나 사용자 액션으로 변경됨.
             }
             is ApiResult.Failure -> {
                 _cafesPage.value = null

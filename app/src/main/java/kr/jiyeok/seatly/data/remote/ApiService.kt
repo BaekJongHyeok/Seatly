@@ -18,7 +18,9 @@ interface ApiService {
      * 로그인 성공 시 토큰과 유저 정보 함께 반환
      */
     @POST("auth/login")
-    suspend fun login(@Body request: LoginRequest): ApiResponse<LoginResponse>
+    suspend fun login(
+        @Body request: LoginRequest
+    ): ApiResponse<UserInfoDetailDto>
 
     /**
      * POST /auth/logout
@@ -26,20 +28,6 @@ interface ApiService {
      */
     @POST("auth/logout")
     suspend fun logout(): ApiResponse<Unit>
-
-    /**
-     * POST /auth/register
-     * 회원가입
-     */
-    @POST("auth/register")
-    suspend fun register(@Body request: RegisterRequest): ApiResponse<Unit>
-
-    /**
-     * POST /auth/refresh
-     * 토큰 리프레시
-     */
-    @POST("auth/refresh")
-    suspend fun refreshToken(@Body request: RefreshTokenRequest): ApiResponse<TokenResponse>
 
     // =====================================================
     // [✅] UserController - /user
@@ -50,14 +38,16 @@ interface ApiService {
      * 로그인한 사용자 정보 조회
      */
     @GET("user")
-    suspend fun getUserInfo(): ApiResponse<UserResponseDto>
+    suspend fun getUserInfo(): ApiResponse<UserInfoDetailDto>
 
     /**
      * PATCH /user
      * 사용자 정보 편집 (이름, 전화번호, 이미지)
      */
     @PATCH("user")
-    suspend fun updateUserInfo(@Body request: UpdateUserRequest): ApiResponse<UserResponseDto>
+    suspend fun updateUserInfo(
+        @Body request: UpdateUserInfoRequest
+    ): ApiResponse<Unit>
 
     /**
      * DELETE /user
@@ -66,13 +56,17 @@ interface ApiService {
     @DELETE("user")
     suspend fun deleteAccount(): ApiResponse<Unit>
 
+    @POST("user")
+    suspend fun register(
+        @Body request: RegisterRequest
+    ): ApiResponse<Unit>
+
     /**
      * PUT /user/{id}/password
      * 비밀번호 변경
      */
-    @PUT("user/{id}/password")
+    @PUT("user/password")
     suspend fun changePassword(
-        @Path("id") userId: Long,
         @Body request: ChangePasswordRequest
     ): ApiResponse<Unit>
 
@@ -85,7 +79,7 @@ interface ApiService {
      * 현재 내가 관리하는 스터디카페에 시간권이 남아있는 사용자 목록
      */
     @GET("users")
-    suspend fun getUsersWithTimePass(
+    suspend fun getUsersInfo(
         @Query("studyCafeId") studyCafeId: Long
     ): ApiResponse<List<UserTimePassInfo>>
 
@@ -94,7 +88,18 @@ interface ApiService {
      * 사용자 정보 조회 (관리자)
      */
     @GET("users/{id}")
-    suspend fun getUserInfoAdmin(@Path("id") userId: Long): ApiResponse<UserResponseDtoAdmin>
+    suspend fun getUsersInfoById(
+        @Path("id") userId: Long
+    ): ApiResponse<UserInfoSummaryDto>
+
+    /**
+     * POST /users/{id}/time
+     * 관리지가 사용자에게 시간권 추가
+     */
+    @POST("users/{id}/time")
+    suspend fun addUserTimePass(
+        @Path("id") userId: Long
+    ): ApiResponse<Unit>
 
     // =====================================================
     // [✅] SessionController - /sessions
@@ -105,35 +110,45 @@ interface ApiService {
      * 세션 목록 조회 (좌석 목록과 결합해서 사용)
      */
     @GET("sessions")
-    suspend fun getSessions(): ApiResponse<List<SessionDto>>
+    suspend fun getSessions(
+        @Query("studyCafeId") studyCafeId: Long
+    ): ApiResponse<List<SessionDto>>
 
     /**
      * PATCH /sessions/{id}/start
      * 좌석 이용 시작
      */
     @PATCH("sessions/{id}/start")
-    suspend fun startSession(@Path("id") sessionId: Long): ApiResponse<SessionDto>
+    suspend fun startSession(
+        @Path("id") sessionId: Long
+    ): ApiResponse<SessionDto>
 
     /**
      * DELETE /sessions/{id}
      * 좌석 이용 종료 (본인 또는 관리자만 가능)
      */
     @DELETE("sessions/{id}")
-    suspend fun endSession(@Path("id") sessionId: Long): ApiResponse<Unit>
+    suspend fun endSession(
+        @Path("id") sessionId: Long
+    ): ApiResponse<Unit>
 
     /**
      * POST /sessions/assign?seatId={seatId}
      * 좌석 선택 (수동 할당)
      */
     @POST("sessions/assign")
-    suspend fun assignSeat(@Query("seatId") seatId: String): ApiResponse<SessionDto>
+    suspend fun assignSeat(
+        @Query("seatId") seatId: String
+    ): ApiResponse<SessionDto>
 
     /**
      * POST /sessions/auto-assign?seatId={seatId}
      * 좌석 자동 할당
      */
     @POST("sessions/auto-assign")
-    suspend fun autoAssignSeat(@Query("seatId") seatId: String): ApiResponse<SessionDto>
+    suspend fun autoAssignSeat(
+        @Query("studyCafeId") studyCafeId: Long
+    ): ApiResponse<SessionDto>
 
     // =====================================================
     // [✅] StudyCafeController - /study-cafes
@@ -144,24 +159,25 @@ interface ApiService {
      * 전체 카페 목록 조회
      */
     @GET("study-cafes")
-    suspend fun getStudyCafes(
-        @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20
-    ): ApiResponse<PageResponse<StudyCafeSummaryDto>>
+    suspend fun getStudyCafes(): ApiResponse<List<StudyCafeSummaryDto>>
 
     /**
      * GET /study-cafes/{id}
      * 카페 상세 정보 조회
      */
     @GET("study-cafes/{id}")
-    suspend fun getCafeDetail(@Path("id") cafeId: Long): ApiResponse<StudyCafeDetailDto>
+    suspend fun getCafeDetail(
+        @Path("id") cafeId: Long
+    ): ApiResponse<StudyCafeDetailDto>
 
     /**
      * POST /study-cafes
      * 카페 추가 (관리자)
      */
     @POST("study-cafes")
-    suspend fun createCafe(@Body request: StudyCafeDetailPost): ApiResponse<StudyCafeDetailDto>
+    suspend fun createCafe(
+        @Body request: CreateCafeRequest
+    ): ApiResponse<Unit>
 
     /**
      * PATCH /study-cafes/{id}
@@ -170,8 +186,8 @@ interface ApiService {
     @PATCH("study-cafes/{id}")
     suspend fun updateCafe(
         @Path("id") cafeId: Long,
-        @Body request: StudyCafeDetailPost
-    ): ApiResponse<StudyCafeDetailDto>
+        @Body request: UpdateCafeRequest
+    ): ApiResponse<Unit>
 
     /**
      * DELETE /study-cafes/{id}
@@ -216,10 +232,7 @@ interface ApiService {
      * 관리자가 관리하는 카페 목록
      */
     @GET("study-cafes/admin")
-    suspend fun getAdminCafes(
-        @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20
-    ): ApiResponse<PageResponse<StudyCafeSummaryDto>>
+    suspend fun getAdminCafes(): ApiResponse<List<StudyCafeSummaryDto>>
 
     // =====================================================
     // [✅] SeatController - /study-cafes/{id}/seats
@@ -230,7 +243,9 @@ interface ApiService {
      * 좌석 정보 조회
      */
     @GET("study-cafes/{id}/seats")
-    suspend fun getCafeSeats(@Path("id") cafeId: Long): ApiResponse<List<SeatDto>>
+    suspend fun getCafeSeats(
+        @Path("id") cafeId: Long
+    ): ApiResponse<List<SeatDto>>
 
     /**
      * POST /study-cafes/{id}/seats
@@ -240,8 +255,8 @@ interface ApiService {
     @POST("study-cafes/{id}/seats")
     suspend fun createSeats(
         @Path("id") cafeId: Long,
-        @Body request: CreateSeatRequest
-    ): ApiResponse<GetSeatResponse>
+        @Body request: List<SeatCreate>
+    ): ApiResponse<Unit>
 
     /**
      * PATCH /study-cafes/{id}/seats
@@ -251,8 +266,8 @@ interface ApiService {
     @PATCH("study-cafes/{id}/seats")
     suspend fun updateSeats(
         @Path("id") cafeId: Long,
-        @Body request: UpdateSeatRequest
-    ): ApiResponse<GetSeatResponse>
+        @Body request: List<SeatUpdate>
+    ): ApiResponse<Unit>
 
     /**
      * DELETE /study-cafes/{id}/seats/{seatId}
@@ -274,19 +289,25 @@ interface ApiService {
      */
     @Multipart
     @POST("images/upload")
-    suspend fun uploadImage(@Part file: MultipartBody.Part): ApiResponse<ImageUploadResponse>
+    suspend fun uploadImage(
+        @Part file: MultipartBody.Part
+    ): ApiResponse<ImageUploadResponse>
 
     /**
      * GET /images/{imageId}
      * 이미지 조회 (다운로드)
      */
     @GET("images/{imageId}")
-    suspend fun getImage(@Path("imageId") imageId: String): ApiResponse<ByteArray>
+    suspend fun getImage(
+        @Path("imageId") imageId: String
+    ): ApiResponse<ByteArray>
 
     /**
      * DELETE /images/{imageId}
      * 이미지 삭제
      */
     @DELETE("images/{imageId}")
-    suspend fun deleteImage(@Path("imageId") imageId: String): ApiResponse<Unit>
+    suspend fun deleteImage(
+        @Path("imageId") imageId: String
+    ): ApiResponse<Unit>
 }

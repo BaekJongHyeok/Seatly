@@ -22,7 +22,6 @@ import javax.inject.Singleton
 // (만약 DebugMockInterceptor가 debug 소스셋에만 있다면, main 소스셋에서는 참조 불가능할 수 있음.
 //  이 경우 현재 파일이 main에 있다면 리플렉션 유지, debug에 있다면 import 가능.
 //  하지만 사용자 상황상 파일들이 섞여 있는 것으로 보이므로, 안전하게 아래와 같이 수정 권장)
-import kr.jiyeok.seatly.di.DebugMockInterceptor
 
 interface TokenProvider {
     fun getAccessToken(): String?

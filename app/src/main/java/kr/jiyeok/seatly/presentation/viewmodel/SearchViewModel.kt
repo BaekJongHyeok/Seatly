@@ -6,7 +6,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kr.jiyeok.seatly.data.remote.response.PageResponse
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.domain.usecase.GetStudyCafesUseCase
@@ -50,11 +49,6 @@ class SearchViewModel @Inject constructor(
     private val _filteredCafes = MutableStateFlow<List<StudyCafeSummaryDto>>(emptyList())
     val filteredCafes: StateFlow<List<StudyCafeSummaryDto>> = _filteredCafes.asStateFlow()
 
-    /**
-     * 페이지 정보
-     */
-    private val _pageInfo = MutableStateFlow<PageResponse<StudyCafeSummaryDto>?>(null)
-    val pageInfo: StateFlow<PageResponse<StudyCafeSummaryDto>?> = _pageInfo.asStateFlow()
 
     /**
      * 검색 쿼리
@@ -112,18 +106,15 @@ class SearchViewModel @Inject constructor(
      * 
      * 기본 페이지 크기: 100 (검색 화면용)
      */
-    fun loadCafes(page: Int = 0, size: Int = 100) {
+    fun loadCafes() {
         viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
             _error.value = null
             try {
-                when (val result = getStudyCafesUseCase(page, size)) {
+                when (val result = getStudyCafesUseCase()) {
                     is ApiResult.Success -> {
-                        val pageResponse = result.data
-                        _pageInfo.value = pageResponse
-
                         // 전체 카페 목록 저장
-                        val cafeList = pageResponse?.content ?: emptyList()
+                        val cafeList = result.data ?: emptyList()
                         _allCafes.value = cafeList
 
                         // 즐겨찾기 ID 추출

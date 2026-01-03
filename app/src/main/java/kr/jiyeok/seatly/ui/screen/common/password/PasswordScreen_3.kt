@@ -1,28 +1,14 @@
 package kr.jiyeok.seatly.ui.screen.common.password
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -31,9 +17,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
-import kr.jiyeok.seatly.presentation.viewmodel.PasswordRecoveryViewModel
 import kr.jiyeok.seatly.ui.component.AuthButton
 import kr.jiyeok.seatly.ui.component.PasswordInputField
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
@@ -42,33 +26,22 @@ import kr.jiyeok.seatly.ui.component.common.AppTopBar
 private fun hasUpper(pw: String) = pw.any { it.isUpperCase() }
 private fun hasLower(pw: String) = pw.any { it.isLowerCase() }
 private fun hasDigit(pw: String) = pw.any { it.isDigit() }
-private fun hasSpecial(pw: String) = pw.any { "!@#\$%^&*()_+-=[]{}|;':\",.<>?/`~".contains(it) }
+private fun hasSpecial(pw: String) = pw.any { "!@#$%^&*()_+-=[]{}|;':\",./<>?/`~".contains(it) }
 
 @Composable
 fun PasswordScreen_3(
-    viewModel: PasswordRecoveryViewModel = hiltViewModel(),
     emailArg: String? = null,
     onBack: () -> Unit,
     onCompleteNavigate: () -> Unit
 ) {
-    // 1. StateFlow Collection
-    val viewModelEmail by viewModel.email.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val errorMessage by viewModel.error.collectAsState() // or errorMessage
-
-    // We need a scope for suspend functions
-    val scope = rememberCoroutineScope()
-
+    // ★ Mock 상태 관리 (ViewModel 없이 로컬 상태 사용)
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
-
-    // If emailArg given, set it in viewModel (keeps shared state)
-    LaunchedEffect(emailArg) {
-        emailArg?.let { viewModel.updateEmail(it) }
-    }
-
-    // Local validation error message (client-side)
+    var isLoading by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val scope = rememberCoroutineScope()
 
     val strength = remember(password) {
         when {
@@ -81,16 +54,33 @@ fun PasswordScreen_3(
     }
 
     val isMatch = password.isNotEmpty() && password == confirm
+    val isPasswordValid = password.length >= 8 &&
+            hasLower(password) &&
+            hasUpper(password) &&
+            hasDigit(password) &&
+            hasSpecial(password)
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
         // AppTopBar for consistent header
         AppTopBar(
             title = "비밀번호 찾기",
             leftContent = {
-                Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "뒤로", tint = Color(0xFF1A1A1A))
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = "뒤로",
+                    tint = Color(0xFF1A1A1A)
+                )
             },
             onLeftClick = onBack,
-            titleTextStyle = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1A1A1A)),
+            titleTextStyle = TextStyle(
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1A1A1A)
+            ),
             backgroundColor = Color.White,
             verticalPadding = 18.dp,
             buttonContainerSize = 44.dp,
@@ -115,14 +105,28 @@ fun PasswordScreen_3(
                 .padding(top = 8.dp),
             verticalArrangement = Arrangement.Top
         ) {
-            Text(text = "새 비밀번호 설정", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A1A1A))
+            Text(
+                text = "새 비밀번호 설정",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF1A1A1A)
+            )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = "새로운 비밀번호를 설정해주세요", fontSize = 12.sp, color = Color(0xFF888888))
+            Text(
+                text = "새로운 비밀번호를 설정해주세요",
+                fontSize = 12.sp,
+                color = Color(0xFF888888)
+            )
             Spacer(modifier = Modifier.height(20.dp))
 
-            Text(text = "계정 이메일", fontSize = 14.sp, color = Color(0xFF1A1A1A))
+            // 계정 이메일 표시
+            Text(
+                text = "계정 이메일",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF1A1A1A)
+            )
             Spacer(modifier = Modifier.height(8.dp))
-
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -131,9 +135,8 @@ fun PasswordScreen_3(
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
-                // 2. Fix: Use collected 'viewModelEmail'
                 Text(
-                    text = viewModelEmail.ifBlank { emailArg ?: "example@email.com" },
+                    text = emailArg ?: "example@email.com",
                     fontSize = 16.sp,
                     color = Color(0xFF1A1A1A)
                 )
@@ -141,118 +144,207 @@ fun PasswordScreen_3(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            Text(text = "새 비밀번호 *", fontSize = 14.sp, color = Color(0xFF1A1A1A))
+            // 새 비밀번호
+            Text(
+                text = "새 비밀번호 *",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF1A1A1A)
+            )
             Spacer(modifier = Modifier.height(8.dp))
             PasswordInputField(
                 value = password,
                 onValueChange = {
                     password = it
                     validationError = null
-                    // viewModel.clearError() // If this method doesn't exist, remove it or add it to VM
+                    errorMessage = null
                 },
                 placeholder = "••••••••••",
                 modifier = Modifier.fillMaxWidth()
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "8자 이상, 대소문자/숫자/특수문자 포함", fontSize = 11.sp, color = Color(0xFF888888))
-            Spacer(modifier = Modifier.height(12.dp))
 
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "8자 이상, 대소문자/숫자/특수문자 포함",
+                fontSize = 11.sp,
+                color = Color(0xFF888888)
+            )
+
+            // 강도 표시기
+            Spacer(modifier = Modifier.height(12.dp))
             Box(modifier = Modifier.fillMaxWidth()) {
-                Box(modifier = Modifier.height(4.dp).fillMaxWidth().background(color = Color(0xFFECECEC), shape = RoundedCornerShape(4.dp)))
-                Box(modifier = Modifier.height(4.dp).fillMaxWidth(strength).background(color = Color(0xFFFF6633), shape = RoundedCornerShape(4.dp)))
+                // 배경 바
+                Box(
+                    modifier = Modifier
+                        .height(4.dp)
+                        .fillMaxWidth()
+                        .background(color = Color(0xFFECECEC), shape = RoundedCornerShape(4.dp))
+                )
+                // 진행률 바
+                Box(
+                    modifier = Modifier
+                        .height(4.dp)
+                        .fillMaxWidth(strength)
+                        .background(
+                            color = when {
+                                strength >= 0.8f -> Color(0xFF34C759)
+                                strength >= 0.6f -> Color(0xFFFF9500)
+                                else -> Color(0xFFFF3B30)
+                            },
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            Text(text = "새 비밀번호 확인 *", fontSize = 14.sp, color = Color(0xFF1A1A1A))
+            // 비밀번호 확인
+            Text(
+                text = "새 비밀번호 확인 *",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF1A1A1A)
+            )
             Spacer(modifier = Modifier.height(8.dp))
-
             Box(modifier = Modifier.fillMaxWidth()) {
                 PasswordInputField(
                     value = confirm,
                     onValueChange = {
                         confirm = it
                         validationError = null
-                        // viewModel.clearError()
+                        errorMessage = null
                     },
                     placeholder = "••••••••••",
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                if (isMatch) {
-                    Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 14.dp)) {
-                        Icon(imageVector = Icons.Filled.CheckCircle, contentDescription = "match", tint = Color(0xFFFF6633))
+                // 일치 아이콘
+                if (isMatch && confirm.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CheckCircle,
+                            contentDescription = "match",
+                            tint = Color(0xFFFF6633)
+                        )
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Client-side validation error messages
-            validationError?.let { err ->
-                Text(text = err, color = Color(0xFFFF3B30), fontSize = 13.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // Server-side error from ViewModel (read-only)
-            errorMessage?.let { err ->
-                Text(text = err, color = Color(0xFFFF3B30), fontSize = 13.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                Box(modifier = Modifier.fillMaxWidth().shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp))) {
-                    AuthButton(
-                        text = if (isLoading) "변경 중..." else "변경 완료",
-                        onClick = {
-                            validationError = null
-                            // viewModel.clearError()
-
-                            val missing = mutableListOf<String>()
-                            if (password.length < 8) missing += "8자 이상이어야 합니다"
-                            if (!hasLower(password)) missing += "소문자 포함"
-                            if (!hasUpper(password)) missing += "대문자 포함"
-                            if (!hasDigit(password)) missing += "숫자 포함"
-                            if (!hasSpecial(password)) missing += "특수문자 포함"
-                            if (password != confirm) missing += "비밀번호가 일치하지 않습니다"
-
-                            if (missing.isNotEmpty()) {
-                                validationError = "다음 항목을 확인하세요: ${missing.joinToString(", ")}"
-                                return@AuthButton
-                            }
-
-                            // 3. Proper Suspend Call for Password Reset
-                            // IMPORTANT: 'resetPassword' was not found in your ViewModel file.
-                            // Ensure you add `suspend fun resetPassword(password: String): ApiResult<Unit>` to your ViewModel.
-                            // Assuming it exists now:
-
-                            scope.launch {
-                                // Since resetPassword likely doesn't have onSuccess callback in VM (based on pattern),
-                                // we should observe a success state or handle result here if the VM returns it.
-
-                                // Example if VM function returns Boolean or Result:
-                                // val success = viewModel.resetPassword(password)
-                                // if (success) onCompleteNavigate()
-
-                                // Example if VM updates state:
-                                // viewModel.resetPassword(password)
-
-                                // TEMPORARY FIX: Call the hypothetical function
-                                // viewModel.resetPassword(password)
-
-                                // Since I cannot modify VM, I will comment this out and show what YOU need to do:
-                                // viewModel.resetPassword(password)
-
-                                // Logic to navigate on success (you might need to observe a 'isPasswordReset' state)
-                                onCompleteNavigate()
-                            }
-                        },
-                        enabled = true,
-                        backgroundColor = Color(0xFFFF6633),
-                        modifier = Modifier.fillMaxWidth().height(60.dp)
-                    )
+            // 검증 항목 표시
+            if (password.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFF5F5F5), RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    ValidationItem("8자 이상", password.length >= 8)
+                    ValidationItem("소문자 포함", hasLower(password))
+                    ValidationItem("대문자 포함", hasUpper(password))
+                    ValidationItem("숫자 포함", hasDigit(password))
+                    ValidationItem("특수문자 포함", hasSpecial(password))
+                    ValidationItem("비밀번호 일치", isMatch)
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // 클라이언트 검증 에러
+            validationError?.let { err ->
+                Text(
+                    text = err,
+                    color = Color(0xFFFF3B30),
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // 서버 에러
+            errorMessage?.let { err ->
+                Text(
+                    text = err,
+                    color = Color(0xFFFF3B30),
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
+
+        // 변경 완료 버튼
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp))
+            ) {
+                AuthButton(
+                    text = if (isLoading) "변경 중..." else "변경 완료",
+                    onClick = {
+                        validationError = null
+                        errorMessage = null
+
+                        // 클라이언트 검증
+                        val missing = mutableListOf<String>()
+                        if (password.length < 8) missing += "8자 이상"
+                        if (!hasLower(password)) missing += "소문자"
+                        if (!hasUpper(password)) missing += "대문자"
+                        if (!hasDigit(password)) missing += "숫자"
+                        if (!hasSpecial(password)) missing += "특수문자"
+                        if (password != confirm) missing += "비밀번호 일치"
+
+                        if (missing.isNotEmpty()) {
+                            validationError = "다음 항목을 확인하세요: ${missing.joinToString(", ")}"
+                            return@AuthButton
+                        }
+
+                        // Mock: 2초 후 성공 처리
+                        isLoading = true
+                        scope.launch {
+                            kotlinx.coroutines.delay(2000)
+                            isLoading = false
+                            onCompleteNavigate() // 로그인 화면으로 이동
+                            // 실제 API: viewModel.resetPassword(password)
+                        }
+                    },
+                    enabled = isPasswordValid && isMatch && !isLoading,
+                    backgroundColor = Color(0xFFFF6633),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp)
+                )
+            }
+        }
+    }
+}
+
+// 검증 항목 컴포넌트
+@Composable
+fun ValidationItem(label: String, isValid: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.CheckCircle,
+            contentDescription = "check",
+            tint = if (isValid) Color(0xFF34C759) else Color(0xFFCCCCCC),
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = if (isValid) Color(0xFF34C759) else Color(0xFF888888)
+        )
     }
 }

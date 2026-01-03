@@ -6,7 +6,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kr.jiyeok.seatly.data.remote.response.PageResponse
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.data.remote.response.StudyCafeDetailDto
 import kr.jiyeok.seatly.data.repository.ApiResult
@@ -14,8 +13,9 @@ import kr.jiyeok.seatly.domain.usecase.GetStudyCafesUseCase
 import kr.jiyeok.seatly.domain.usecase.GetCafeDetailUseCase
 import kr.jiyeok.seatly.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
-import kr.jiyeok.seatly.data.remote.request.CreateSeatRequest
-import kr.jiyeok.seatly.data.remote.request.UpdateSeatRequest
+import kr.jiyeok.seatly.data.remote.request.SeatCreate
+import kr.jiyeok.seatly.data.remote.request.SeatUpdate
+import kr.jiyeok.seatly.domain.usecase.AddUserTimePassUseCase
 import okhttp3.RequestBody
 import javax.inject.Inject
 
@@ -47,6 +47,7 @@ sealed interface AdminUiState {
 class AdminCafeViewModel @Inject constructor(
     private val getStudyCafesUseCase: GetStudyCafesUseCase,
     private val getCafeDetailUseCase: GetCafeDetailUseCase,
+    private val addUserTimePassUseCase: AddUserTimePassUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -64,20 +65,14 @@ class AdminCafeViewModel @Inject constructor(
     /**
      * 관리 중인 카페 목록
      */
-    private val _cafeListPage = MutableStateFlow<PageResponse<StudyCafeSummaryDto>?>(null)
-    val cafeListPage: StateFlow<PageResponse<StudyCafeSummaryDto>?> = _cafeListPage.asStateFlow()
+    private val _cafeListPage = MutableStateFlow<List<StudyCafeSummaryDto>?>(null)
+    val cafeListPage: StateFlow<List<StudyCafeSummaryDto>?> = _cafeListPage.asStateFlow()
 
     /**
      * 선택된 카페 상세 정보
      */
     private val _selectedCafeDetail = MutableStateFlow<StudyCafeDetailDto?>(null)
     val selectedCafeDetail: StateFlow<StudyCafeDetailDto?> = _selectedCafeDetail.asStateFlow()
-
-    /**
-     * 현재 페이지 번호
-     */
-    private val _currentPage = MutableStateFlow(0)
-    val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
 
     /**
      * 로딩 상태
@@ -105,16 +100,15 @@ class AdminCafeViewModel @Inject constructor(
     /**
      * 관리자용 카페 목록 로드
      */
-    fun loadMyCafes(page: Int = 0, size: Int = 20, search: String? = null) {
+    fun loadMyCafes() {
         viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
             _uiState.value = AdminUiState.Loading
             _error.value = null
             try {
-                when (val result = getStudyCafesUseCase(page, size)) {
+                when (val result = getStudyCafesUseCase()) {
                     is ApiResult.Success -> {
                         _cafeListPage.value = result.data
-                        _currentPage.value = page
                         _uiState.value = AdminUiState.Success("카페 목록 로드 완료")
                     }
                     is ApiResult.Failure -> {
@@ -153,22 +147,6 @@ class AdminCafeViewModel @Inject constructor(
                 _isLoading.value = false
             }
         }
-    }
-
-    /**
-     * 다음 페이지 로드
-     */
-    fun loadNextPage(size: Int = 20) {
-        val nextPage = _currentPage.value + 1
-        loadMyCafes(nextPage, size)
-    }
-
-    /**
-     * 이전 페이지 로드
-     */
-    fun loadPreviousPage(size: Int = 20) {
-        val previousPage = maxOf(0, _currentPage.value - 1)
-        loadMyCafes(previousPage, size)
     }
 
     /**
@@ -252,7 +230,7 @@ class AdminCafeViewModel @Inject constructor(
     /**
      * 좌석 추가
      */
-    fun addSeat(cafeId: Long, request: CreateSeatRequest) {
+    fun addSeat(cafeId: Long, request: List<SeatCreate>) {
         viewModelScope.launch(ioDispatcher) {
             try {
                 // TODO: addSeatUseCase 호출
@@ -266,7 +244,7 @@ class AdminCafeViewModel @Inject constructor(
     /**
      * 좌석 수정
      */
-    fun editSeat(cafeId: Long, seatId: Long, request: UpdateSeatRequest) {
+    fun editSeat(cafeId: Long, seatId: Long, request: List<SeatUpdate>) {
         viewModelScope.launch(ioDispatcher) {
             try {
                 // TODO: editSeatUseCase 호출

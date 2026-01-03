@@ -13,6 +13,7 @@ import kr.jiyeok.seatly.domain.usecase.GetCafeDetailUseCase
 import kr.jiyeok.seatly.domain.usecase.GetCafeSeatsUseCase
 import kr.jiyeok.seatly.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
+import kr.jiyeok.seatly.data.remote.enums.ESeatStatus
 import javax.inject.Inject
 
 /**
@@ -153,7 +154,7 @@ class CafeDetailViewModel @Inject constructor(
      */
     suspend fun selectSeat(seat: SeatDto) {
         // 좌석 가용성 확인
-        if (seat.status?.equals("AVAILABLE", ignoreCase = true) == true) {
+        if (seat.status == ESeatStatus.AVAILABLE == true) {
             _selectedSeat.value = seat
             _events.send("좌석 ${seat.name}이 선택되었습니다")
         } else {
@@ -174,7 +175,7 @@ class CafeDetailViewModel @Inject constructor(
      */
     fun getAvailableSeats(): List<SeatDto> {
         return _seats.value.filter { 
-            it.status?.equals("AVAILABLE", ignoreCase = true) == true 
+            it.status == ESeatStatus.AVAILABLE == true
         }
     }
 

@@ -6,6 +6,7 @@ import kr.jiyeok.seatly.data.remote.request.*
 import kr.jiyeok.seatly.data.remote.response.*
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.data.repository.SeatlyRepository
+import kr.jiyeok.seatly.data.repository.SeatlyRepositoryImpl
 import kr.jiyeok.seatly.di.IoDispatcher
 import okhttp3.MultipartBody
 import javax.inject.Inject
@@ -28,7 +29,7 @@ class LoginUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(request: LoginRequest): ApiResult<LoginResponse> =
+    suspend operator fun invoke(request: LoginRequest): ApiResult<UserInfoDetailDto> =
         withContext(ioDispatcher) { repository.login(request) }
 }
 
@@ -44,66 +45,6 @@ class LogoutUseCase @Inject constructor(
         withContext(ioDispatcher) { repository.logout() }
 }
 
-/**
- * POST /auth/register
- * 회원가입
- */
-class RegisterUseCase @Inject constructor(
-    private val repository: SeatlyRepository,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
-) {
-    suspend operator fun invoke(request: RegisterRequest): ApiResult<Unit> =
-        withContext(ioDispatcher) { repository.register(request) }
-}
-
-/**
- * POST /auth/refresh
- * 토큰 리프레시
- */
-class RefreshTokenUseCase @Inject constructor(
-    private val repository: SeatlyRepository,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
-) {
-    suspend operator fun invoke(request: RefreshTokenRequest): ApiResult<TokenResponse> =
-        withContext(ioDispatcher) { repository.refreshToken(request) }
-}
-
-/**
- * POST /auth/social-register (보류)
- * 소셜 로그인 회원가입
- */
-class SocialRegisterUseCase @Inject constructor(
-    private val repository: SeatlyRepository,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
-) {
-    suspend operator fun invoke(request: SocialRegisterRequest): ApiResult<Unit> =
-        withContext(ioDispatcher) { repository.socialRegister(request) }
-}
-
-/**
- * POST /auth/forgot-password (보류)
- * 비밀번호 찾기 - 보안 코드 전송
- */
-class ForgotPasswordUseCase @Inject constructor(
-    private val repository: SeatlyRepository,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
-) {
-    suspend operator fun invoke(request: ForgotPasswordRequest): ApiResult<Unit> =
-        withContext(ioDispatcher) { repository.forgotPassword(request) }
-}
-
-/**
- * POST /auth/verify-code (보류)
- * 비밀번호 찾기 - 보안 코드 검증
- */
-class VerifyCodeUseCase @Inject constructor(
-    private val repository: SeatlyRepository,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
-) {
-    suspend operator fun invoke(request: VerifyCodeRequest): ApiResult<Unit> =
-        withContext(ioDispatcher) { repository.verifyCode(request) }
-}
-
 // =====================================================
 // User UseCases
 // =====================================================
@@ -116,7 +57,7 @@ class GetUserInfoUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(): ApiResult<UserResponseDto> =
+    suspend operator fun invoke(): ApiResult<UserInfoDetailDto> =
         withContext(ioDispatcher) { repository.getUserInfo() }
 }
 
@@ -128,7 +69,7 @@ class UpdateUserInfoUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(request: UpdateUserRequest): ApiResult<UserResponseDto> =
+    suspend operator fun invoke(request: UpdateUserInfoRequest): ApiResult<Unit> =
         withContext(ioDispatcher) { repository.updateUserInfo(request) }
 }
 
@@ -145,6 +86,18 @@ class DeleteAccountUseCase @Inject constructor(
 }
 
 /**
+ * POST /user
+ * 회원가입
+ */
+class RegisterUseCase @Inject constructor(
+    private val repository: SeatlyRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
+    suspend operator fun invoke(request: RegisterRequest): ApiResult<Unit> =
+        withContext(ioDispatcher) { repository.register(request) }
+}
+
+/**
  * PUT /user/{id}/password
  * 비밀번호 변경
  */
@@ -152,8 +105,8 @@ class ChangePasswordUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(userId: Long, request: ChangePasswordRequest): ApiResult<Unit> =
-        withContext(ioDispatcher) { repository.changePassword(userId, request) }
+    suspend operator fun invoke(request: ChangePasswordRequest): ApiResult<Unit> =
+        withContext(ioDispatcher) { repository.changePassword(request) }
 }
 
 // =====================================================
@@ -169,7 +122,7 @@ class GetUsersWithTimePassUseCase @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     suspend operator fun invoke(studyCafeId: Long): ApiResult<List<UserTimePassInfo>> =
-        withContext(ioDispatcher) { repository.getUsersWithTimePass(studyCafeId) }
+        withContext(ioDispatcher) { repository.getUsersInfo(studyCafeId) }
 }
 
 /**
@@ -180,8 +133,20 @@ class GetUserInfoAdminUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(userId: Long): ApiResult<UserResponseDtoAdmin> =
-        withContext(ioDispatcher) { repository.getUserInfoAdmin(userId) }
+    suspend operator fun invoke(userId: Long): ApiResult<UserInfoSummaryDto> =
+        withContext(ioDispatcher) { repository.getUsersInfoById(userId) }
+}
+
+/**
+ * POST /users/{id}/time
+ * 관리지가 사용자에게 시간권 추가
+ */
+class AddUserTimePassUseCase @Inject constructor(
+    private val repository: SeatlyRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
+    suspend operator fun invoke(userId: Long): ApiResult<Unit> =
+        withContext(ioDispatcher) { repository.addUserTimePass(userId) }
 }
 
 // =====================================================
@@ -196,8 +161,8 @@ class GetSessionsUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(): ApiResult<List<SessionDto>> =
-        withContext(ioDispatcher) { repository.getSessions() }
+    suspend operator fun invoke(studyCafeId: Long): ApiResult<List<SessionDto>> =
+        withContext(ioDispatcher) { repository.getSessions(studyCafeId) }
 }
 
 /**
@@ -244,8 +209,8 @@ class AutoAssignSeatUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(seatId: String): ApiResult<SessionDto> =
-        withContext(ioDispatcher) { repository.autoAssignSeat(seatId) }
+    suspend operator fun invoke(studyCafeId: Long): ApiResult<SessionDto> =
+        withContext(ioDispatcher) { repository.autoAssignSeat(studyCafeId) }
 }
 
 // =====================================================
@@ -260,11 +225,8 @@ class GetStudyCafesUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(
-        page: Int = 0,
-        size: Int = 20
-    ): ApiResult<PageResponse<StudyCafeSummaryDto>> =
-        withContext(ioDispatcher) { repository.getStudyCafes(page, size) }
+    suspend operator fun invoke(): ApiResult<List<StudyCafeSummaryDto>> =
+        withContext(ioDispatcher) { repository.getStudyCafes() }
 }
 
 /**
@@ -287,7 +249,7 @@ class CreateCafeUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(request: StudyCafeDetailPost): ApiResult<StudyCafeDetailDto> =
+    suspend operator fun invoke(request: CreateCafeRequest): ApiResult<Unit> =
         withContext(ioDispatcher) { repository.createCafe(request) }
 }
 
@@ -301,8 +263,8 @@ class UpdateCafeUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(
         cafeId: Long,
-        request: StudyCafeDetailPost
-    ): ApiResult<StudyCafeDetailDto> =
+        request: UpdateCafeRequest
+    ): ApiResult<Unit> =
         withContext(ioDispatcher) { repository.updateCafe(cafeId, request) }
 }
 
@@ -374,11 +336,8 @@ class GetAdminCafesUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(
-        page: Int = 0,
-        size: Int = 20
-    ): ApiResult<PageResponse<StudyCafeSummaryDto>> =
-        withContext(ioDispatcher) { repository.getAdminCafes(page, size) }
+    suspend operator fun invoke(): ApiResult<List<StudyCafeSummaryDto>> =
+        withContext(ioDispatcher) { repository.getAdminCafes() }
 }
 
 // =====================================================
@@ -407,8 +366,8 @@ class CreateSeatsUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(
         cafeId: Long,
-        request: CreateSeatRequest
-    ): ApiResult<GetSeatResponse> =
+        request: List<SeatCreate>
+    ): ApiResult<Unit> =
         withContext(ioDispatcher) { repository.createSeats(cafeId, request) }
 }
 
@@ -422,8 +381,8 @@ class UpdateSeatsUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(
         cafeId: Long,
-        request: UpdateSeatRequest
-    ): ApiResult<GetSeatResponse> =
+        request: List<SeatUpdate>
+    ): ApiResult<Unit> =
         withContext(ioDispatcher) { repository.updateSeats(cafeId, request) }
 }
 

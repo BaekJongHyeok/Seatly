@@ -7,12 +7,14 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kr.jiyeok.seatly.data.remote.request.ChangePasswordRequest
-import kr.jiyeok.seatly.data.remote.request.UpdateUserRequest
-import kr.jiyeok.seatly.data.remote.response.UserResponseDto
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.domain.usecase.*
 import kr.jiyeok.seatly.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
+import kr.jiyeok.seatly.data.remote.enums.ERole
+import kr.jiyeok.seatly.data.remote.request.RegisterRequest
+import kr.jiyeok.seatly.data.remote.request.UpdateUserInfoRequest
+import kr.jiyeok.seatly.data.remote.response.UserInfoDetailDto
 import javax.inject.Inject
 
 /**
@@ -42,8 +44,9 @@ sealed interface UserUiState {
 class UserViewModel @Inject constructor(
     private val getUserInfoUseCase: GetUserInfoUseCase,
     private val updateUserInfoUseCase: UpdateUserInfoUseCase,
-    private val changePasswordUseCase: ChangePasswordUseCase,
     private val deleteAccountUseCase: DeleteAccountUseCase,
+    private val registerUseCase: RegisterUseCase,
+    private val changePasswordUseCase: ChangePasswordUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -61,8 +64,8 @@ class UserViewModel @Inject constructor(
     /**
      * 사용자 프로필 정보
      */
-    private val _userProfile = MutableStateFlow<UserResponseDto?>(null)
-    val userProfile: StateFlow<UserResponseDto?> = _userProfile.asStateFlow()
+    private val _userProfile = MutableStateFlow<UserInfoDetailDto?>(null)
+    val userProfile: StateFlow<UserInfoDetailDto?> = _userProfile.asStateFlow()
 
     /**
      * 로딩 상태
@@ -122,12 +125,10 @@ class UserViewModel @Inject constructor(
             _userState.value = UserUiState.Loading
             _error.value = null
             try {
-                val request = UpdateUserRequest(name, phone, imageUrl)
+                val request = UpdateUserInfoRequest(name, phone, imageUrl)
                 when (val result = updateUserInfoUseCase(request)) {
                     is ApiResult.Success -> {
-                        _userProfile.value = result.data
-                        _userState.value = UserUiState.Success("프로필이 업데이트되었습니다")
-                        _events.send("프로필이 업데이트되었습니다")
+                        loadUserProfile()
                     }
                     is ApiResult.Failure -> {
                         _error.value = result.message ?: "프로필 업데이트 실패"
@@ -144,14 +145,14 @@ class UserViewModel @Inject constructor(
     /**
      * 비밀번호 변경
      */
-    fun changePassword(userId: Long, currentPassword: String, newPassword: String) {
+    fun changePassword(currentPassword: String, newPassword: String) {
         viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
             _userState.value = UserUiState.Loading
             _error.value = null
             try {
                 val request = ChangePasswordRequest(currentPassword, newPassword)
-                when (val result = changePasswordUseCase(userId, request)) {
+                when (val result = changePasswordUseCase(request)) {
                     is ApiResult.Success -> {
                         _userState.value = UserUiState.Success("비밀번호가 변경되었습니다")
                         _events.send("비밀번호가 변경되었습니다")
@@ -187,6 +188,31 @@ class UserViewModel @Inject constructor(
                         _error.value = result.message ?: "회원탈퇴 실패"
                         _userState.value = UserUiState.Error(result.message ?: "회원탈퇴 실패")
                         _events.send(result.message ?: "회원탈퇴 실패")
+                    }
+                }
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * 회원가입
+     */
+    fun register(email: String, password: String, name: String, phone: String, imageUrl: String, role: ERole) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _userState.value = UserUiState.Loading
+            try {
+                val request = RegisterRequest(email, password, name, phone, imageUrl, role)
+                when (val result = registerUseCase(request)) {
+                    is ApiResult.Success -> {
+                        _userState.value = UserUiState.Success("회원가입 완료")
+                        _events.send("회원가입 완료")
+                    }
+                    is ApiResult.Failure -> {
+                        _userState.value = UserUiState.Error(result.message ?: "회원가입 실패")
+                        _events.send(result.message ?: "회원가입 실패")
                     }
                 }
             } finally {

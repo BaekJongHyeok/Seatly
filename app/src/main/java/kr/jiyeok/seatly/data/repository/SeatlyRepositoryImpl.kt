@@ -7,6 +7,7 @@ import kr.jiyeok.seatly.data.remote.ApiService
 import kr.jiyeok.seatly.data.remote.request.*
 import kr.jiyeok.seatly.data.remote.response.*
 import kr.jiyeok.seatly.di.IoDispatcher
+import kr.jiyeok.seatly.ui.screen.admin.seat.Seat
 import retrofit2.HttpException
 import java.io.IOException
 import javax.inject.Inject
@@ -32,21 +33,6 @@ class SeatlyRepositoryImpl @Inject constructor(
     override suspend fun logout() =
         safeApiCall { apiService.logout() }
 
-    override suspend fun register(request: RegisterRequest) =
-        safeApiCall { apiService.register(request) }
-
-    override suspend fun refreshToken(request: RefreshTokenRequest) =
-        safeApiCall { apiService.refreshToken(request) }
-
-    override suspend fun socialRegister(request: SocialRegisterRequest) =
-        safeApiCall { apiService.register(RegisterRequest(request.email, "", request.name, request.phone ?: "")) }
-
-    override suspend fun forgotPassword(request: ForgotPasswordRequest) =
-        safeApiCall { apiService.register(RegisterRequest(request.email, "", "", "")) }
-
-    override suspend fun verifyCode(request: VerifyCodeRequest) =
-        safeApiCall { apiService.register(RegisterRequest(request.email, "", "", "")) }
-
     // =====================================================
     // User
     // =====================================================
@@ -54,31 +40,37 @@ class SeatlyRepositoryImpl @Inject constructor(
     override suspend fun getUserInfo() =
         safeApiCall { apiService.getUserInfo() }
 
-    override suspend fun updateUserInfo(request: UpdateUserRequest) =
+    override suspend fun updateUserInfo(request: UpdateUserInfoRequest) =
         safeApiCall { apiService.updateUserInfo(request) }
 
     override suspend fun deleteAccount() =
         safeApiCall { apiService.deleteAccount() }
 
-    override suspend fun changePassword(userId: Long, request: ChangePasswordRequest) =
-        safeApiCall { apiService.changePassword(userId, request) }
+    override suspend fun register(request: RegisterRequest) =
+        safeApiCall { apiService.register(request) }
+
+    override suspend fun changePassword(request: ChangePasswordRequest) =
+        safeApiCall { apiService.changePassword(request) }
 
     // =====================================================
     // Users (Admin)
     // =====================================================
 
-    override suspend fun getUsersWithTimePass(studyCafeId: Long) =
-        safeApiCall { apiService.getUsersWithTimePass(studyCafeId) }
+    override suspend fun getUsersInfo(studyCafeId: Long) =
+        safeApiCall { apiService.getUsersInfo(studyCafeId) }
 
-    override suspend fun getUserInfoAdmin(userId: Long) =
-        safeApiCall { apiService.getUserInfoAdmin(userId) }
+    override suspend fun getUsersInfoById(userId: Long) =
+        safeApiCall { apiService.getUsersInfoById(userId) }
+
+    override suspend fun addUserTimePass(userId: Long) =
+        safeApiCall { apiService.addUserTimePass(userId) }
 
     // =====================================================
     // Sessions
     // =====================================================
 
-    override suspend fun getSessions() =
-        safeApiCall { apiService.getSessions() }
+    override suspend fun getSessions(studyCafeId: Long) =
+        safeApiCall { apiService.getSessions(studyCafeId) }
 
     override suspend fun startSession(sessionId: Long) =
         safeApiCall { apiService.startSession(sessionId) }
@@ -89,23 +81,23 @@ class SeatlyRepositoryImpl @Inject constructor(
     override suspend fun assignSeat(seatId: String) =
         safeApiCall { apiService.assignSeat(seatId) }
 
-    override suspend fun autoAssignSeat(seatId: String) =
-        safeApiCall { apiService.autoAssignSeat(seatId) }
+    override suspend fun autoAssignSeat(studyCafeId: Long) =
+        safeApiCall { apiService.autoAssignSeat(studyCafeId) }
 
     // =====================================================
     // Study Cafes
     // =====================================================
 
-    override suspend fun getStudyCafes(page: Int, size: Int) =
-        safeApiCall { apiService.getStudyCafes(page, size) }
+    override suspend fun getStudyCafes() =
+        safeApiCall { apiService.getStudyCafes() }
 
     override suspend fun getCafeDetail(cafeId: Long) =
         safeApiCall { apiService.getCafeDetail(cafeId) }
 
-    override suspend fun createCafe(request: StudyCafeDetailPost) =
+    override suspend fun createCafe(request: CreateCafeRequest) =
         safeApiCall { apiService.createCafe(request) }
 
-    override suspend fun updateCafe(cafeId: Long, request: StudyCafeDetailPost) =
+    override suspend fun updateCafe(cafeId: Long, request: UpdateCafeRequest) =
         safeApiCall { apiService.updateCafe(cafeId, request) }
 
     override suspend fun deleteCafe(cafeId: Long) =
@@ -123,8 +115,8 @@ class SeatlyRepositoryImpl @Inject constructor(
     override suspend fun deleteUserTimePass(cafeId: Long, userId: Long) =
         safeApiCall { apiService.deleteUserTimePass(cafeId, userId) }
 
-    override suspend fun getAdminCafes(page: Int, size: Int) =
-        safeApiCall { apiService.getAdminCafes(page, size) }
+    override suspend fun getAdminCafes() =
+        safeApiCall { apiService.getAdminCafes() }
 
     // =====================================================
     // Seats
@@ -133,10 +125,10 @@ class SeatlyRepositoryImpl @Inject constructor(
     override suspend fun getCafeSeats(cafeId: Long) =
         safeApiCall { apiService.getCafeSeats(cafeId) }
 
-    override suspend fun createSeats(cafeId: Long, request: CreateSeatRequest) =
+    override suspend fun createSeats(cafeId: Long, request: List<SeatCreate>) =
         safeApiCall { apiService.createSeats(cafeId, request) }
 
-    override suspend fun updateSeats(cafeId: Long, request: UpdateSeatRequest) =
+    override suspend fun updateSeats(cafeId: Long, request: List<SeatUpdate>) =
         safeApiCall { apiService.updateSeats(cafeId, request) }
 
     override suspend fun deleteSeat(cafeId: Long, seatId: String) =
