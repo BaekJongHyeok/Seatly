@@ -30,7 +30,6 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kr.jiyeok.seatly.data.remote.response.SessionDto
-import kr.jiyeok.seatly.data.remote.response.StudyCafeDetailDto
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.presentation.viewmodel.HomeViewModel
 import kr.jiyeok.seatly.presentation.viewmodel.UserViewModel
@@ -127,7 +126,7 @@ fun HomeScreen(
                     cafe = displayCafe,
                     elapsedTime = elapsedTime,
                     progressValue = progress,
-                    onViewDetail = { navController.navigate("current_usage_detail") },
+                    onViewDetail = { navController.navigate("cafe_detail/${sessionDto.studyCafeId}") },
                     onEndUsage = { viewModel.endCurrentSession() },
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
@@ -149,10 +148,13 @@ fun HomeScreen(
         FavoritesCafeSection(
             cafes = favoriteCafes,
             onViewAll = { navController.navigate("favorites") },
-            onItemClick = { cafe -> navController.navigate("cafe_detail/${cafe.id}") }
+            onItemClick = { cafe -> navController.navigate("cafe_detail/${cafe.id}") },
+            onToggleFavorite = { cafe ->
+                viewModel.removeFavoriteCafe(cafe.id)
+            }
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(100.dp))
     }
 }
 
@@ -359,21 +361,6 @@ fun SessionCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Button(
-                    onClick = onViewDetail,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B4A)),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        text = "연장하기",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
-                }
-                Button(
                     onClick = onEndUsage,
                     modifier = Modifier
                         .weight(1f)
@@ -456,7 +443,8 @@ fun CafeFindSection(onSearch: () -> Unit) {
 fun FavoritesCafeSection(
     cafes: List<StudyCafeSummaryDto>,
     onViewAll: () -> Unit,
-    onItemClick: (StudyCafeSummaryDto) -> Unit
+    onItemClick: (StudyCafeSummaryDto) -> Unit,
+    onToggleFavorite: (StudyCafeSummaryDto) -> Unit // 파라미터 추가
 ) {
     Column(
         modifier = Modifier
@@ -534,7 +522,11 @@ fun FavoritesCafeSection(
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 cafes.forEach { cafe ->
-                    CafeCardHorizontal(cafe = cafe, onClick = onItemClick)
+                    CafeCardHorizontal(
+                        cafe = cafe,
+                        onClick = onItemClick,
+                        onFavoriteClick = { onToggleFavorite(cafe) } // 이벤트 전달
+                    )
                 }
             }
         }
@@ -544,7 +536,8 @@ fun FavoritesCafeSection(
 @Composable
 fun CafeCardHorizontal(
     cafe: StudyCafeSummaryDto,
-    onClick: (StudyCafeSummaryDto) -> Unit
+    onClick: (StudyCafeSummaryDto) -> Unit,
+    onFavoriteClick: () -> Unit // 파라미터 추가
 ) {
     Box(
         modifier = Modifier
@@ -572,15 +565,19 @@ fun CafeCardHorizontal(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+
+                // 하트 버튼 영역 (수정됨)
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(10.dp)
                         .size(32.dp)
                         .clip(RoundedCornerShape(50))
-                        .background(Color.White),
+                        .background(Color.White)
+                        .clickable { onFavoriteClick() }, // 클릭 이벤트 추가
                     contentAlignment = Alignment.Center
                 ) {
+                    // UI 완벽 유지를 위해 기존 Text 이모지 사용
                     Text(text = "❤️", fontSize = 16.sp)
                 }
             }
@@ -606,6 +603,7 @@ fun CafeCardHorizontal(
         }
     }
 }
+
 
 @Composable
 fun NoActiveSessionGuide(onFindCafe: () -> Unit) {

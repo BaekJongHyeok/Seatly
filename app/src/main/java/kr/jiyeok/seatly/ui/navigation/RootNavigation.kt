@@ -1,5 +1,6 @@
 package kr.jiyeok.seatly.ui.navigation
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -8,7 +9,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -20,24 +21,25 @@ import androidx.navigation.navArgument
 import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.ui.component.admin.AdminBottomNavigationBar
-import kr.jiyeok.seatly.ui.components.BottomNavigationBar
-import kr.jiyeok.seatly.ui.screen.common.DashboardScreen
-import kr.jiyeok.seatly.ui.screen.user.CafeDetailScreen
-import kr.jiyeok.seatly.ui.screen.user.HomeScreen
+import kr.jiyeok.seatly.ui.component.user.BottomNavigationBar
 import kr.jiyeok.seatly.ui.screen.admin.AdminHomeScreen
 import kr.jiyeok.seatly.ui.screen.admin.AdminMyPageScreen
-import kr.jiyeok.seatly.ui.screen.common.LoginScreen
 import kr.jiyeok.seatly.ui.screen.admin.cafe.RegisterCafeScreen1
 import kr.jiyeok.seatly.ui.screen.admin.cafe.RegisterCafeScreen2
 import kr.jiyeok.seatly.ui.screen.admin.cafe.StudyCafeListScreen
-import kr.jiyeok.seatly.ui.screen.user.SearchScreen
-import kr.jiyeok.seatly.ui.screen.common.signup.SignupScreen
-import kr.jiyeok.seatly.ui.screen.admin.seat.SeatLayoutScreen
-import kr.jiyeok.seatly.ui.screen.admin.seat.CurrentSeatScreen
 import kr.jiyeok.seatly.ui.screen.admin.seat.ActivitiesScreen
+import kr.jiyeok.seatly.ui.screen.admin.seat.CurrentSeatScreen
+import kr.jiyeok.seatly.ui.screen.admin.seat.SeatLayoutScreen
+import kr.jiyeok.seatly.ui.screen.common.DashboardScreen
+import kr.jiyeok.seatly.ui.screen.common.LoginScreen
 import kr.jiyeok.seatly.ui.screen.common.password.PasswordScreen_1
 import kr.jiyeok.seatly.ui.screen.common.password.PasswordScreen_2
 import kr.jiyeok.seatly.ui.screen.common.password.PasswordScreen_3
+import kr.jiyeok.seatly.ui.screen.common.signup.SignupScreen
+import kr.jiyeok.seatly.ui.screen.user.CafeDetailScreen
+import kr.jiyeok.seatly.ui.screen.user.HomeScreen
+import kr.jiyeok.seatly.ui.screen.user.MyPageScreen
+import kr.jiyeok.seatly.ui.screen.user.SearchScreen
 import androidx.compose.foundation.layout.Box as ComposeBox
 
 @Composable
@@ -53,43 +55,45 @@ fun RootNavigation(isOwner: Boolean = true) {
     // Determine ownerState based on user role from AuthViewModel
     val ownerState = userRole == ERole.ADMIN
 
-    // (isAuthenticated 변수는 AuthViewModel의 state로 대체하는 것이 좋지만 일단 유지)
-    var isAuthenticated by remember { mutableStateOf(false) }
-
     val ownerBottomRoutes = listOf("dashboard", "home", "reservation_management", "payments", "settings")
     val userBottomRoutes = listOf("home", "search", "reservation", "mypage")
 
     val showBottomNav = if (ownerState) currentRoute in ownerBottomRoutes else currentRoute in userBottomRoutes
 
     Scaffold(
-        bottomBar = {
-            if (showBottomNav) {
-                if (ownerState) {
-                    AdminBottomNavigationBar(currentRoute = currentRoute, onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    })
-                } else {
-                    BottomNavigationBar(currentRoute = currentRoute, onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    })
-                }
-            }
-        },
         modifier = Modifier.fillMaxSize()
+        // bottomBar 제거: 콘텐츠 위에 오버레이하기 위함
     ) { paddingValues ->
-        ComposeBox(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            NavHost(navController = navController, startDestination = "login", modifier = Modifier.fillMaxSize()) {
 
-                // ========================= 로그인 관련 =========================
+        // 전체를 감싸는 Box (Overlay 구조)
+        Box(modifier = Modifier.fillMaxSize()) {
 
+            // 1. 메인 콘텐츠 (NavHost)
+            // 상단 패딩만 적용하고, 하단은 전체 화면을 사용하도록 함
+            NavHost(
+                navController = navController,
+                startDestination = "login",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = paddingValues.calculateTopPadding())
+            ) {
+                // ===============================================================
+                // 공통
+                // ===============================================================
+                // 대시보드
+                composable("dashboard") {
+                    if (ownerState) AdminHomeScreen(navController = navController)
+                    else DashboardScreen(navController = navController)
+                }
+
+                // 알림
+                composable("notifications") {
+                    ComposeBox(modifier = Modifier.fillMaxSize())
+                }
+
+                // ===============================================================
+                // Auth
+                // ===============================================================
                 // 로그인
                 composable("login") {
                     LoginScreen(navController = navController, viewModel = authViewModel)
@@ -111,11 +115,10 @@ fun RootNavigation(isOwner: Boolean = true) {
                     PasswordScreen_3(onBack = { navController.popBackStack()}, onCompleteNavigate = { navController.navigate("login")})
                 }
 
-                composable("notifications") { ComposeBox(modifier = Modifier.fillMaxSize()) }
-
-                // ========================= 유저 관련 =========================
-
-                // 유저 홈
+                // ===============================================================
+                // User
+                // ===============================================================
+                // 홈
                 composable("home") {
                     if (ownerState) {
                         AdminHomeScreen(navController = navController)
@@ -124,18 +127,25 @@ fun RootNavigation(isOwner: Boolean = true) {
                     }
                 }
 
-                composable("dashboard") {
-                    if (ownerState) AdminHomeScreen(navController = navController)
-                    else DashboardScreen(navController = navController)
+                // 카페 검색
+                composable("search") { SearchScreen(navController = navController) }
+
+                // 마이페이지
+                composable("mypage") {
+                    MyPageScreen(navController = navController)
                 }
 
-                composable("favorites") { ComposeBox(modifier = Modifier.fillMaxSize()) }
-                composable("search") { SearchScreen(navController = navController) }
+                // 즐겨찾기
+                composable("favorites") {
+                    ComposeBox(modifier = Modifier.fillMaxSize())
+                }
+
                 composable("reservation") { ComposeBox(modifier = Modifier.fillMaxSize()) }
-                composable("mypage") { ComposeBox(modifier = Modifier.fillMaxSize()) }
 
-                // ========================= 관리자 관련 =========================
-
+                // ===============================================================
+                // Admin
+                // ===============================================================
+                // 홈
                 composable("admin_home") { AdminHomeScreen(navController = navController) }
 
                 composable("cafe_list") { StudyCafeListScreen(navController = navController) }
@@ -165,11 +175,41 @@ fun RootNavigation(isOwner: Boolean = true) {
                 }
 
                 composable("recent_activities") { ActivitiesScreen(navController = navController) }
-
                 composable("reservation_management") { ComposeBox(modifier = Modifier.fillMaxSize()) }
                 composable("settings") { ComposeBox(modifier = Modifier.fillMaxSize()) }
                 composable("recent") { ComposeBox(modifier = Modifier.fillMaxSize()) }
                 composable("current_usage_detail") { ComposeBox(modifier = Modifier.fillMaxSize()) }
+            }
+
+            // 2. 바텀 네비게이션 (콘텐츠 위에 Overlay)
+            if (showBottomNav) {
+                Box(
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) {
+                    if (ownerState) {
+                        AdminBottomNavigationBar(
+                            currentRoute = currentRoute,
+                            onNavigate = { route ->
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        )
+                    } else {
+                        BottomNavigationBar(
+                            currentRoute = currentRoute,
+                            onNavigate = { route ->
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
     }

@@ -313,7 +313,7 @@ class DebugMockInterceptor : Interceptor {
                             "https://images.unsplash.com/photo-1554118811-1e0d58224f24"
                         ],
                         "phone": "010-1234-5678",
-                        "facilities": ["WIFI", "AIRCONDITIONING", "CAFE"],
+                        "facilities": ["WIFI", "AIRCONDITION", "CAFE"],
                         "openingHours": "24시간",
                         "description": "학습하기 좋은 공간입니다."
                     }

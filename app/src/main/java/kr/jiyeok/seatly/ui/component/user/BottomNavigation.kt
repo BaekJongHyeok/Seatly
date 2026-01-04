@@ -1,4 +1,4 @@
-package kr.jiyeok.seatly.ui.component.admin
+package kr.jiyeok.seatly.ui.component.user
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -34,10 +34,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun AdminBottomNavigationBar(
+fun BottomNavigationBar(
     currentRoute: String?,
     onNavigate: (String) -> Unit
 ) {
+    // 둥근 모서리와 그림자를 위한 컨테이너 (Floating Style)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -60,11 +61,11 @@ fun AdminBottomNavigationBar(
         ) {
             // Home Item
             NavigationBarItem(
-                selected = currentRoute == "dashboard",
-                onClick = { onNavigate("dashboard") },
+                selected = currentRoute == "home",
+                onClick = { onNavigate("home") },
                 icon = {
                     TabIconWithIndicator(
-                        isSelected = currentRoute == "dashboard",
+                        isSelected = currentRoute == "home",
                         selectedIcon = Icons.Filled.Home,
                         unselectedIcon = Icons.Outlined.Home,
                         description = "홈"
@@ -74,29 +75,29 @@ fun AdminBottomNavigationBar(
                 colors = customNavColors()
             )
 
-            // Cafe_list Item
+            // Search Item
             NavigationBarItem(
-                selected = currentRoute == "cafe_list",
-                onClick = { onNavigate("cafe_list") },
+                selected = currentRoute == "search",
+                onClick = { onNavigate("search") },
                 icon = {
                     TabIconWithIndicator(
-                        isSelected = currentRoute == "cafe_list",
+                        isSelected = currentRoute == "search",
                         selectedIcon = Icons.Filled.Search,
                         unselectedIcon = Icons.Outlined.Search,
-                        description = "카페 관리"
+                        description = "검색"
                     )
                 },
-                label = { TabLabel("카페 관리") },
+                label = { TabLabel("검색") },
                 colors = customNavColors()
             )
 
             // MyPage Item
             NavigationBarItem(
-                selected = currentRoute == "admin_mypage",
-                onClick = { onNavigate("admin_mypage") },
+                selected = currentRoute == "mypage",
+                onClick = { onNavigate("mypage") },
                 icon = {
                     TabIconWithIndicator(
-                        isSelected = currentRoute == "admin_mypage",
+                        isSelected = currentRoute == "mypage",
                         selectedIcon = Icons.Filled.Person,
                         unselectedIcon = Icons.Outlined.Person,
                         description = "마이페이지"
@@ -112,7 +113,6 @@ fun AdminBottomNavigationBar(
 // ------------------------------------------------------------
 // ✨ Helper Composables (재사용 및 스타일 통일)
 // ------------------------------------------------------------
-
 
 /**
  * 아이콘 위에 활성화 바(Indicator Bar)를 표시하는 컴포저블
