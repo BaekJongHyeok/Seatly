@@ -3,9 +3,10 @@ package kr.jiyeok.seatly.data.remote.enums
 enum class EFacility {
     WIFI,
     PRINTER,
+    OUTLET,
     OPEN_24H,
     CAFE,
-    MEETINGROOM,
+    MEETING_ROOM,
     LOCKER,
-    AIRCONDITION
+    AIR_CONDITIONING
 }

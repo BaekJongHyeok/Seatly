@@ -1,4 +1,4 @@
-package kr.jiyeok.seatly.ui.component.user
+package kr.jiyeok.seatly.ui.component.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -33,16 +33,37 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+data class NavItem(
+    val route: String,
+    val label: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+)
+
 @Composable
 fun BottomNavigationBar(
     currentRoute: String?,
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    isAdmin: Boolean
 ) {
-    // 둥근 모서리와 그림자를 위한 컨테이너 (Floating Style)
+    val navItems = if (isAdmin) {
+        listOf(
+            NavItem("admin/home", "홈", Icons.Filled.Home, Icons.Outlined.Home),
+            NavItem("admin/cafe/list", "카페 관리", Icons.Filled.Search, Icons.Outlined.Search),
+            NavItem("admin/mypage", "마이페이지", Icons.Filled.Person, Icons.Outlined.Person)
+        )
+    } else {
+        listOf(
+            NavItem("user/home", "홈", Icons.Filled.Home, Icons.Outlined.Home),
+            NavItem("user/search", "검색", Icons.Filled.Search, Icons.Outlined.Search),
+            NavItem("user/mypage", "마이페이지", Icons.Filled.Person, Icons.Outlined.Person)
+        )
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp) // 화면에서 띄우기
+            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
             .height(72.dp)
             .shadow(
                 elevation = 12.dp,
@@ -59,64 +80,26 @@ fun BottomNavigationBar(
             contentColor = Color.Black,
             tonalElevation = 0.dp
         ) {
-            // Home Item
-            NavigationBarItem(
-                selected = currentRoute == "home",
-                onClick = { onNavigate("home") },
-                icon = {
-                    TabIconWithIndicator(
-                        isSelected = currentRoute == "home",
-                        selectedIcon = Icons.Filled.Home,
-                        unselectedIcon = Icons.Outlined.Home,
-                        description = "홈"
-                    )
-                },
-                label = { TabLabel("홈") },
-                colors = customNavColors()
-            )
-
-            // Search Item
-            NavigationBarItem(
-                selected = currentRoute == "search",
-                onClick = { onNavigate("search") },
-                icon = {
-                    TabIconWithIndicator(
-                        isSelected = currentRoute == "search",
-                        selectedIcon = Icons.Filled.Search,
-                        unselectedIcon = Icons.Outlined.Search,
-                        description = "검색"
-                    )
-                },
-                label = { TabLabel("검색") },
-                colors = customNavColors()
-            )
-
-            // MyPage Item
-            NavigationBarItem(
-                selected = currentRoute == "mypage",
-                onClick = { onNavigate("mypage") },
-                icon = {
-                    TabIconWithIndicator(
-                        isSelected = currentRoute == "mypage",
-                        selectedIcon = Icons.Filled.Person,
-                        unselectedIcon = Icons.Outlined.Person,
-                        description = "마이페이지"
-                    )
-                },
-                label = { TabLabel("마이페이지") },
-                colors = customNavColors()
-            )
+            navItems.forEach { item ->
+                NavigationBarItem(
+                    selected = currentRoute == item.route,
+                    onClick = { onNavigate(item.route) },
+                    icon = {
+                        TabIconWithIndicator(
+                            isSelected = currentRoute == item.route,
+                            selectedIcon = item.selectedIcon,
+                            unselectedIcon = item.unselectedIcon,
+                            description = item.label
+                        )
+                    },
+                    label = { TabLabel(item.label) },
+                    colors = customNavColors()
+                )
+            }
         }
     }
 }
 
-// ------------------------------------------------------------
-// ✨ Helper Composables (재사용 및 스타일 통일)
-// ------------------------------------------------------------
-
-/**
- * 아이콘 위에 활성화 바(Indicator Bar)를 표시하는 컴포저블
- */
 @Composable
 private fun TabIconWithIndicator(
     isSelected: Boolean,
@@ -125,19 +108,17 @@ private fun TabIconWithIndicator(
     description: String
 ) {
     Box(contentAlignment = Alignment.Center) {
-        // 활성화 상태일 때 상단에 바 표시
         if (isSelected) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = (-14).dp) // 아이콘 위로 위치 조정
-                    .width(32.dp) // 바 너비
-                    .height(5.dp) // 바 높이
-                    .clip(RoundedCornerShape(4.dp)) // 바 모서리 둥글게
-                    .background(Color(0xFFFF6B4A)) // 테마 색상
+                    .offset(y = (-14).dp)
+                    .width(32.dp)
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFFFF6B4A))
             )
         }
-
         Icon(
             imageVector = if (isSelected) selectedIcon else unselectedIcon,
             contentDescription = description,
@@ -161,5 +142,5 @@ private fun customNavColors() = NavigationBarItemDefaults.colors(
     selectedTextColor = Color(0xFFFF6B4A),
     unselectedIconColor = Color(0xFFA0A0A0),
     unselectedTextColor = Color(0xFFA0A0A0),
-    indicatorColor = Color.Transparent // 기본 둥근 배경 제거 (중요)
+    indicatorColor = Color.Transparent
 )

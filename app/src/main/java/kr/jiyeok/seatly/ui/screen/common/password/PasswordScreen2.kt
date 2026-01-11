@@ -30,7 +30,7 @@ import kr.jiyeok.seatly.ui.component.AuthButton
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 
 @Composable
-fun PasswordScreen_2(
+fun PasswordScreen2(
     onBack: () -> Unit,
     onVerifiedNavigate: () -> Unit
 ) {
@@ -73,17 +73,7 @@ fun PasswordScreen_2(
                     contentDescription = "뒤로",
                     tint = Color(0xFF1A1A1A)
                 )
-            },
-            onLeftClick = onBack,
-            titleTextStyle = TextStyle(
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1A1A1A)
-            ),
-            backgroundColor = Color.White,
-            verticalPadding = 18.dp,
-            buttonContainerSize = 44.dp,
-            minHeight = 64.dp
+            }
         )
 
         Box(

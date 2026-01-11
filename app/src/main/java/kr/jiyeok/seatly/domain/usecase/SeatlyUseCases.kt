@@ -29,7 +29,7 @@ class LoginUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(request: LoginRequest): ApiResult<UserInfoDetailDto> =
+    suspend operator fun invoke(request: LoginRequest): ApiResult<UserInfoSummaryDto> =
         withContext(ioDispatcher) { repository.login(request) }
 }
 

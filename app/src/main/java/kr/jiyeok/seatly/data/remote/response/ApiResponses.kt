@@ -54,6 +54,7 @@ data class UserInfoSummaryDto(
     val name: String,
     val phone: String?,
     val imageUrl: String?,
+    val role: ERole
 )
 
 // =====================================================

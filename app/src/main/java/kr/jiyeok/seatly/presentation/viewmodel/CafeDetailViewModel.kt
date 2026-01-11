@@ -18,13 +18,13 @@ import javax.inject.Inject
 
 /**
  * Cafe Detail ViewModel
- * 
+ *
  * 역할:
  * - 카페 상세 정보 조회
  * - 카페 좌석 관리
  * - 좌석 예약/자동 배정 처리
  * - 세션 시작 처리
- * 
+ *
  * UI는 StateFlow를 통해 상태를 관찰하고,
  * 에러/이벤트는 [events] Channel을 통해 수신합니다
  */
@@ -174,7 +174,7 @@ class CafeDetailViewModel @Inject constructor(
      * 사용 가능한 좌석 필터링
      */
     fun getAvailableSeats(): List<SeatDto> {
-        return _seats.value.filter { 
+        return _seats.value.filter {
             it.status == ESeatStatus.AVAILABLE == true
         }
     }

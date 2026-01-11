@@ -29,7 +29,7 @@ private fun hasDigit(pw: String) = pw.any { it.isDigit() }
 private fun hasSpecial(pw: String) = pw.any { "!@#$%^&*()_+-=[]{}|;':\",./<>?/`~".contains(it) }
 
 @Composable
-fun PasswordScreen_3(
+fun PasswordScreen3(
     emailArg: String? = null,
     onBack: () -> Unit,
     onCompleteNavigate: () -> Unit
@@ -74,17 +74,7 @@ fun PasswordScreen_3(
                     contentDescription = "뒤로",
                     tint = Color(0xFF1A1A1A)
                 )
-            },
-            onLeftClick = onBack,
-            titleTextStyle = TextStyle(
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1A1A1A)
-            ),
-            backgroundColor = Color.White,
-            verticalPadding = 18.dp,
-            buttonContainerSize = 44.dp,
-            minHeight = 64.dp
+            }
         )
 
         // divider + spacing to separate topbar from content

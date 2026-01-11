@@ -25,7 +25,7 @@ import kr.jiyeok.seatly.ui.component.EmailInputField
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 
 @Composable
-fun PasswordScreen_1(
+fun PasswordScreen1(
     onBack: () -> Unit,
     onNextNavigate: () -> Unit
 ) {
@@ -67,17 +67,7 @@ fun PasswordScreen_1(
                     contentDescription = "뒤로",
                     tint = Color(0xFF1A1A1A)
                 )
-            },
-            onLeftClick = onBack,
-            titleTextStyle = TextStyle(
-                fontSize = topBarTitleSize,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1A1A1A)
-            ),
-            backgroundColor = Color.White,
-            verticalPadding = 18.dp,
-            buttonContainerSize = 44.dp,
-            minHeight = 64.dp
+            }
         )
 
         // 구분선

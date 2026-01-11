@@ -1,99 +1,62 @@
 package kr.jiyeok.seatly.ui.component.common
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+// 색상 정의
+private val ColorTextBlack = Color(0xFF000000)
+private val ColorWhite = Color(0xFFFFFFFF)
+
 /**
  * AppTopBar
- *
- * Common top app bar used across the app.
- *
- * Behavior:
- * - Always reserves the left area for an optional left icon button.
- * - Always reserves the right area for an optional right icon button.
- * - Title text is placed exactly at the horizontal center of the bar (true center).
- * - Keeps vertical padding (top/bottom) so spacing matches typical top app bar.
+ * 앱 내에서 사용하는 공통 규격의 TopBar
  */
 @Composable
 fun AppTopBar(
     title: String,
-    modifier: Modifier = Modifier,
-    titleFontSize: androidx.compose.ui.unit.TextUnit = 18.sp,
-    titleColor: Color = Color.Unspecified,
-    titleTextStyle: TextStyle? = null,
-    // Optional left button content and click handler
     leftContent: (@Composable (() -> Unit))? = null,
-    onLeftClick: (() -> Unit)? = null,
-    // Optional right button content and click handler
-    rightContent: (@Composable (() -> Unit))? = null,
-    onRightClick: (() -> Unit)? = null,
-    // sizes for icon buttons (button container size)
-    buttonContainerSize: Dp = 40.dp,
-    // vertical padding above and below the content (preserves topbar spacing)
-    verticalPadding: Dp = 12.dp,
-    // minimum height of the bar (keeps consistent visual height)
-    minHeight: Dp = 56.dp,
-    backgroundColor: Color = MaterialTheme.colorScheme.background
+    rightContent: (@Composable (() -> Unit))? = null
 ) {
-    Surface(color = backgroundColor, tonalElevation = 0.dp) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .height(minHeight)
-                .padding(vertical = verticalPadding)
-        ) {
-            val finalStyle = titleTextStyle ?: TextStyle(
-                color = if (titleColor == Color.Unspecified) MaterialTheme.colorScheme.onBackground else titleColor,
-                fontSize = titleFontSize,
-            )
-
-            // Centered title: placed at true center regardless of left/right content
-            Text(
-                text = title,
-                style = finalStyle,
-                modifier = Modifier.align(Alignment.Center)
-            )
-
-            // Left IconButton (if provided)
-            if (leftContent != null) {
-                IconButton(
-                    onClick = { onLeftClick?.invoke() },
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 4.dp)
-                        .height(buttonContainerSize)
-                        .then(Modifier)
-                ) {
-                    leftContent()
-                }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(ColorWhite)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+    ) {
+        // 좌측 IconButton
+        if (leftContent != null) {
+            Box(
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                leftContent()
             }
+        }
 
-            // Right IconButton (if provided)
-            if (rightContent != null) {
-                IconButton(
-                    onClick = { onRightClick?.invoke() },
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 4.dp)
-                        .height(buttonContainerSize)
-                        .then(Modifier)
-                ) {
-                    rightContent()
-                }
+        // 중앙 타이틀
+        Text(
+            text = title,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = ColorTextBlack,
+            modifier = Modifier.align(Alignment.Center)
+        )
+
+        // 우측 IconButton
+        if (rightContent != null) {
+            Box(
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                rightContent()
             }
         }
     }

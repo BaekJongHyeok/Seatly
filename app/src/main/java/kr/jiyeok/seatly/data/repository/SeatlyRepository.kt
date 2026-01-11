@@ -12,7 +12,7 @@ interface SeatlyRepository {
     // Authentication
     // =====================================================
 
-    suspend fun login(request: LoginRequest): ApiResult<UserInfoDetailDto>
+    suspend fun login(request: LoginRequest): ApiResult<UserInfoSummaryDto>
     suspend fun logout(): ApiResult<Unit>
 
     // =====================================================

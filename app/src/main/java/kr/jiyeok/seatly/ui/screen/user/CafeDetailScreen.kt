@@ -35,11 +35,9 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.EventSeat
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalCafe
-import androidx.compose.material.icons.filled.LocalParking
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Map
@@ -86,7 +84,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavHostController
+import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -114,7 +112,7 @@ private val DividerGap = 20.dp
 private val SectionGap = 24.dp
 
 @Composable
-fun CafeDetailScreen(navController: NavHostController?, cafeId: String?) {
+fun CafeDetailScreen(navController: NavController?, cafeId: String?) {
     val context = LocalContext.current
     val numberFormatter = NumberFormat.getNumberInstance(Locale.KOREA)
     val configuration = LocalConfiguration.current
@@ -792,10 +790,10 @@ private fun FacilityChipCompact(key: EFacility?, modifier: Modifier = Modifier) 
                 EFacility.WIFI -> Icons.Filled.Wifi to "WiFi 무료"
                 EFacility.CAFE -> Icons.Filled.LocalCafe to "카페/음료"
                 EFacility.PRINTER -> Icons.Filled.Print to "프린트 가능"
-                EFacility.MEETINGROOM -> Icons.Filled.MeetingRoom to "회의실"
+                EFacility.MEETING_ROOM -> Icons.Filled.MeetingRoom to "회의실"
                 EFacility.LOCKER -> Icons.Filled.Lock to "사물함"
                 EFacility.OPEN_24H -> Icons.Filled.AccessTime to "24시"
-                EFacility.AIRCONDITION -> Icons.Filled.AcUnit to "에어컨"
+                EFacility.AIR_CONDITIONING -> Icons.Filled.AcUnit to "에어컨"
                 else -> Icons.Filled.Info to (key.name ?: "기타") // ✅ null safety
             }
 

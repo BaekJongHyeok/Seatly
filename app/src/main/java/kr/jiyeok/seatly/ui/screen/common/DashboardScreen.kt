@@ -44,10 +44,10 @@ fun DashboardScreen(navController: NavController) {
         }
     }
 
-    // 2초 후 로그인 화면으로 이동
+    // 1초 후 로그인 화면으로 이동
     LaunchedEffect(Unit) {
-        delay(2000)
-        navController.navigate("login") {
+        delay(500)
+        navController.navigate("auth/login") {
             popUpTo("dashboard") { inclusive = true }
         }
     }

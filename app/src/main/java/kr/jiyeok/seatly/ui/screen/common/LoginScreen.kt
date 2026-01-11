@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import kr.jiyeok.seatly.R
-import kr.jiyeok.seatly.data.remote.request.LoginRequest
 import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.presentation.viewmodel.AuthUiState
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
@@ -49,92 +48,54 @@ import kr.jiyeok.seatly.ui.component.EmailInputField
 import kr.jiyeok.seatly.ui.component.PasswordInputField
 import kr.jiyeok.seatly.util.SharedPreferencesHelper
 
+/**
+ * 로그인 화면
+ * 사용자 인증을 처리하고, 성공 시 사용자 역할에 따라 해당 홈 화면으로 이동
+ *
+ * 기능:
+ * - 이메일/비밀번호 입력
+ * - 자동 로그인 저장
+ * - 비밀번호 찾기
+ * - 회원가입 이동
+ * - 소셜 로그인 (Google, Kakao, Naver)
+ *
+ * 네비게이션:
+ * - 로그인 성공 (ADMIN) → admin/home
+ * - 로그인 성공 (USER) → user/home
+ * - 비밀번호 찾기 → auth/password/step1
+ * - 회원가입 → auth/signup
+ */
 @Composable
 fun LoginScreen(
     navController: NavController,
-    viewModel: AuthViewModel = hiltViewModel()
+    viewModel: AuthViewModel
 ) {
     val context = LocalContext.current
-
-    // Use rememberSaveable for state persistence during configuration changes
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var isAutoLogin by rememberSaveable { mutableStateOf(false) }
-
     val authState by viewModel.authState.collectAsState()
-    val loginData by viewModel.loginData.collectAsState()
     val userRole by viewModel.userRole.collectAsState()
 
-    // Try auto-login if enabled with enhanced error handling
     LaunchedEffect(Unit) {
-        try {
-            if (SharedPreferencesHelper.isAutoLoginEnabled(context)) {
-                val savedEmail = SharedPreferencesHelper.getSavedEmail(context)
-                val savedPassword = SharedPreferencesHelper.getSavedPassword(context)
-
-                if (savedEmail.isNotEmpty() && savedPassword.isNotEmpty()) {
-                    email = savedEmail
-                    password = savedPassword
-                    isAutoLogin = true
-                    viewModel.login(savedEmail, savedPassword)
-                } else {
-                    // Clear invalid auto-login state
-                    try {
-                        SharedPreferencesHelper.clearAutoLoginCredentials(context)
-                    } catch (e: Exception) {
-                        // Ignore errors when clearing credentials
-                    }
-                }
-            }
-        } catch (e: SecurityException) {
-            // Handle security-related errors when accessing SharedPreferences
-            try {
-                SharedPreferencesHelper.clearAutoLoginCredentials(context)
-            } catch (clearError: Exception) {
-                // Ignore errors when clearing credentials
-            }
-        } catch (e: IllegalStateException) {
-            // Handle state-related errors
-            try {
-                SharedPreferencesHelper.clearAutoLoginCredentials(context)
-            } catch (clearError: Exception) {
-                // Ignore errors when clearing credentials
-            }
+        tryAutoLogin(context, viewModel) { savedEmail, savedPassword ->
+            email = savedEmail
+            password = savedPassword
+            isAutoLogin = true
         }
     }
 
-    // On success, persist/clear auto-login and navigate based on user role
     LaunchedEffect(authState) {
         if (authState is AuthUiState.Success) {
-            try {
-                if (isAutoLogin) {
-                    SharedPreferencesHelper.saveAutoLoginCredentials(context, email, password)
-                } else {
-                    SharedPreferencesHelper.clearAutoLoginCredentials(context)
-                }
-
-                // Navigate based on user role
-                val destination = if (userRole == ERole.ADMIN) {
-                    "admin_home"
-                } else {
-                    "home"
-                }
-
-                navController.navigate(destination) {
-                    popUpTo("login") { inclusive = true }
-                }
-            } catch (e: SecurityException) {
-                // Handle error but continue with navigation
-                val destination = if (userRole == ERole.ADMIN) {
-                    "admin_home"
-                } else {
-                    "home"
-                }
-
-                navController.navigate(destination) {
-                    popUpTo("login") { inclusive = true }
-                }
-            }
+            handleLoginSuccess(
+                context = context,
+                isAutoLogin = isAutoLogin,
+                email = email,
+                password = password,
+                userRole = userRole,
+                viewModel = viewModel,
+                navController = navController
+            )
         }
     }
 
@@ -148,12 +109,10 @@ fun LoginScreen(
     ) {
         Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_top_spacer)))
 
-        // Logo and Title Section
         LogoAndTitleSection()
 
         Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_section_spacing)))
 
-        // Input Fields Section
         InputFieldsSection(
             email = email,
             password = password,
@@ -163,43 +122,22 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_field_spacing)))
 
-        // Auto-login and Password Recovery
         AutoLoginAndPasswordRecoveryRow(
             isAutoLogin = isAutoLogin,
-            email = email,
-            password = password,
             onAutoLoginChange = { checked ->
                 isAutoLogin = checked
-                try {
-                    if (checked) {
-                        if (email.isNotEmpty() && password.isNotEmpty()) {
-                            SharedPreferencesHelper.saveAutoLoginCredentials(context, email, password)
-                        } else {
-                            SharedPreferencesHelper.enableAutoLogin(context)
-                        }
-                    } else {
-                        SharedPreferencesHelper.clearAutoLoginCredentials(context)
-                    }
-                } catch (e: SecurityException) {
-                    // Handle SharedPreferences security error - reset checkbox state
-                    isAutoLogin = !checked
-                } catch (e: IllegalStateException) {
-                    // Handle state error - reset checkbox state
-                    isAutoLogin = !checked
-                }
+                updateAutoLoginPreference(context, checked, email, password)
             },
-            onForgotPasswordClick = { navController.navigate("password_step1") }
+            onForgotPasswordClick = { navController.navigate("auth/password/step1") }
         )
 
         Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_options_spacing)))
 
-        // Error Message
         if (authState is AuthUiState.Error) {
             ErrorMessage(message = (authState as AuthUiState.Error).message)
             Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_error_spacing)))
         }
 
-        // Login Button
         AuthButton(
             text = if (authState is AuthUiState.Loading) {
                 stringResource(id = R.string.login_loading)
@@ -207,24 +145,125 @@ fun LoginScreen(
                 stringResource(id = R.string.login_button)
             },
             onClick = { viewModel.login(email, password) },
-            enabled = authState !is AuthUiState.Loading,
+            enabled = authState !is AuthUiState.Loading
         )
 
         Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_button_spacing)))
 
-        // Social Login Section
         SocialLoginSection()
 
         Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_signup_spacing)))
 
-        // Sign Up Section
-        SignUpSection(onSignUpClick = { navController.navigate("signup") })
+        SignUpSection(onSignUpClick = { navController.navigate("auth/signup") })
     }
 }
 
 /**
- * Logo and Title Section Composable
- * Displays the app logo and tagline
+ * 자동 로그인 시도
+ * SharedPreferences에 저장된 자격증명이 있으면 로그인 수행
+ */
+private fun tryAutoLogin(
+    context: android.content.Context,
+    viewModel: AuthViewModel,
+    onCredentialsLoaded: (String, String) -> Unit
+) {
+    try {
+        if (SharedPreferencesHelper.isAutoLoginEnabled(context)) {
+            val savedEmail = SharedPreferencesHelper.getSavedEmail(context)
+            val savedPassword = SharedPreferencesHelper.getSavedPassword(context)
+
+            if (savedEmail.isNotEmpty() && savedPassword.isNotEmpty()) {
+                onCredentialsLoaded(savedEmail, savedPassword)
+                viewModel.login(savedEmail, savedPassword)
+            } else {
+                SharedPreferencesHelper.clearAutoLoginCredentials(context)
+            }
+        }
+    } catch (e: SecurityException) {
+        try {
+            SharedPreferencesHelper.clearAutoLoginCredentials(context)
+        } catch (clearError: Exception) {
+            // 자격증명 삭제 오류 무시
+        }
+    } catch (e: IllegalStateException) {
+        try {
+            SharedPreferencesHelper.clearAutoLoginCredentials(context)
+        } catch (clearError: Exception) {
+            // 자격증명 삭제 오류 무시
+        }
+    }
+}
+
+/**
+ * 로그인 성공 처리
+ * 사용자 역할을 AuthViewModel에 업데이트하고 해당 홈 화면으로 이동
+ *
+ * 핵심:
+ * 1. userRole 값을 AuthViewModel에 설정 (RootNavigation에서 감지)
+ * 2. 자동 로그인 여부에 따라 자격증명 저장
+ * 3. 역할에 따라 적절한 홈 화면으로 네비게이션
+ */
+private fun handleLoginSuccess(
+    context: android.content.Context,
+    isAutoLogin: Boolean,
+    email: String,
+    password: String,
+    userRole: ERole,
+    viewModel: AuthViewModel,
+    navController: NavController
+) {
+    try {
+        if (isAutoLogin) {
+            SharedPreferencesHelper.saveAutoLoginCredentials(context, email, password)
+        } else {
+            SharedPreferencesHelper.clearAutoLoginCredentials(context)
+        }
+    } catch (e: SecurityException) {
+        // SharedPreferences 보안 오류 발생 시에도 네비게이션 계속 진행
+    }
+
+    viewModel.setUserRole(userRole)
+
+    val destination = if (userRole == ERole.ADMIN) {
+        "admin/home"
+    } else {
+        "user/home"
+    }
+
+    navController.navigate(destination) {
+        popUpTo("auth/login") { inclusive = true }
+    }
+}
+
+/**
+ * 자동 로그인 설정 업데이트
+ * SharedPreferences에 자동 로그인 상태와 자격증명 저장
+ */
+private fun updateAutoLoginPreference(
+    context: android.content.Context,
+    isChecked: Boolean,
+    email: String,
+    password: String
+) {
+    try {
+        if (isChecked) {
+            if (email.isNotEmpty() && password.isNotEmpty()) {
+                SharedPreferencesHelper.saveAutoLoginCredentials(context, email, password)
+            } else {
+                SharedPreferencesHelper.enableAutoLogin(context)
+            }
+        } else {
+            SharedPreferencesHelper.clearAutoLoginCredentials(context)
+        }
+    } catch (e: SecurityException) {
+        // SharedPreferences 보안 오류 무시
+    } catch (e: IllegalStateException) {
+        // SharedPreferences 상태 오류 무시
+    }
+}
+
+/**
+ * 로고 및 제목 섹션
  */
 @Composable
 private fun LogoAndTitleSection() {
@@ -267,8 +306,7 @@ private fun LogoAndTitleSection() {
 }
 
 /**
- * Input Fields Section Composable
- * Contains email and password input fields
+ * 입력 필드 섹션 (이메일, 비밀번호)
  */
 @Composable
 private fun InputFieldsSection(
@@ -283,7 +321,6 @@ private fun InputFieldsSection(
             .padding(vertical = dimensionResource(id = R.dimen.login_vertical_padding)),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Email Field
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = stringResource(id = R.string.login_email_label),
@@ -292,6 +329,7 @@ private fun InputFieldsSection(
                 color = colorResource(id = R.color.login_text_primary),
                 modifier = Modifier.padding(bottom = dimensionResource(id = R.dimen.login_label_spacing))
             )
+
             EmailInputField(
                 value = email,
                 onValueChange = onEmailChange,
@@ -301,7 +339,6 @@ private fun InputFieldsSection(
 
         Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_field_spacing)))
 
-        // Password Field
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = stringResource(id = R.string.login_password_label),
@@ -310,6 +347,7 @@ private fun InputFieldsSection(
                 color = colorResource(id = R.color.login_text_primary),
                 modifier = Modifier.padding(bottom = dimensionResource(id = R.dimen.login_label_spacing))
             )
+
             PasswordInputField(
                 value = password,
                 onValueChange = onPasswordChange,
@@ -320,13 +358,11 @@ private fun InputFieldsSection(
 }
 
 /**
- * Auto-login Checkbox and Password Recovery Row Composable
+ * 자동 로그인 체크박스 및 비밀번호 찾기 행
  */
 @Composable
 private fun AutoLoginAndPasswordRecoveryRow(
     isAutoLogin: Boolean,
-    email: String,
-    password: String,
     onAutoLoginChange: (Boolean) -> Unit,
     onForgotPasswordClick: () -> Unit
 ) {
@@ -335,7 +371,6 @@ private fun AutoLoginAndPasswordRecoveryRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Auto-login checkbox
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically
@@ -354,7 +389,6 @@ private fun AutoLoginAndPasswordRecoveryRow(
             )
         }
 
-        // Forgot password
         Text(
             text = stringResource(id = R.string.login_forgot_password),
             fontSize = dimensionResource(id = R.dimen.login_label_text_size).value.sp,
@@ -368,7 +402,7 @@ private fun AutoLoginAndPasswordRecoveryRow(
 }
 
 /**
- * Error Message Composable
+ * 오류 메시지 표시
  */
 @Composable
 private fun ErrorMessage(message: String) {
@@ -383,8 +417,7 @@ private fun ErrorMessage(message: String) {
 }
 
 /**
- * Social Login Section Composable
- * Contains divider and social login buttons
+ * 소셜 로그인 섹션 (Google, Kakao, Naver)
  */
 @Composable
 private fun SocialLoginSection() {
@@ -394,7 +427,6 @@ private fun SocialLoginSection() {
             .padding(bottom = dimensionResource(id = R.dimen.login_bottom_padding)),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Divider with "또는"
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -426,13 +458,12 @@ private fun SocialLoginSection() {
 
         Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_social_button_spacing)))
 
-        // Social buttons
         SocialLoginButtons()
     }
 }
 
 /**
- * Social Login Buttons Composable
+ * 소셜 로그인 버튼들
  */
 @Composable
 private fun SocialLoginButtons() {
@@ -440,7 +471,6 @@ private fun SocialLoginButtons() {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(dimensionResource(id = R.dimen.login_social_button_spacing))
     ) {
-        // Google
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
@@ -452,7 +482,7 @@ private fun SocialLoginButtons() {
                         colorResource(id = R.color.login_social_border),
                         CircleShape
                     )
-                    .clickable { /* Google login */ },
+                    .clickable { },
                 contentAlignment = Alignment.Center
             ) {
                 Image(
@@ -463,14 +493,13 @@ private fun SocialLoginButtons() {
             }
         }
 
-        // Kakao
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
                     .size(dimensionResource(id = R.dimen.login_social_button_size))
                     .clip(CircleShape)
                     .background(colorResource(id = R.color.login_kakao_bg))
-                    .clickable { /* Kakao login */ },
+                    .clickable { },
                 contentAlignment = Alignment.Center
             ) {
                 Image(
@@ -481,14 +510,13 @@ private fun SocialLoginButtons() {
             }
         }
 
-        // Naver
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
                     .size(dimensionResource(id = R.dimen.login_social_button_size))
                     .clip(CircleShape)
                     .background(colorResource(id = R.color.login_naver_bg))
-                    .clickable { /* Naver login */ },
+                    .clickable { },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -503,7 +531,7 @@ private fun SocialLoginButtons() {
 }
 
 /**
- * Sign Up Section Composable
+ * 회원가입 섹션
  */
 @Composable
 private fun SignUpSection(onSignUpClick: () -> Unit) {

@@ -10,18 +10,19 @@ import kr.jiyeok.seatly.data.remote.request.*
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.data.remote.response.UserInfoDetailDto
+import kr.jiyeok.seatly.data.remote.response.UserInfoSummaryDto
 import kr.jiyeok.seatly.domain.usecase.*
 import javax.inject.Inject
 
 /**
  * Authentication ViewModel
- * 
+ *
  * 역할:
  * - 로그인/로그아웃 처리
  * - 회원가입 (일반/소셜)
  * - 비밀번호 초기화 플로우
  * - 사용자 정보 관리
- * 
+ *
  * UI는 StateFlow를 통해 상태를 관찰하고,
  * 에러/이벤트는 [events] Channel을 통해 수신합니다
  */
@@ -39,7 +40,8 @@ sealed interface AuthUiState {
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
-    private val logoutUseCase: LogoutUseCase
+    private val logoutUseCase: LogoutUseCase,
+    private val signUpUseCase: RegisterUseCase
 ) : ViewModel() {
 
     // =====================================================
@@ -57,14 +59,17 @@ class AuthViewModel @Inject constructor(
      * 로그인 응답 데이터
      * accessToken, refreshToken, user 정보 포함
      */
-    private val _loginData = MutableStateFlow<UserInfoDetailDto?>(null)
-    val loginData: StateFlow<UserInfoDetailDto?> = _loginData.asStateFlow()
+    private val _loginData = MutableStateFlow<UserInfoSummaryDto?>(null)
+    val loginData: StateFlow<UserInfoSummaryDto?> = _loginData.asStateFlow()
 
     /**
      * 현재 로그인한 사용자 정보
      */
-    private val _userData = MutableStateFlow<UserInfoDetailDto?>(null)
-    val userData: StateFlow<UserInfoDetailDto?> = _userData.asStateFlow()
+    private val _userData = MutableStateFlow<UserInfoSummaryDto?>(null)
+    val userData: StateFlow<UserInfoSummaryDto?> = _userData.asStateFlow()
+
+    private val _signUp = MutableStateFlow<Unit?>(null)
+    val signUp: StateFlow<Unit?> = _signUp.asStateFlow()
 
     /**
      * 사용자 역할
@@ -97,15 +102,16 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             _authState.value = AuthUiState.Loading
+
             try {
                 val request = LoginRequest(email, password)
                 when (val result = loginUseCase(request)) {
                     is ApiResult.Success -> {
                         val userInfo = result.data
-
                         if (userInfo != null) {
                             _userData.value = userInfo
                             _userRole.value = userInfo.role
+
                             _authState.value = AuthUiState.Success(userInfo)
                             _events.send("로그인 성공")
                         } else {
@@ -123,6 +129,7 @@ class AuthViewModel @Inject constructor(
             }
         }
     }
+
 
     /**
      * 로그아웃
@@ -143,6 +150,34 @@ class AuthViewModel @Inject constructor(
                     is ApiResult.Failure -> {
                         _authState.value = AuthUiState.Error(result.message ?: "로그아웃 실패")
                         _events.send(result.message ?: "로그아웃 실패")
+                    }
+                }
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * 사용자 역할 업데이트
+     * LoginScreen에서 로그인 성공 후 호출
+     */
+    fun setUserRole(role: ERole) {
+        _userRole.value = role
+    }
+
+    fun signUp(request: RegisterRequest) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _authState.value = AuthUiState.Loading
+            try {
+                when (val result = signUpUseCase(request)) {
+                    is ApiResult.Success -> {
+                        _authState.value = AuthUiState.Success(Unit)
+                        _events.send("회원가입 되었습니다")
+                    }
+                    is ApiResult.Failure -> {
+                        _events.send(result.message ?: "회원가입 실패")
                     }
                 }
             } finally {

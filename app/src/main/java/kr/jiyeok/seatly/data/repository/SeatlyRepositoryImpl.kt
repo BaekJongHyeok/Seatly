@@ -1,5 +1,6 @@
 package kr.jiyeok.seatly.data.repository
 
+import android.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -27,8 +28,18 @@ class SeatlyRepositoryImpl @Inject constructor(
     // Authentication
     // =====================================================
 
-    override suspend fun login(request: LoginRequest) =
-        safeApiCall { apiService.login(request) }
+    override suspend fun login(request: LoginRequest): ApiResult<UserInfoSummaryDto> =
+        safeApiCall {
+            val userInfo = apiService.login(request)
+            // 수동으로 ApiResponse 구조로 변환
+            ApiResponse(
+                success = true,
+                message = null,
+                data = userInfo
+            )
+        }
+
+
 
     override suspend fun logout() =
         safeApiCall { apiService.logout() }

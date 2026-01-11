@@ -20,7 +20,7 @@ interface ApiService {
     @POST("auth/login")
     suspend fun login(
         @Body request: LoginRequest
-    ): ApiResponse<UserInfoDetailDto>
+    ): UserInfoSummaryDto
 
     /**
      * POST /auth/logout
