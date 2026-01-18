@@ -3,5 +3,7 @@
     <!-- Development: HTTP 통신 허용 -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">168.107.59.168</domain>
+        <domain includeSubdomains="true">192.168.0.6</domain>
+        <domain includeSubdomains="true">3.27.78.54</domain>
     </domain-config>
 </network-security-config>

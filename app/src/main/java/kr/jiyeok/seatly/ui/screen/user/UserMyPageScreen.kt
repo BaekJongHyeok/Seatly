@@ -51,21 +51,29 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import androidx.compose.ui.platform.LocalContext
+import kr.jiyeok.seatly.util.SharedPreferencesHelper
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
+import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.presentation.viewmodel.HomeViewModel
+import kr.jiyeok.seatly.ui.component.common.AppTopBar
 import kr.jiyeok.seatly.ui.navigation.UserMyPageNavigator
 import kr.jiyeok.seatly.ui.theme.*
 
 @Composable
 fun UserMyPageScreen(
     navController: NavController,
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel
 ) {
     // 네비게이션 관리자 생성
     val navigator = remember { UserMyPageNavigator(navController) }
 
+    val context = LocalContext.current
+
     // HomeViewModel에서 모든 데이터 가져오기
     val userData by viewModel.userData.collectAsState()
+    val favoriteCafeIds by viewModel.favoriteCafeIds.collectAsState()
     val allCafes by viewModel.cafes.collectAsState()
     var notificationEnabled by remember { mutableStateOf(true) }
 
@@ -75,7 +83,6 @@ fun UserMyPageScreen(
     }
 
     // 즐겨찾기 카페 필터링
-    val favoriteCafeIds: Set<Long> = userData?.favoriteCafeIds?.toSet() ?: emptySet()
     val favoriteCafes: List<StudyCafeSummaryDto> =
         allCafes.filter { cafe -> cafe.id in favoriteCafeIds }
 
@@ -86,7 +93,7 @@ fun UserMyPageScreen(
             .verticalScroll(rememberScrollState())
     ) {
         // 상단 헤더 (제목)
-        TopBar()
+        AppTopBar(title = "마이페이지")
 
         // 프로필 섹션
         ProfileCardSection(
@@ -125,6 +132,7 @@ fun UserMyPageScreen(
         ManagementSection(
             notificationEnabled = notificationEnabled,
             onNotificationToggle = { notificationEnabled = it },
+            onNotificationClick = { navigator.navigateToNotifications() },
             onSettingsClick = { navigator.navigateToAppSettings() }
         )
 
@@ -133,7 +141,13 @@ fun UserMyPageScreen(
         // 로그아웃 버튼
         LogoutButton(
             onLogoutClick = {
-                viewModel.logout()
+                // 1. 서버/로컬 로그아웃
+                authViewModel.logout()
+
+                // 2. 자동 로그인 정보 완전히 제거
+                SharedPreferencesHelper.clearAutoLoginCredentials(context)
+
+                // 3. 로그인 화면으로 이동 + 백스텝 정리
                 navigator.navigateToLoginAndClearStack()
             },
             modifier = Modifier.padding(horizontal = 20.dp)
@@ -147,28 +161,6 @@ fun UserMyPageScreen(
 // =====================================================
 // UI Components
 // =====================================================
-
-/**
- * 상단 헤더
- * 마이페이지 제목 표시
- */
-@Composable
-fun TopBar() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ColorWhite)
-            .padding(horizontal = 20.dp, vertical = 12.dp)
-    ) {
-        Text(
-            text = "마이페이지",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = ColorTextBlack,
-            modifier = Modifier.align(Alignment.Center)
-        )
-    }
-}
 
 /**
  * 프로필 카드 섹션
@@ -413,7 +405,7 @@ fun FavoritesCafeCard(
             // 카페 정보
             Column(modifier = Modifier.padding(10.dp)) {
                 Text(
-                    text = cafe.name ?: "이름 없음",
+                    text = cafe.name,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = ColorTextBlack,
@@ -424,7 +416,7 @@ fun FavoritesCafeCard(
                 Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
-                    text = cafe.address ?: "주소 없음",
+                    text = cafe.address,
                     fontSize = 10.sp,
                     color = ColorTextDarkGray,
                     maxLines = 1,
@@ -443,6 +435,7 @@ fun FavoritesCafeCard(
 fun ManagementSection(
     notificationEnabled: Boolean,
     onNotificationToggle: (Boolean) -> Unit,
+    onNotificationClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     Column(
@@ -473,7 +466,8 @@ fun ManagementSection(
                 )
                 .clip(RoundedCornerShape(16.dp))
                 .background(ColorCardBg)
-                .padding(14.dp),
+                .padding(14.dp)
+                .clickable { onNotificationClick() },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {

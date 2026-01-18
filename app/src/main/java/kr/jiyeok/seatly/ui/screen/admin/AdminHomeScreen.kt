@@ -15,14 +15,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -47,12 +44,12 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.presentation.viewmodel.AdminHomeViewModel
+import kr.jiyeok.seatly.ui.component.common.AppTopBar
 import kr.jiyeok.seatly.ui.theme.ColorBgBeige
 import kr.jiyeok.seatly.ui.theme.ColorBorderLight
 import kr.jiyeok.seatly.ui.theme.ColorPrimaryOrange
 import kr.jiyeok.seatly.ui.theme.ColorTextBlack
 import kr.jiyeok.seatly.ui.theme.ColorTextGray
-import kr.jiyeok.seatly.ui.theme.ColorTextLightGray
 import kr.jiyeok.seatly.ui.theme.ColorWhite
 
 @Composable
@@ -60,24 +57,23 @@ fun AdminHomeScreen(
     navController: NavController,
     viewModel: AdminHomeViewModel = hiltViewModel()
 ) {
-    // Context와 포커스 매니저
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
 
-    // ViewModel에서 상태 수집
-    val cafes by viewModel.cafes.collectAsState()
+    // AdminHomeViewModel 에서 모든 데이터 가져오기
+    val registeredCafes by viewModel.cafes.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // 이벤트 수집 (토스트 메시지)
+
     LaunchedEffect(Unit) {
         viewModel.events.collect { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
 
-    // 초기 로드
+    // 처음 한 번만 홈 데이터 로드
     LaunchedEffect(Unit) {
-        viewModel.loadCafes()
+        viewModel.loadRegisteredCafes()
     }
 
     Column(
@@ -90,29 +86,35 @@ fun AdminHomeScreen(
             ) { focusManager.clearFocus() }
     ) {
         // 상단 헤더
-        AdminHeader(onBackClick = { navController.popBackStack() })
+        AppTopBar(
+            title = "등록 카페 목록",
+            rightContent = {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "카페 추가",
+                    tint = ColorPrimaryOrange,
+                    modifier = Modifier.size(28.dp).clickable { navController.navigate("admin/cafe/create") }
+                )
+            }
+        )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // 메인 컨텐츠
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             when {
                 isLoading -> {
                     LoadingState()
                 }
-                cafes.isEmpty() -> {
-                    EmptyState(onRegisterClick = { navController.navigate("admin/cafe/create") })
+                registeredCafes.isEmpty() -> {
+                    EmptyState()
                 }
                 else -> {
                     CafeListContent(
-                        cafes = cafes,
+                        cafes = registeredCafes,
                         onCafeClick = { cafeId ->
                             navController.navigate("admin/cafe/$cafeId")
-                        },
-                        onRegisterClick = { navController.navigate("admin/cafe/create") }
+                        }
                     )
                 }
             }
@@ -120,45 +122,8 @@ fun AdminHomeScreen(
     }
 }
 
-// =====================================================
-// UI Components
-// =====================================================
-
-/**
- * 상단 헤더
- * 뒤로가기 버튼과 제목 표시
- */
-@Composable
-fun AdminHeader(onBackClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ColorWhite)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "뒤로가기",
-            tint = ColorTextBlack,
-            modifier = Modifier
-                .size(24.dp)
-                .clickable { onBackClick() }
-                .align(Alignment.CenterStart)
-        )
-
-        Text(
-            text = "관리자 홈",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = ColorTextBlack,
-            modifier = Modifier.align(Alignment.Center)
-        )
-    }
-}
-
 /**
  * 로딩 상태
- * 데이터 로드 중일 때 표시
  */
 @Composable
 fun LoadingState() {
@@ -177,46 +142,23 @@ fun LoadingState() {
 
 /**
  * 빈 상태
- * 등록된 카페가 없을 때 표시
  */
 @Composable
-fun EmptyState(onRegisterClick: () -> Unit) {
-    Column(
+fun EmptyState() {
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "등록된 카페가 없습니다",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = ColorTextBlack
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = "카페를 등록하여 관리를 시작하세요",
-            fontSize = 14.sp,
-            color = ColorTextGray
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = onRegisterClick,
-            colors = ButtonDefaults.buttonColors(containerColor = ColorPrimaryOrange),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "카페 등록하기",
-                color = ColorWhite,
+                text = "등록된 카페가 없습니다",
                 fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Medium,
+                color = ColorTextGray
             )
         }
     }
@@ -228,21 +170,25 @@ fun EmptyState(onRegisterClick: () -> Unit) {
 @Composable
 fun CafeListContent(
     cafes: List<StudyCafeSummaryDto>,
-    onCafeClick: (Long) -> Unit,
-    onRegisterClick: () -> Unit
+    onCafeClick: (Long) -> Unit
 ) {
-    Box(
-        modifier = Modifier.fillMaxSize()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp)
     ) {
+        Text(
+            text = "총 ${cafes.size}개 카페 등록됨",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = ColorTextGray,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(
-                start = 20.dp,
-                end = 20.dp,
-                top = 0.dp,
-                bottom = 80.dp
-            )
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             items(
                 items = cafes,
@@ -254,31 +200,12 @@ fun CafeListContent(
                 )
             }
         }
-
-        // 하단 등록 버튼 (고정)
-        Button(
-            onClick = onRegisterClick,
-            colors = ButtonDefaults.buttonColors(containerColor = ColorPrimaryOrange),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .padding(horizontal = 20.dp, vertical = 16.dp)
-                .align(Alignment.BottomCenter)
-        ) {
-            Text(
-                text = "+ 새 카페 등록",
-                color = ColorWhite,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
     }
 }
 
 /**
- * 관리자용 카페 아이템
- * 카페 이미지, 이름, 주소 표시
- * UserSearchScreen의 SearchCafeItem을 참고하여 구현
+ * 검색 결과 카페 아이템
+ * 카페 이미지, 이름, 주소, 태그 표시
  */
 @Composable
 fun AdminCafeItem(
@@ -337,34 +264,42 @@ fun AdminCafeItem(
                     text = cafe.address,
                     fontSize = 12.sp,
                     color = ColorTextGray,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                // 카페 ID (참고용)
-                Text(
-                    text = "ID: ${cafe.id}",
-                    fontSize = 11.sp,
-                    color = ColorTextLightGray,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-            }
 
-            // 우측 화살표 표시
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterVertically)
-                    .size(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = ">",
-                    fontSize = 18.sp,
-                    color = ColorPrimaryOrange,
-                    fontWeight = FontWeight.Bold
-                )
+                // 카페 태그 (24시간, 주차가능 등)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CafeTag(text = "24시간")
+                    CafeTag(text = "주차가능")
+                }
             }
         }
     }
 }
+
+/**
+ * 카페 태그
+ * 카페의 특징(24시간, 주차가능 등)을 나타내는 태그
+ */
+@Composable
+fun CafeTag(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(ColorWhite)
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 10.sp,
+            color = ColorTextBlack,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+

@@ -14,6 +14,8 @@ import kr.jiyeok.seatly.domain.usecase.GetCafeSeatsUseCase
 import kr.jiyeok.seatly.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import kr.jiyeok.seatly.data.remote.enums.ESeatStatus
+import kr.jiyeok.seatly.data.remote.response.UsageDto
+import kr.jiyeok.seatly.domain.usecase.GetCafeUsageUseCase
 import javax.inject.Inject
 
 /**
@@ -43,6 +45,7 @@ sealed interface CafeDetailUiState {
 class CafeDetailViewModel @Inject constructor(
     private val getCafeDetailUseCase: GetCafeDetailUseCase,
     private val getCafeSeatsUseCase: GetCafeSeatsUseCase,
+    private val getCafeUsageUseCase: GetCafeUsageUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -62,6 +65,12 @@ class CafeDetailViewModel @Inject constructor(
      */
     private val _cafeDetail = MutableStateFlow<StudyCafeDetailDto?>(null)
     val cafeDetail: StateFlow<StudyCafeDetailDto?> = _cafeDetail.asStateFlow()
+
+    /**
+     * 카페 사용 현황
+     */
+    private val _cafeUsage = MutableStateFlow<UsageDto>(UsageDto(0, 0))
+    val cafeUsage: StateFlow<UsageDto> = _cafeUsage.asStateFlow()
 
     /**
      * 카페 좌석 목록
@@ -116,6 +125,32 @@ class CafeDetailViewModel @Inject constructor(
                         _error.value = result.message ?: "카페 상세 조회 실패"
                         _uiState.value = CafeDetailUiState.Error(result.message ?: "카페 상세 조회 실패")
                         _events.send(result.message ?: "카페 상세 조회 실패")
+                    }
+                }
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * 카페 사용 현황 조회
+     */
+    fun loadCafeUsage(cafeId: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            _isLoading.value = true
+            _uiState.value = CafeDetailUiState.Loading
+            _error.value = null
+            try {
+                when (val result = getCafeUsageUseCase(cafeId)) {
+                    is ApiResult.Success -> {
+                        _cafeUsage.value = result.data!!
+                        _uiState.value = CafeDetailUiState.Success("카페 이용 현황 조회 완료")
+                    }
+                    is ApiResult.Failure -> {
+                        _error.value = result.message ?: "카페 이용 현황 조회 실패"
+                        _uiState.value = CafeDetailUiState.Error(result.message ?: "카페 이용 현황 조회 실패")
+                        _events.send(result.message ?: "카페 이용 현황 조회 실패")
                     }
                 }
             } finally {

@@ -144,7 +144,8 @@ class AuthViewModel @Inject constructor(
                         _loginData.value = null
                         _userData.value = null
                         _userRole.value = ERole.USER
-                        _authState.value = AuthUiState.Success(Unit)
+
+                        _authState.value = AuthUiState.Idle
                         _events.send("로그아웃 되었습니다")
                     }
                     is ApiResult.Failure -> {

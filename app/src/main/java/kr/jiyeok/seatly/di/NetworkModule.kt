@@ -21,10 +21,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
+
 // ============ Configuration & Constants ============
 
 object NetworkConfig {
-    const val PRODUCTION_BASE_URL = "http://168.107.59.168:8080/api/"
+    const val PRODUCTION_BASE_URL = "http://3.27.78.54:8080/api/"
     const val DEBUG_BASE_URL = "http://localhost:8080/"
 
     const val CONNECT_TIMEOUT_SECONDS = 30L
@@ -52,15 +53,15 @@ class PersistentCookieJar(context: Context) : CookieJar {
     private val cookieStore = mutableMapOf<String, MutableList<Cookie>>()
 
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-        // ✅ 서버에서 Set-Cookie로 보낸 쿠키를 저장
+        // 서버에서 Set-Cookie로 보낸 쿠키를 저장
         val host = url.host
-        Log.d("CookieJar", "🍪 Saving ${cookies.size} cookies from $host")
+        Log.d("CookieJar", "Saving ${cookies.size} cookies from $host")
 
         cookieStore[host] = cookies.toMutableList()
 
         // SharedPreferences에도 저장 (앱 재시작 후에도 유지)
         cookies.forEach { cookie ->
-            Log.d("CookieJar", "  ✅ Saved: ${cookie.name} = ${cookie.value.take(20)}...")
+            Log.d("CookieJar", "Saved: ${cookie.name} = ${cookie.value.take(20)}...")
             prefs.edit().putString("${host}_${cookie.name}", cookie.value).apply()
         }
     }
@@ -68,29 +69,29 @@ class PersistentCookieJar(context: Context) : CookieJar {
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
         val host = url.host
 
-        // 1️⃣ 메모리에 있는 쿠키 로드
+        // 메모리에 있는 쿠키 로드
         val cookies = cookieStore[host]?.filter { !it.expiresAt.isExpired() }?.toMutableList() ?: mutableListOf()
 
-        // 2️⃣ SharedPreferences에서 쿠키 로드 (앱 재시작 후)
+        // SharedPreferences에서 쿠키 로드 (앱 재시작 후)
         val accessToken = prefs.getString("${host}_accessToken", null)
         val refreshToken = prefs.getString("${host}_refreshToken", null)
         val sessionId = prefs.getString("${host}_JSESSIONID", null)
 
         if (accessToken != null && !cookies.any { it.name == "accessToken" }) {
-            Log.d("CookieJar", "🍪 Loading accessToken from SharedPreferences")
+            Log.d("CookieJar", "Loading accessToken from SharedPreferences")
             cookies.add(createCookie(host, "accessToken", accessToken))
         }
         if (refreshToken != null && !cookies.any { it.name == "refreshToken" }) {
-            Log.d("CookieJar", "🍪 Loading refreshToken from SharedPreferences")
+            Log.d("CookieJar", "Loading refreshToken from SharedPreferences")
             cookies.add(createCookie(host, "refreshToken", refreshToken))
         }
         if (sessionId != null && !cookies.any { it.name == "JSESSIONID" }) {
-            Log.d("CookieJar", "🍪 Loading JSESSIONID from SharedPreferences")
+            Log.d("CookieJar", "Loading JSESSIONID from SharedPreferences")
             cookies.add(createCookie(host, "JSESSIONID", sessionId))
         }
 
         if (cookies.isNotEmpty()) {
-            Log.d("CookieJar", "📤 Sending ${cookies.size} cookies for $host")
+            Log.d("CookieJar", "Sending ${cookies.size} cookies for $host")
         }
 
         return cookies
@@ -139,12 +140,12 @@ class SharedPrefsTokenProvider(context: Context) : TokenProvider {
             putString(KEY_REFRESH_TOKEN, refreshToken)
             apply()
         }
-        Log.d("TokenProvider", "✅ Tokens saved")
+        Log.d("TokenProvider", "Tokens saved: accessToken=${accessToken?.take(20)}...")
     }
 
     override fun clearTokens() {
         prefs.edit().clear().apply()
-        Log.d("TokenProvider", "🗑️ Tokens cleared")
+        Log.d("TokenProvider", "Tokens cleared")
     }
 
     override fun isTokenExpired(): Boolean {
@@ -159,6 +160,53 @@ class SharedPrefsTokenProvider(context: Context) : TokenProvider {
 }
 
 // ============ Interceptors ============
+
+/**
+ * Bearer Token Interceptor - 쿠키에서 토큰을 읽어 Authorization 헤더에 추가
+ */
+class BearerTokenInterceptor(
+    private val cookieJar: CookieJar,
+    @ApplicationContext private val context: Context
+) : Interceptor {
+
+    companion object {
+        // 토큰이 필요 없는 엔드포인트 목록
+        private val PUBLIC_ENDPOINTS = listOf(
+            "/auth/login",
+            "/auth/register",
+            "/auth/signup",
+            "/auth/check-email",
+            "/auth/verify"
+        )
+    }
+
+    override fun intercept(chain: Interceptor.Chain): okhttp3.Response {
+        val originalRequest = chain.request()
+        val path = originalRequest.url.encodedPath
+
+        // Public 엔드포인트는 토큰 없이 진행
+        if (PUBLIC_ENDPOINTS.any { path.contains(it) }) {
+            Log.d("BearerToken", "Public endpoint: $path (no token)")
+            return chain.proceed(originalRequest)
+        }
+
+        // CookieJar에서 쿠키 가져오기
+        val cookies = cookieJar.loadForRequest(originalRequest.url)
+        val accessToken = cookies.find { it.name == "accessToken" }?.value
+
+        val request = if (!accessToken.isNullOrEmpty()) {
+            Log.d("BearerToken", "Adding token from cookie to $path: Bearer ${accessToken.take(20)}...")
+            originalRequest.newBuilder()
+                .header("Authorization", "Bearer $accessToken")
+                .build()
+        } else {
+            Log.w("BearerToken", "⚠️ No accessToken cookie found for protected endpoint: $path")
+            originalRequest
+        }
+
+        return chain.proceed(request)
+    }
+}
 
 /**
  * Logging Interceptor
@@ -215,6 +263,21 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideDebugMockInterceptor(): DebugMockInterceptor {
+        return DebugMockInterceptor()
+    }
+
+    @Provides
+    @Singleton
+    fun provideBearerTokenInterceptor(
+        cookieJar: CookieJar,
+        @ApplicationContext context: Context
+    ): BearerTokenInterceptor {
+        return BearerTokenInterceptor(cookieJar, context)
+    }
+
+    @Provides
+    @Singleton
     fun provideHeaderInterceptor(): HeaderInterceptor {
         return HeaderInterceptor()
     }
@@ -235,11 +298,13 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(
         cookieJar: CookieJar,
+        bearerTokenInterceptor: BearerTokenInterceptor,
         headerInterceptor: HeaderInterceptor,
         loggingInterceptor: HttpLoggingInterceptor
     ): OkHttpClient {
         return OkHttpClient.Builder()
-            .cookieJar(cookieJar)  // ✅ CookieJar 추가 - 자동으로 쿠키 관리
+            .cookieJar(cookieJar)
+            .addInterceptor(bearerTokenInterceptor)  // Bearer Token을 가장 먼저 추가
             .addInterceptor(headerInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(NetworkConfig.CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)

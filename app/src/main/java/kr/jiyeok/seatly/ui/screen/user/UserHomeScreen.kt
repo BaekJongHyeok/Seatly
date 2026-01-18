@@ -67,6 +67,8 @@ fun UserHomeScreen(
 
     // HomeViewModel에서 모든 데이터 가져오기
     val userData by viewModel.userData.collectAsState()
+    val favoriteCafeIds by viewModel.favoriteCafeIds.collectAsState()
+    val userSessions by viewModel.userSessions.collectAsState()
     val allCafes by viewModel.cafes.collectAsState()
     var timeUpdateTrigger by remember { mutableIntStateOf(0) }
 
@@ -84,7 +86,6 @@ fun UserHomeScreen(
     }
 
     // 즐겨찾기 카페 필터링
-    val favoriteCafeIds: Set<Long> = userData?.favoriteCafeIds?.toSet() ?: emptySet()
     val favoriteCafes: List<StudyCafeSummaryDto> =
         allCafes.filter { cafe -> cafe.id in favoriteCafeIds }
 
@@ -103,10 +104,10 @@ fun UserHomeScreen(
         WelcomeSection(userName = userData?.name)
 
         // 카페 찾기 섹션
-        CafeFindSection(onSearch = { navigator.navigateToSearch() })
+//        CafeFindSection(onSearch = { navigator.navigateToSearch() })
 
         // 현재 사용 중인 세션 섹션
-        val allSessions: List<SessionDto> = userData?.sessions ?: emptyList()
+        val allSessions: List<SessionDto> = userSessions ?: emptyList()
         if (allSessions.isNotEmpty()) {
             Text(
                 text = "현재 사용 중",

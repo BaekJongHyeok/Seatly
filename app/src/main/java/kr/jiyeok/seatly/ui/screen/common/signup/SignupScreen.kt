@@ -21,7 +21,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -38,41 +37,54 @@ import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.data.remote.request.RegisterRequest
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
+import kr.jiyeok.seatly.ui.theme.ColorBorderLight
+import kr.jiyeok.seatly.ui.theme.ColorInputBg
+import kr.jiyeok.seatly.ui.theme.ColorPrimaryOrange
+import kr.jiyeok.seatly.ui.theme.ColorTextBlack
+import kr.jiyeok.seatly.ui.theme.ColorTextGray
+import kr.jiyeok.seatly.ui.theme.ColorWarning
+import kr.jiyeok.seatly.ui.theme.ColorWhite
 import java.util.regex.Pattern
 
-// ============ Colors & Constants ============
+// ============ Colors & Constants (Seatly Theme 기반) ============
 
-private val PrimaryColor = Color(0xFFE95321)
-private val InputBg = Color.White
-private val InputBorder = Color(0xFFE8E8E8)
-private val TextPrimary = Color(0xFF1A1A1A)
-private val TextHelper = Color(0xFF888888)
-private val ErrorColor = Color(0xFFFF453A)
+private val PrimaryColor = ColorPrimaryOrange
+private val InputBg = ColorInputBg
+private val InputBorder = ColorBorderLight
+private val TextPrimary = ColorTextBlack
+private val TextHelper = ColorTextGray
+private val ErrorColor = ColorWarning
 
 private const val EMAIL_HINT = "example@email.com"
 private const val PASSWORD_HINT = "••••••••"
 private const val NAME_HINT = "홍길동"
 private const val PHONE_HINT = "010-0000-0000"
+
 private const val PASSWORD_MIN_LENGTH = 8
 private const val NAME_MIN_LENGTH = 2
 private const val NAME_MAX_LENGTH = 20
+
 private const val SPACING_XS = 6
 private const val SPACING_SM = 8
 private const val SPACING_MD = 12
 private const val SPACING_LG = 16
 private const val SPACING_XL = 18
 private const val SPACING_2XL = 36
+
 private const val INPUT_HEIGHT = 56
 private const val INPUT_RADIUS = 18
+
 private const val ICON_SIZE_SMALL = 20
 private const val ICON_SIZE_MEDIUM = 22
 private const val ICON_SIZE_LARGE = 24
+
 private const val CHECKBOX_SIZE = 22
 private const val CHECKBOX_RADIUS = 4
 
-private val PHONE_PATTERN: Pattern = Pattern.compile("^01[0-9]-[0-9]{3,4}-[0-9]{4}$")
+private val PHONE_PATTERN: Pattern =
+    Pattern.compile("^01[0-9]-[0-9]{3,4}-[0-9]{4}$")
 
-typealias SignupResult = Pair<Boolean, String>
+typealias SignupResult = Pair<Boolean, String?>
 
 // ============ Data Classes ============
 
@@ -93,7 +105,9 @@ data class ErrorState(
     val agreements: String? = null,
     val server: String? = null
 ) {
-    fun hasErrors(): Boolean = listOfNotNull(email, password, confirmPassword, name, phone, agreements, server).isNotEmpty()
+    fun hasErrors(): Boolean =
+        listOfNotNull(email, password, confirmPassword, name, phone, agreements, server).isNotEmpty()
+
     fun clearServerError(): ErrorState = copy(server = null)
 }
 
@@ -113,15 +127,19 @@ fun SignupScreen(
     viewModel: AuthViewModel,
     onBack: () -> Unit = {},
     onNext: (email: String, password: String) -> Unit = { _, _ -> },
-    performSignup: suspend (email: String, password: String, name: String, phone: String) -> SignupResult =
-        { email, password, name, phone ->
-            delay(800)
-            if (email.equals("exists@example.com", ignoreCase = true)) {
-                Pair(false, "이미 존재하는 이메일입니다.")
-            } else {
-                Pair(true, "회원가입 성공")
-            }
+    performSignup: suspend (
+        email: String,
+        password: String,
+        name: String,
+        phone: String
+    ) -> SignupResult = { email, password, name, phone ->
+        delay(800)
+        if (email.equals("exists@example.com", ignoreCase = true)) {
+            Pair(false, "이미 존재하는 이메일입니다.")
+        } else {
+            Pair(true, "회원가입 성공")
         }
+    }
 ) {
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
@@ -150,15 +168,24 @@ fun SignupScreen(
             "confirmPassword" -> errorState.copy(confirmPassword = null, server = null)
             "name" -> errorState.copy(name = null, server = null)
             "phone" -> errorState.copy(phone = null, server = null)
+            "agreements" -> errorState.copy(agreements = null, server = null)
             else -> errorState
         }
     }
 
     fun validateAll(): Boolean {
-        var newErrorState = errorState.copy(email = null, password = null, confirmPassword = null, name = null, phone = null, server = null)
+        var newErrorState = errorState.copy(
+            email = null,
+            password = null,
+            confirmPassword = null,
+            name = null,
+            phone = null,
+            agreements = null,
+            server = null
+        )
         var isValid = true
 
-        // Email validation
+        // Email
         if (formState.email.isBlank()) {
             newErrorState = newErrorState.copy(email = "이메일을 입력해주세요.")
             isValid = false
@@ -167,7 +194,7 @@ fun SignupScreen(
             isValid = false
         }
 
-        // Password validation
+        // Password
         if (formState.password.isBlank()) {
             newErrorState = newErrorState.copy(password = "비밀번호를 입력해주세요.")
             isValid = false
@@ -179,16 +206,17 @@ fun SignupScreen(
             }
         }
 
-        // Confirm password validation
+        // Confirm password
         if (formState.confirmPassword.isBlank()) {
             newErrorState = newErrorState.copy(confirmPassword = "비밀번호 확인을 입력해주세요.")
             isValid = false
         } else if (formState.password != formState.confirmPassword) {
-            newErrorState = newErrorState.copy(confirmPassword = "비밀번호가 일치하지 않습니다.")
+            newErrorState =
+                newErrorState.copy(confirmPassword = "비밀번호가 일치하지 않습니다.")
             isValid = false
         }
 
-        // Name validation
+        // Name
         val trimmedName = formState.name.trim()
         if (trimmedName.isBlank()) {
             newErrorState = newErrorState.copy(name = "이름을 입력해주세요.")
@@ -201,18 +229,20 @@ fun SignupScreen(
             }
         }
 
-        // Phone validation
+        // Phone
         if (formState.phone.isBlank()) {
             newErrorState = newErrorState.copy(phone = "휴대폰 번호를 입력해주세요.")
             isValid = false
         } else if (!isValidPhone(formState.phone)) {
-            newErrorState = newErrorState.copy(phone = "010-1234-5678 형식으로 입력해주세요.")
+            newErrorState =
+                newErrorState.copy(phone = "010-1234-5678 형식으로 입력해주세요.")
             isValid = false
         }
 
-        // Agreement validation
+        // Agreements
         if (!agreementState.allAgreed()) {
-            newErrorState = newErrorState.copy(agreements = "필수 약관에 모두 동의해주세요.")
+            newErrorState =
+                newErrorState.copy(agreements = "필수 약관에 모두 동의해주세요.")
             isValid = false
         }
 
@@ -224,10 +254,10 @@ fun SignupScreen(
         if (!validateAll()) return
 
         val request = RegisterRequest(
-            email = formState.email,
+            email = formState.email.trim(),
             password = formState.password,
             name = formState.name.trim(),
-            phone = formState.phone,
+            phone = formState.phone.trim(),
             imageUrl = "",
             role = selectedRole
         )
@@ -254,7 +284,8 @@ fun SignupScreen(
             if (success) {
                 onNext(formState.email.trim(), formState.password)
             } else {
-                errorState = errorState.copy(server = message ?: "회원가입에 실패했습니다.")
+                errorState =
+                    errorState.copy(server = message ?: "회원가입에 실패했습니다.")
             }
         }
     }
@@ -277,14 +308,14 @@ fun SignupScreen(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .background(Color.White)
+                .background(ColorWhite)
                 .verticalScroll(scrollState)
                 .padding(horizontal = SPACING_LG.dp)
                 .fillMaxSize()
         ) {
             Spacer(modifier = Modifier.height(SPACING_LG.dp))
 
-            // Email Field
+            // 이메일
             FormField(
                 label = "이메일",
                 value = formState.email,
@@ -303,7 +334,7 @@ fun SignupScreen(
 
             Spacer(modifier = Modifier.height(SPACING_LG.dp))
 
-            // Name Field (moved below email)
+            // 이름
             FormField(
                 label = "이름",
                 value = formState.name,
@@ -323,7 +354,7 @@ fun SignupScreen(
 
             Spacer(modifier = Modifier.height(SPACING_LG.dp))
 
-            // Password Field
+            // 비밀번호
             FormField(
                 label = "비밀번호",
                 value = formState.password,
@@ -334,11 +365,13 @@ fun SignupScreen(
                 placeholder = PASSWORD_HINT,
                 error = errorState.password,
                 helperText = "8자 이상, 문자와 숫자를 포함",
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                visualTransformation = if (passwordVisible) VisualTransformation.None
+                else PasswordVisualTransformation(),
                 trailingIcon = {
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
-                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            imageVector = if (passwordVisible) Icons.Default.Visibility
+                            else Icons.Default.VisibilityOff,
                             contentDescription = if (passwordVisible) "숨기기" else "보기",
                             tint = TextHelper
                         )
@@ -347,10 +380,12 @@ fun SignupScreen(
             )
 
             Spacer(modifier = Modifier.height(SPACING_SM.dp))
+
             PasswordStrengthBar(strengthScore = passwordStrength)
+
             Spacer(modifier = Modifier.height(SPACING_LG.dp))
 
-            // Confirm Password Field
+            // 비밀번호 확인
             FormField(
                 label = "비밀번호 확인",
                 value = formState.confirmPassword,
@@ -360,7 +395,8 @@ fun SignupScreen(
                 },
                 placeholder = PASSWORD_HINT,
                 error = errorState.confirmPassword,
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                visualTransformation = if (passwordVisible) VisualTransformation.None
+                else PasswordVisualTransformation(),
                 trailingIcon = if (formState.confirmPassword.isNotBlank() && isPasswordsMatching) {
                     { ValidCheckIcon() }
                 } else {
@@ -370,7 +406,7 @@ fun SignupScreen(
 
             Spacer(modifier = Modifier.height(SPACING_LG.dp))
 
-            // Phone Field
+            // 휴대폰 번호
             FormField(
                 label = "휴대폰번호",
                 value = formState.phone,
@@ -391,7 +427,7 @@ fun SignupScreen(
 
             Spacer(modifier = Modifier.height(SPACING_XL.dp))
 
-            // Agreements Section
+            // 약관 동의
             AgreementsSection(
                 agreeTerms = agreementState.terms,
                 onAgreeTermsChange = {
@@ -408,7 +444,7 @@ fun SignupScreen(
 
             Spacer(modifier = Modifier.height(SPACING_XL.dp))
 
-            // Role Selection Section
+            // 회원 유형 선택
             RoleSelectionSection(
                 selectedRole = selectedRole,
                 onRoleSelected = { selectedRole = it }
@@ -416,7 +452,7 @@ fun SignupScreen(
 
             Spacer(modifier = Modifier.height(SPACING_XL.dp))
 
-            // Submit Button
+            // 가입하기 버튼
             Button(
                 onClick = { onSubmit() },
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryColor),
@@ -427,14 +463,14 @@ fun SignupScreen(
                 enabled = !isSubmitting
             ) {
                 Text(
-                    if (isSubmitting) "가입 중..." else "가입하기",
-                    color = Color.White,
+                    text = if (isSubmitting) "가입 중..." else "가입하기",
+                    color = ColorWhite,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
 
-            // Server Error
+            // 서버 에러 메시지
             errorState.server?.let {
                 Spacer(modifier = Modifier.height(SPACING_SM.dp))
                 Text(text = it, color = ErrorColor, fontSize = 13.sp)
@@ -472,13 +508,20 @@ private fun FormField(
             visualTransformation = visualTransformation,
             keyboardOptions = keyboardOptions
         )
+
         error?.let {
             Spacer(modifier = Modifier.height(SPACING_SM.dp))
             Text(text = it, color = ErrorColor, fontSize = 12.sp)
         }
+
         helperText?.let {
             Spacer(modifier = Modifier.height(SPACING_SM.dp))
-            Text(text = it, color = TextHelper, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+            Text(
+                text = it,
+                color = TextHelper,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 4.dp)
+            )
         }
     }
 }
@@ -486,10 +529,20 @@ private fun FormField(
 @Composable
 private fun LabelWithRequired(text: String, required: Boolean = true) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(text = text, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+        Text(
+            text = text,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextPrimary
+        )
         if (required) {
             Spacer(modifier = Modifier.width(4.dp))
-            Text(text = "*", color = ErrorColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "*",
+                color = ErrorColor,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
@@ -561,7 +614,7 @@ private fun ValidCheckIcon() {
     Icon(
         imageVector = Icons.Default.Check,
         contentDescription = null,
-        tint = Color.White,
+        tint = ColorWhite,
         modifier = Modifier
             .size(ICON_SIZE_LARGE.dp)
             .background(PrimaryColor, shape = RoundedCornerShape(12.dp))
@@ -615,7 +668,12 @@ private fun AgreementsSection(
     error: String? = null
 ) {
     Column {
-        Text("약관 동의", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+        Text(
+            text = "약관 동의",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextPrimary
+        )
         Spacer(modifier = Modifier.height(SPACING_MD.dp))
 
         AgreementRow(
@@ -662,10 +720,10 @@ private fun AgreementRow(
             modifier = Modifier
                 .size(CHECKBOX_SIZE.dp)
                 .clip(RoundedCornerShape(CHECKBOX_RADIUS.dp))
-                .background(if (checked) PrimaryColor else Color.Transparent)
+                .background(if (checked) PrimaryColor else ColorWhite)
                 .border(
                     width = 1.dp,
-                    color = if (checked) Color.Transparent else Color(0xFFCCCCCC),
+                    color = if (checked) PrimaryColor else ColorBorderLight,
                     shape = RoundedCornerShape(CHECKBOX_RADIUS.dp)
                 ),
             contentAlignment = Alignment.Center
@@ -674,7 +732,7 @@ private fun AgreementRow(
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = ColorWhite,
                     modifier = Modifier.size(14.dp)
                 )
             }
@@ -684,21 +742,27 @@ private fun AgreementRow(
 
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = text, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                Text(
+                    text = text,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary
+                )
                 if (required) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("*", color = ErrorColor, fontSize = 13.sp)
                 }
             }
-            Text(
-                text = "보기",
-                color = PrimaryColor,
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .padding(start = 8.dp)
-                    .clickable { onViewClick() }
-            )
         }
+
+        Text(
+            text = "보기",
+            color = PrimaryColor,
+            fontSize = 12.sp,
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .clickable { onViewClick() }
+        )
     }
 }
 
@@ -708,7 +772,12 @@ private fun RoleSelectionSection(
     onRoleSelected: (ERole) -> Unit
 ) {
     Column {
-        Text("회원 유형 선택", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+        Text(
+            text = "회원 유형 선택",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextPrimary
+        )
         Spacer(modifier = Modifier.height(SPACING_MD.dp))
 
         Row(
@@ -717,15 +786,12 @@ private fun RoleSelectionSection(
                 .height(IntrinsicSize.Min),
             horizontalArrangement = Arrangement.spacedBy(SPACING_SM.dp)
         ) {
-            // User Role Button
             RoleButton(
                 text = "유저",
                 isSelected = selectedRole == ERole.USER,
                 onClick = { onRoleSelected(ERole.USER) },
                 modifier = Modifier.weight(1f)
             )
-
-            // Admin Role Button
             RoleButton(
                 text = "관리자",
                 isSelected = selectedRole == ERole.ADMIN,
@@ -746,7 +812,7 @@ private fun RoleButton(
     Button(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSelected) PrimaryColor else Color.White
+            containerColor = if (isSelected) PrimaryColor else ColorWhite
         ),
         border = BorderStroke(
             width = 1.dp,
@@ -757,7 +823,7 @@ private fun RoleButton(
     ) {
         Text(
             text = text,
-            color = if (isSelected) Color.White else TextPrimary,
+            color = if (isSelected) ColorWhite else TextPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium
         )
@@ -772,7 +838,8 @@ private fun isValidEmail(email: String): Boolean {
 
 private fun validatePassword(password: String): String? {
     return when {
-        password.length < PASSWORD_MIN_LENGTH -> "비밀번호는 ${PASSWORD_MIN_LENGTH}자 이상이어야 합니다."
+        password.length < PASSWORD_MIN_LENGTH ->
+            "비밀번호는 ${PASSWORD_MIN_LENGTH}자 이상이어야 합니다."
         !password.any { it.isDigit() } || !password.any { it.isLetter() } ->
             "비밀번호는 문자와 숫자를 모두 포함해야 합니다."
         else -> null
@@ -802,11 +869,14 @@ private fun calculatePasswordStrength(password: String): Int {
     var score = 0
     if (password.length >= PASSWORD_MIN_LENGTH) score++
     if (password.any { it.isDigit() } && password.any { it.isLetter() }) score++
+
     val hasUpper = password.any { it.isUpperCase() }
     val hasLower = password.any { it.isLowerCase() }
     val hasSpecial = password.any { !it.isLetterOrDigit() }
     if (hasUpper && hasLower && hasSpecial) score++
+
     if (password.length >= 12 && score >= 3) score++
+
     return score.coerceIn(0, 4)
 }
 

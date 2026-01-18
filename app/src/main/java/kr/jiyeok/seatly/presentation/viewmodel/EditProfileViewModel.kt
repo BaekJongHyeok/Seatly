@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import kr.jiyeok.seatly.data.remote.request.ChangePasswordRequest
 import kr.jiyeok.seatly.data.remote.request.UpdateUserInfoRequest
 import kr.jiyeok.seatly.data.remote.response.UserInfoDetailDto
+import kr.jiyeok.seatly.data.remote.response.UserInfoSummaryDto
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.data.repository.SeatlyRepository
 import javax.inject.Inject
@@ -33,8 +34,8 @@ class EditProfileViewModel @Inject constructor(
     // =====================================================
     // User Data
     // =====================================================
-    private val _userData = MutableStateFlow<UserInfoDetailDto?>(null)
-    val userData: StateFlow<UserInfoDetailDto?> = _userData.asStateFlow()
+    private val _userData = MutableStateFlow<UserInfoSummaryDto?>(null)
+    val userData: StateFlow<UserInfoSummaryDto?> = _userData.asStateFlow()
 
     // =====================================================
     // Loading State

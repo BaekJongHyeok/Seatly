@@ -7,25 +7,45 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,21 +64,18 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import kr.jiyeok.seatly.presentation.viewmodel.EditProfileViewModel
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
+import kr.jiyeok.seatly.ui.theme.ColorBgBeige
+import kr.jiyeok.seatly.ui.theme.ColorBorderLight
+import kr.jiyeok.seatly.ui.theme.ColorBrownBg
+import kr.jiyeok.seatly.ui.theme.ColorCheckCircle
+import kr.jiyeok.seatly.ui.theme.ColorInputBg
+import kr.jiyeok.seatly.ui.theme.ColorPrimaryOrange
+import kr.jiyeok.seatly.ui.theme.ColorTextBlack
+import kr.jiyeok.seatly.ui.theme.ColorTextDarkGray
+import kr.jiyeok.seatly.ui.theme.ColorTextLightGray
+import kr.jiyeok.seatly.ui.theme.ColorWarning
+import kr.jiyeok.seatly.ui.theme.ColorWhite
 
-// 색상 정의
-private val ColorPrimaryOrange = Color(0xFFFFA500)
-private val ColorTextBlack = Color(0xFF000000)
-private val ColorTextGray = Color(0xFF888888)
-private val ColorTextDarkGray = Color(0xFF999999)
-private val ColorTextLightGray = Color(0xFFA8A8A8)
-private val ColorBgBeige = Color(0xFFF8F6F3)
-private val ColorBorderLight = Color(0xFFE0E0E0)
-private val ColorInputBg = Color(0xFFF5F5F5)
-private val ColorWhite = Color(0xFFFFFFFF)
-private val ColorBrownBg = Color(0xFFD4C5B9)
-private val ColorRedCancel = Color(0xFFFF6B6B)
-private val ColorWarning = Color(0xFFFF6B6B)
-private val ColorCheckCircle = Color(0xFF4CAF50)
 
 /**
  * EditProfileScreen - 개인정보 수정 화면

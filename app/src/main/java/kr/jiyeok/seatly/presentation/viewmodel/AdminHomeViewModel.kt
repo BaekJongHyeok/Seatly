@@ -36,14 +36,14 @@ class AdminHomeViewModel @Inject constructor(
     // State Management - Events
     // =====================================================
 
-    private val _events = Channel<String>(Channel.BUFFERED)
+    private val _events = Channel<String>(Channel.Factory.BUFFERED)
     val events = _events.receiveAsFlow()
 
     // =====================================================
     // Public Methods
     // =====================================================
 
-    fun loadCafes() {
+    fun loadRegisteredCafes() {
         viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
             try {
@@ -66,6 +66,6 @@ class AdminHomeViewModel @Inject constructor(
     }
 
     fun retryLoadCafes() {
-        loadCafes()
+        loadRegisteredCafes()
     }
 }

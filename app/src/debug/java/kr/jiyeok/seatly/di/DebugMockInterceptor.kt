@@ -22,33 +22,11 @@ class DebugMockInterceptor : Interceptor {
             Log.d("MockInterceptor", "<-- Mocking Login Response")
             val json = """
                 {
-                    "success": true,
-                    "message": null,
-                    "data": {
-                        "email": "user@test.com",
-                        "name": "일반 사용자",
-                        "phone": "010-9876-5432",
-                        "imageUrl": null,
-                        "role": "USER",
-                        "favoriteCafeIds": [1, 3, 4],
-                        "sessions": [
-                            {
-                                "id": 101,
-                                "userId": 1,
-                                "studyCafeId": 1,
-                                "seatId": 1,
-                                "status": "IN_USE",
-                                "startTime": "${getISOTimeString(System.currentTimeMillis() - 3600000)}"
-                            }
-                        ],
-                        "timePassess": [
-                            {
-                                "studyCafeId": 1,
-                                "leftTime": 14400000,
-                                "totalTime": 28800000
-                            }
-                        ]
-                    }
+                    "email": "user@test.com",
+                    "name": "일반 사용자",
+                    "phone": "010-9876-5432",
+                    "imageUrl": null,
+                    "role": "ADMIN"
                 }
             """.trimIndent()
             return makeResponse(req, json)
@@ -62,6 +40,62 @@ class DebugMockInterceptor : Interceptor {
                     "success": true,
                     "message": "로그아웃 성공",
                     "data": null
+                }
+            """.trimIndent()
+            return makeResponse(req, json)
+        }
+
+        // 3-1. 즐겨찾기 카페 아이디 조회
+        if (method == "GET" && path.contains("/user/study-cafes/favorite") && !path.contains("/users")) {
+            Log.d("MockInterceptor", "<-- Mocking User Favorite Cafes Response")
+            val json = """
+                {
+                  "success": true,
+                  "message": "즐겨찾기 카페 조회 성공",
+                  "data": [1, 3, 4]
+                }
+            """.trimIndent()
+            return makeResponse(req, json)
+        }
+
+
+        // 3-2. 내 시간권 조회
+        if (method == "GET" && path.contains("/user/time-passes") && !path.contains("/users")) {
+            Log.d("MockInterceptor", "<-- Mocking User Time Passes Response")
+            val json = """
+                {
+                    "success": true,
+                    "message": "시간권 조회 성공",
+                    "data":  [
+                        {
+                            "studyCafeId": 1,
+                            "leftTime": 14400000,
+                            "totalTime": 28800000
+                        }
+                    ]
+                }
+            """.trimIndent()
+            return makeResponse(req, json)
+        }
+
+
+        // 3-3. 내 현재 세션 조회
+        if (method == "GET" && path.contains("/user/sessions") && !path.contains("/users")) {
+            Log.d("MockInterceptor", "<-- Mocking User Current Sessions Response")
+            val json = """
+                {
+                    "success": true,
+                    "message": "로그아웃 성공",
+                    "data": [
+                        {
+                            "id": 101,
+                            "userId": 1,
+                            "studyCafeId": 1,
+                            "seatId": 1,
+                            "status": "IN_USE",
+                            "startTime": "${getISOTimeString(System.currentTimeMillis() - 3600000)}"
+                        }
+                    ]   
                 }
             """.trimIndent()
             return makeResponse(req, json)
@@ -81,25 +115,7 @@ class DebugMockInterceptor : Interceptor {
                         "name": "일반 사용자",
                         "phone": "010-9876-5432",
                         "imageUrl": null,
-                        "role": "USER",
-                        "favoriteCafeIds": [1, 3, 4],
-                        "sessions": [
-                            {
-                                "id": 101,
-                                "userId": 1,
-                                "studyCafeId": 1,
-                                "seatId": 1,
-                                "status": "IN_USE",
-                                "startTime": "${getISOTimeString(System.currentTimeMillis() - 3600000)}"
-                            }
-                        ],
-                        "timePassess": [
-                            {
-                                "studyCafeId": 1,
-                                "leftTime": 14400000,
-                                "totalTime": 28800000
-                            }
-                        ]
+                        "role": "USER"
                     }
                 }
             """.trimIndent()

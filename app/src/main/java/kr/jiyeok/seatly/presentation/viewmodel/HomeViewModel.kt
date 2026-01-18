@@ -42,10 +42,14 @@ sealed interface HomeUiState {
 class HomeViewModel @Inject constructor(
     // User 관련 UseCase
     private val getUserInfoUseCase: GetUserInfoUseCase,
+    private val getFavoriteCafesUseCase: GetFavoriteCafesUseCase,
+    private val getCurrentSessions: GetCurrentSessions,
+    private val getMyTimePassesUseCase: GetMyTimePassesUseCase,
     private val updateUserInfoUseCase: UpdateUserInfoUseCase,
 
     // Cafe 관련 UseCase
     private val getStudyCafesUseCase: GetStudyCafesUseCase,
+    private val getAdminCafesUseCase: GetAdminCafesUseCase,
     private val addFavoriteCafeUseCase: AddFavoriteCafeUseCase,
     private val removeFavoriteCafeUseCase: RemoveFavoriteCafeUseCase,
 
@@ -63,11 +67,17 @@ class HomeViewModel @Inject constructor(
     // State Management - User
     // =====================================================
 
-    private val _userData = MutableStateFlow<UserInfoDetailDto?>(null)
-    val userData: StateFlow<UserInfoDetailDto?> = _userData.asStateFlow()
+    private val _userData = MutableStateFlow<UserInfoSummaryDto?>(null)
+    val userData: StateFlow<UserInfoSummaryDto?> = _userData.asStateFlow()
 
     private val _userState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
     val userState: StateFlow<HomeUiState> = _userState.asStateFlow()
+
+    private val _userSessions = MutableStateFlow<List<SessionDto>?>(null)
+    val userSessions: StateFlow<List<SessionDto>?> = _userSessions.asStateFlow()
+
+    private val _userTimePasses = MutableStateFlow<List<UserTimePass>?>(null)
+    val userTimePasses: StateFlow<List<UserTimePass>?> = _userTimePasses.asStateFlow()
 
     // =====================================================
     // State Management - Cafes
@@ -75,6 +85,9 @@ class HomeViewModel @Inject constructor(
 
     private val _cafes = MutableStateFlow<List<StudyCafeSummaryDto>>(emptyList())
     val cafes: StateFlow<List<StudyCafeSummaryDto>> = _cafes.asStateFlow()
+
+    private val _adminCafes = MutableStateFlow<List<StudyCafeSummaryDto>>(emptyList())
+    val adminCafes: StateFlow<List<StudyCafeSummaryDto>> = _adminCafes.asStateFlow()
 
     private val _favoriteCafeIds = MutableStateFlow<List<Long>>(emptyList())
     val favoriteCafeIds: StateFlow<List<Long>> = _favoriteCafeIds.asStateFlow()
@@ -110,8 +123,23 @@ class HomeViewModel @Inject constructor(
             _error.value = null
 
             try {
+                // 유저 기본 정보 조회
                 loadUserInfo()
+
+                // 유저 즐겨찾기 카페 정보 조회
+                loadFavoriteCafes()
+
+                // 유저 현재 세션 정보 조회
+                loadCurrentSessionsInfo()
+
+                // 유저 현재 시간권 정보 조회
+                loadMyTimePasses()
+
+                // 전체 카페 목록 조회
                 loadCafes()
+
+                // 관리자 카페 정보 조회
+                loadAdminCafes()
                 if (studyCafeId != null) {
                     loadCurrentSession(studyCafeId)
                 }
@@ -122,7 +150,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun loadUserInfo() {
+    private fun loadUserInfo() {
         viewModelScope.launch(ioDispatcher) {
             try {
                 when (val result = getUserInfoUseCase()) {
@@ -130,12 +158,77 @@ class HomeViewModel @Inject constructor(
                         val userInfo = result.data
                         if (userInfo != null) {
                             _userData.value = userInfo
-                            _favoriteCafeIds.value = userInfo.favoriteCafeIds
                         }
                     }
                     is ApiResult.Failure -> {
                         _error.value = result.message ?: "사용자 정보 조회 실패"
                         _events.send(result.message ?: "사용자 정보 조회 실패")
+                    }
+                }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "알 수 없는 오류"
+                _events.send(e.message ?: "알 수 없는 오류")
+            }
+        }
+    }
+
+    private fun loadFavoriteCafes() {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                when (val result = getFavoriteCafesUseCase()) {
+                    is ApiResult.Success -> {
+                        val cafes = result.data
+                        if (cafes != null) {
+                            _favoriteCafeIds.value = cafes
+                        }
+                    }
+                    is ApiResult.Failure -> {
+                        _error.value = result.message ?: "즐겨찾기 카페 조회 실패"
+                        _events.send(result.message ?: "즐겨찾기 카페 조회 실패")
+                    }
+                }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "알 수 없는 오류"
+                _events.send(e.message ?: "알 수 없는 오류")
+            }
+        }
+    }
+
+    private fun loadCurrentSessionsInfo() {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                when (val result = getCurrentSessions()) {
+                    is ApiResult.Success -> {
+                        val session = result.data
+                        if (session != null) {
+                            _userSessions.value = session
+                        }
+                    }
+                    is ApiResult.Failure -> {
+                        _error.value = result.message ?: "현재 세션 정보 조회 실패"
+                        _events.send(result.message ?: "현재 세션 정보 조회 실패")
+                    }
+                }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "알 수 없는 오류"
+                _events.send(e.message ?: "알 수 없는 오류")
+            }
+        }
+    }
+
+    private fun loadMyTimePasses() {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                when (val result = getMyTimePassesUseCase()) {
+                    is ApiResult.Success -> {
+                        val timePasses = result.data
+                        if (timePasses != null) {
+                            _userTimePasses.value = timePasses
+                        }
+                    }
+                    is ApiResult.Failure -> {
+                        _error.value = result.message ?: "현재 세션 정보 조회 실패"
+                        _events.send(result.message ?: "현재 세션 정보 조회 실패")
                     }
                 }
             } catch (e: Exception) {
@@ -159,6 +252,25 @@ class HomeViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _cafes.value = emptyList()
+                _events.send(e.message ?: "알 수 없는 오류")
+            }
+        }
+    }
+
+    fun loadAdminCafes() {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                when (val result = getAdminCafesUseCase()) {
+                    is ApiResult.Success -> {
+                        _adminCafes.value = result.data ?: emptyList()
+                    }
+                    is ApiResult.Failure -> {
+                        _adminCafes.value = emptyList()
+                        _events.send(result.message ?: "카페 목록 조회 실패")
+                    }
+                }
+            } catch (e: Exception) {
+                _adminCafes.value = emptyList()
                 _events.send(e.message ?: "알 수 없는 오류")
             }
         }

@@ -8,7 +8,6 @@ import kr.jiyeok.seatly.data.remote.ApiService
 import kr.jiyeok.seatly.data.remote.request.*
 import kr.jiyeok.seatly.data.remote.response.*
 import kr.jiyeok.seatly.di.IoDispatcher
-import kr.jiyeok.seatly.ui.screen.admin.seat.Seat
 import retrofit2.HttpException
 import java.io.IOException
 import javax.inject.Inject
@@ -29,17 +28,7 @@ class SeatlyRepositoryImpl @Inject constructor(
     // =====================================================
 
     override suspend fun login(request: LoginRequest): ApiResult<UserInfoSummaryDto> =
-        safeApiCall {
-            val userInfo = apiService.login(request)
-            // 수동으로 ApiResponse 구조로 변환
-            ApiResponse(
-                success = true,
-                message = null,
-                data = userInfo
-            )
-        }
-
-
+        safeApiCall { apiService.login(request) }
 
     override suspend fun logout() =
         safeApiCall { apiService.logout() }
@@ -50,6 +39,15 @@ class SeatlyRepositoryImpl @Inject constructor(
 
     override suspend fun getUserInfo() =
         safeApiCall { apiService.getUserInfo() }
+
+    override suspend fun getFavoriteCafes() =
+        safeApiCall { apiService.getFavoriteCafes() }
+
+    override suspend fun getMyTimePasses() =
+        safeApiCall { apiService.getMyTimePasses() }
+
+    override suspend fun getCurrentSessions() =
+        safeApiCall { apiService.getCurrentSessions() }
 
     override suspend fun updateUserInfo(request: UpdateUserInfoRequest) =
         safeApiCall { apiService.updateUserInfo(request) }
@@ -165,27 +163,32 @@ class SeatlyRepositoryImpl @Inject constructor(
     /**
      * 안전한 API 호출을 수행하고 ApiResult로 변환
      * 네트워크 에러, HTTP 예외 등을 처리합니다
+     * 서버가 데이터를 직접 반환하는 구조에 대응
      */
-    private suspend inline fun <reified T> safeApiCall(
-        crossinline call: suspend () -> ApiResponse<T>
+    private suspend fun <T> safeApiCall(
+        apiCall: suspend () -> T
     ): ApiResult<T> {
         return withContext(ioDispatcher) {
             try {
-                val response = call()
-                if (response.success && response.data != null) {
-                    ApiResult.Success(response.data)
-                } else {
-                    ApiResult.Failure(
-                        response.message ?: "Unknown API error"
-                    )
+                val response = apiCall()
+                ApiResult.Success(response)
+            } catch (e: Exception) {
+                Log.e("SeatlyRepository", "API call failed", e)
+                val message = when (e) {
+                    is IOException -> "네트워크 오류: ${e.localizedMessage ?: "연결할 수 없습니다"}"
+                    is HttpException -> {
+                        val code = e.code()
+                        when (code) {
+                            401 -> "인증이 필요합니다"
+                            403 -> "권한이 없습니다"
+                            404 -> "요청한 리소스를 찾을 수 없습니다"
+                            500 -> "서버 오류가 발생했습니다"
+                            else -> "HTTP $code: ${e.message()}"
+                        }
+                    }
+                    else -> e.localizedMessage ?: "알 수 없는 오류가 발생했습니다"
                 }
-            } catch (t: Throwable) {
-                val message = when (t) {
-                    is IOException -> "Network error: ${t.localizedMessage ?: t.message}"
-                    is HttpException -> "HTTP ${t.code()}: ${t.message()}"
-                    else -> t.localizedMessage ?: "Unknown error"
-                }
-                ApiResult.Failure(message, t)
+                ApiResult.Failure(message, e)
             }
         }
     }

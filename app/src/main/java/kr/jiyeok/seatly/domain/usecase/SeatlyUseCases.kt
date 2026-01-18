@@ -6,7 +6,6 @@ import kr.jiyeok.seatly.data.remote.request.*
 import kr.jiyeok.seatly.data.remote.response.*
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.data.repository.SeatlyRepository
-import kr.jiyeok.seatly.data.repository.SeatlyRepositoryImpl
 import kr.jiyeok.seatly.di.IoDispatcher
 import okhttp3.MultipartBody
 import javax.inject.Inject
@@ -57,8 +56,44 @@ class GetUserInfoUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(): ApiResult<UserInfoDetailDto> =
+    suspend operator fun invoke(): ApiResult<UserInfoSummaryDto> =
         withContext(ioDispatcher) { repository.getUserInfo() }
+}
+
+/**
+ * Get /user/study-cafes/favorite
+ * 즐겨찾기 카페 아이디 조회
+ */
+class GetFavoriteCafesUseCase @Inject constructor(
+    private val repository: SeatlyRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
+    suspend operator fun invoke(): ApiResult<List<Long>> =
+        withContext(ioDispatcher) { repository.getFavoriteCafes() }
+}
+
+/**
+ * GET /user/time-passes
+ * 내 시간권 조회
+ */
+class GetMyTimePassesUseCase @Inject constructor(
+    private val repository: SeatlyRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
+    suspend operator fun invoke(): ApiResult<List<UserTimePass>> =
+        withContext(ioDispatcher) { repository.getMyTimePasses() }
+}
+
+/**
+ * GET /user/sessions
+ * 유저의 현재 세션 정보 조회
+ */
+class GetCurrentSessions @Inject constructor(
+    private val repository: SeatlyRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
+    suspend operator fun invoke(): ApiResult<List<SessionDto>> =
+        withContext(ioDispatcher) { repository.getCurrentSessions() }
 }
 
 /**

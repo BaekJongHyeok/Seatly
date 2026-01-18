@@ -10,7 +10,7 @@ import kr.jiyeok.seatly.data.remote.response.*
 interface ApiService {
 
     // =====================================================
-    // [✅] AuthController - /auth
+    // AuthController - /auth
     // =====================================================
 
     /**
@@ -27,10 +27,10 @@ interface ApiService {
      * 로그아웃
      */
     @POST("auth/logout")
-    suspend fun logout(): ApiResponse<Unit>
+    suspend fun logout(): Unit
 
     // =====================================================
-    // [✅] UserController - /user
+    // UserController - /user
     // =====================================================
 
     /**
@@ -38,7 +38,28 @@ interface ApiService {
      * 로그인한 사용자 정보 조회
      */
     @GET("user")
-    suspend fun getUserInfo(): ApiResponse<UserInfoDetailDto>
+    suspend fun getUserInfo(): UserInfoSummaryDto
+
+    /**
+     * GET /user/study-cafes/favorite
+     * 즐겨찾기 카페 아이디 조회
+     */
+    @GET("user/study-cafes/favorite")
+    suspend fun getFavoriteCafes(): List<Long>
+
+    /**
+     * GET /user/time-passes
+     * 내 시간권 조회
+     */
+    @GET("user/time-passes")
+    suspend fun getMyTimePasses(): List<UserTimePass>
+
+    /**
+     * GET /user/sessions
+     * 유저의 현재 세션 정보 조회
+     */
+    @GET("user/sessions")
+    suspend fun getCurrentSessions(): List<SessionDto>
 
     /**
      * PATCH /user
@@ -47,31 +68,35 @@ interface ApiService {
     @PATCH("user")
     suspend fun updateUserInfo(
         @Body request: UpdateUserInfoRequest
-    ): ApiResponse<Unit>
+    ): Unit
 
     /**
      * DELETE /user
      * 회원탈퇴
      */
     @DELETE("user")
-    suspend fun deleteAccount(): ApiResponse<Unit>
+    suspend fun deleteAccount(): Unit
 
+    /**
+     * POST /user
+     * 회원가입
+     */
     @POST("user")
     suspend fun register(
         @Body request: RegisterRequest
-    ): ApiResponse<Unit>
+    ): Unit
 
     /**
-     * PUT /user/{id}/password
+     * PUT /user/password
      * 비밀번호 변경
      */
     @PUT("user/password")
     suspend fun changePassword(
         @Body request: ChangePasswordRequest
-    ): ApiResponse<Unit>
+    ): Unit
 
     // =====================================================
-    // [✅] UsersController - /users (Admin only)
+    // UsersController - /users (Admin only)
     // =====================================================
 
     /**
@@ -81,7 +106,7 @@ interface ApiService {
     @GET("users")
     suspend fun getUsersInfo(
         @Query("studyCafeId") studyCafeId: Long
-    ): ApiResponse<List<UserTimePassInfo>>
+    ): List<UserTimePassInfo>
 
     /**
      * GET /users/{id}
@@ -90,7 +115,7 @@ interface ApiService {
     @GET("users/{id}")
     suspend fun getUsersInfoById(
         @Path("id") userId: Long
-    ): ApiResponse<UserInfoSummaryDto>
+    ): UserInfoSummaryDto
 
     /**
      * POST /users/{id}/time
@@ -99,10 +124,10 @@ interface ApiService {
     @POST("users/{id}/time")
     suspend fun addUserTimePass(
         @Path("id") userId: Long
-    ): ApiResponse<Unit>
+    ): Unit
 
     // =====================================================
-    // [✅] SessionController - /sessions
+    // SessionController - /sessions
     // =====================================================
 
     /**
@@ -112,7 +137,7 @@ interface ApiService {
     @GET("sessions")
     suspend fun getSessions(
         @Query("studyCafeId") studyCafeId: Long
-    ): ApiResponse<List<SessionDto>>
+    ): List<SessionDto>
 
     /**
      * PATCH /sessions/{id}/start
@@ -121,7 +146,7 @@ interface ApiService {
     @PATCH("sessions/{id}/start")
     suspend fun startSession(
         @Path("id") sessionId: Long
-    ): ApiResponse<SessionDto>
+    ): SessionDto
 
     /**
      * DELETE /sessions/{id}
@@ -130,7 +155,7 @@ interface ApiService {
     @DELETE("sessions/{id}")
     suspend fun endSession(
         @Path("id") sessionId: Long
-    ): ApiResponse<Unit>
+    ): Unit
 
     /**
      * POST /sessions/assign?seatId={seatId}
@@ -139,19 +164,19 @@ interface ApiService {
     @POST("sessions/assign")
     suspend fun assignSeat(
         @Query("seatId") seatId: String
-    ): ApiResponse<SessionDto>
+    ): SessionDto
 
     /**
-     * POST /sessions/auto-assign?seatId={seatId}
+     * POST /sessions/auto-assign?studyCafeId={studyCafeId}
      * 좌석 자동 할당
      */
     @POST("sessions/auto-assign")
     suspend fun autoAssignSeat(
         @Query("studyCafeId") studyCafeId: Long
-    ): ApiResponse<SessionDto>
+    ): SessionDto
 
     // =====================================================
-    // [✅] StudyCafeController - /study-cafes
+    // StudyCafeController - /study-cafes
     // =====================================================
 
     /**
@@ -159,7 +184,7 @@ interface ApiService {
      * 전체 카페 목록 조회
      */
     @GET("study-cafes")
-    suspend fun getStudyCafes(): ApiResponse<List<StudyCafeSummaryDto>>
+    suspend fun getStudyCafes(): List<StudyCafeSummaryDto>
 
     /**
      * GET /study-cafes/{id}
@@ -168,7 +193,7 @@ interface ApiService {
     @GET("study-cafes/{id}")
     suspend fun getCafeDetail(
         @Path("id") cafeId: Long
-    ): ApiResponse<StudyCafeDetailDto>
+    ): StudyCafeDetailDto
 
     /**
      * POST /study-cafes
@@ -177,7 +202,7 @@ interface ApiService {
     @POST("study-cafes")
     suspend fun createCafe(
         @Body request: CreateCafeRequest
-    ): ApiResponse<Unit>
+    ): Unit
 
     /**
      * PATCH /study-cafes/{id}
@@ -187,35 +212,43 @@ interface ApiService {
     suspend fun updateCafe(
         @Path("id") cafeId: Long,
         @Body request: UpdateCafeRequest
-    ): ApiResponse<Unit>
+    ): Unit
 
     /**
      * DELETE /study-cafes/{id}
      * 카페 삭제 (관리자)
      */
     @DELETE("study-cafes/{id}")
-    suspend fun deleteCafe(@Path("id") cafeId: Long): ApiResponse<Unit>
+    suspend fun deleteCafe(
+        @Path("id") cafeId: Long
+    ): Unit
 
     /**
      * POST /study-cafes/{id}/favorite
      * 카페 즐겨찾기 추가
      */
     @POST("study-cafes/{id}/favorite")
-    suspend fun addFavoriteCafe(@Path("id") cafeId: Long): ApiResponse<Unit>
+    suspend fun addFavoriteCafe(
+        @Path("id") cafeId: Long
+    ): Unit
 
     /**
      * DELETE /study-cafes/{id}/favorite
      * 카페 즐겨찾기 제거
      */
     @DELETE("study-cafes/{id}/favorite")
-    suspend fun removeFavoriteCafe(@Path("id") cafeId: Long): ApiResponse<Unit>
+    suspend fun removeFavoriteCafe(
+        @Path("id") cafeId: Long
+    ): Unit
 
     /**
      * GET /study-cafes/{id}/usage
      * 카페 실시간 혼잡도 조회
      */
     @GET("study-cafes/{id}/usage")
-    suspend fun getCafeUsage(@Path("id") cafeId: Long): ApiResponse<UsageDto>
+    suspend fun getCafeUsage(
+        @Path("id") cafeId: Long
+    ): UsageDto
 
     /**
      * DELETE /study-cafes/{id}/users/{userId}/time
@@ -225,17 +258,17 @@ interface ApiService {
     suspend fun deleteUserTimePass(
         @Path("id") cafeId: Long,
         @Path("userId") userId: Long
-    ): ApiResponse<Unit>
+    ): Unit
 
     /**
      * GET /study-cafes/admin
      * 관리자가 관리하는 카페 목록
      */
     @GET("study-cafes/admin")
-    suspend fun getAdminCafes(): ApiResponse<List<StudyCafeSummaryDto>>
+    suspend fun getAdminCafes(): List<StudyCafeSummaryDto>
 
     // =====================================================
-    // [✅] SeatController - /study-cafes/{id}/seats
+    // SeatController - /study-cafes/{id}/seats
     // =====================================================
 
     /**
@@ -245,7 +278,7 @@ interface ApiService {
     @GET("study-cafes/{id}/seats")
     suspend fun getCafeSeats(
         @Path("id") cafeId: Long
-    ): ApiResponse<List<SeatDto>>
+    ): List<SeatDto>
 
     /**
      * POST /study-cafes/{id}/seats
@@ -256,7 +289,7 @@ interface ApiService {
     suspend fun createSeats(
         @Path("id") cafeId: Long,
         @Body request: List<SeatCreate>
-    ): ApiResponse<Unit>
+    ): Unit
 
     /**
      * PATCH /study-cafes/{id}/seats
@@ -267,7 +300,7 @@ interface ApiService {
     suspend fun updateSeats(
         @Path("id") cafeId: Long,
         @Body request: List<SeatUpdate>
-    ): ApiResponse<Unit>
+    ): Unit
 
     /**
      * DELETE /study-cafes/{id}/seats/{seatId}
@@ -277,10 +310,10 @@ interface ApiService {
     suspend fun deleteSeat(
         @Path("id") cafeId: Long,
         @Path("seatId") seatId: String
-    ): ApiResponse<Unit>
+    ): Unit
 
     // =====================================================
-    // [✅] ImageController - /images
+    // ImageController - /images
     // =====================================================
 
     /**
@@ -291,7 +324,7 @@ interface ApiService {
     @POST("images/upload")
     suspend fun uploadImage(
         @Part file: MultipartBody.Part
-    ): ApiResponse<ImageUploadResponse>
+    ): ImageUploadResponse
 
     /**
      * GET /images/{imageId}
@@ -300,7 +333,7 @@ interface ApiService {
     @GET("images/{imageId}")
     suspend fun getImage(
         @Path("imageId") imageId: String
-    ): ApiResponse<ByteArray>
+    ): ByteArray
 
     /**
      * DELETE /images/{imageId}
@@ -309,5 +342,5 @@ interface ApiService {
     @DELETE("images/{imageId}")
     suspend fun deleteImage(
         @Path("imageId") imageId: String
-    ): ApiResponse<Unit>
+    ): Unit
 }

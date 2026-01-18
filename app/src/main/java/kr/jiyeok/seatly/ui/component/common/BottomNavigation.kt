@@ -32,6 +32,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kr.jiyeok.seatly.ui.theme.ColorPrimaryOrange
+import kr.jiyeok.seatly.ui.theme.ColorTextBlack
+import kr.jiyeok.seatly.ui.theme.ColorTextLightGray
+import kr.jiyeok.seatly.ui.theme.ColorWhite
 
 data class NavItem(
     val route: String,
@@ -49,7 +53,6 @@ fun BottomNavigationBar(
     val navItems = if (isAdmin) {
         listOf(
             NavItem("admin/home", "홈", Icons.Filled.Home, Icons.Outlined.Home),
-            NavItem("admin/cafe/list", "카페 관리", Icons.Filled.Search, Icons.Outlined.Search),
             NavItem("admin/mypage", "마이페이지", Icons.Filled.Person, Icons.Outlined.Person)
         )
     } else {
@@ -68,16 +71,16 @@ fun BottomNavigationBar(
             .shadow(
                 elevation = 12.dp,
                 shape = RoundedCornerShape(36.dp),
-                spotColor = Color.Black.copy(alpha = 0.1f)
+                spotColor = ColorTextBlack.copy(alpha = 0.1f)
             )
             .clip(RoundedCornerShape(36.dp)),
-        color = Color.White,
+        color = ColorWhite,
         tonalElevation = 8.dp
     ) {
         NavigationBar(
             modifier = Modifier.fillMaxWidth(),
-            containerColor = Color.White,
-            contentColor = Color.Black,
+            containerColor = ColorWhite,
+            contentColor = ColorTextBlack,
             tonalElevation = 0.dp
         ) {
             navItems.forEach { item ->
@@ -116,9 +119,10 @@ private fun TabIconWithIndicator(
                     .width(32.dp)
                     .height(5.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFFFF6B4A))
+                    .background(ColorPrimaryOrange)
             )
         }
+
         Icon(
             imageVector = if (isSelected) selectedIcon else unselectedIcon,
             contentDescription = description,
@@ -138,9 +142,9 @@ private fun TabLabel(text: String) {
 
 @Composable
 private fun customNavColors() = NavigationBarItemDefaults.colors(
-    selectedIconColor = Color(0xFFFF6B4A),
-    selectedTextColor = Color(0xFFFF6B4A),
-    unselectedIconColor = Color(0xFFA0A0A0),
-    unselectedTextColor = Color(0xFFA0A0A0),
+    selectedIconColor = ColorPrimaryOrange,
+    selectedTextColor = ColorPrimaryOrange,
+    unselectedIconColor = ColorTextLightGray,
+    unselectedTextColor = ColorTextLightGray,
     indicatorColor = Color.Transparent
 )

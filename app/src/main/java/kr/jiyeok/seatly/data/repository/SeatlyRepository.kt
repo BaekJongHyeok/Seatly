@@ -1,5 +1,6 @@
 package kr.jiyeok.seatly.data.repository
 
+import android.se.omapi.Session
 import kr.jiyeok.seatly.data.remote.request.*
 import kr.jiyeok.seatly.data.remote.response.*
 
@@ -19,7 +20,10 @@ interface SeatlyRepository {
     // User
     // =====================================================
 
-    suspend fun getUserInfo(): ApiResult<UserInfoDetailDto>
+    suspend fun getUserInfo(): ApiResult<UserInfoSummaryDto>
+    suspend fun getFavoriteCafes(): ApiResult<List<Long>>
+    suspend fun getMyTimePasses(): ApiResult<List<UserTimePass>>
+    suspend fun getCurrentSessions(): ApiResult<List<SessionDto>>
     suspend fun updateUserInfo(request: UpdateUserInfoRequest): ApiResult<Unit>
     suspend fun deleteAccount(): ApiResult<Unit>
     suspend fun register(request: RegisterRequest): ApiResult<Unit>

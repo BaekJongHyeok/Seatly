@@ -12,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -22,8 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -32,29 +31,28 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
+import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.presentation.viewmodel.HomeViewModel
-
-// 색상 정의 (HomeScreen과 동일)
-private val ColorPrimaryOrange = Color(0xFFFFA500)
-private val ColorTextBlack = Color(0xFF000000)
-private val ColorTextGray = Color(0xFF888888)
-private val ColorTextDarkGray = Color(0xFF999999)
-private val ColorTextLightGray = Color(0xFFA8A8A8)
-private val ColorIconGray = Color(0xFFCCCCCC)
-private val ColorBorderLight = Color(0xFFE0E0E0)
-private val ColorCardBg = Color(0xFFF8F6F3)
-private val ColorToggleInactive = Color(0xFFE0E0E0)
-private val ColorWhite = Color(0xFFFFFFFF)
-private val ColorBrownBg = Color(0xFFD4C5B9)
+import kr.jiyeok.seatly.ui.component.common.AppTopBar
+import kr.jiyeok.seatly.ui.navigation.AdminMyPageNavigator
+import kr.jiyeok.seatly.ui.screen.user.FavoritesCafeCard
+import kr.jiyeok.seatly.ui.theme.*
+import kr.jiyeok.seatly.util.SharedPreferencesHelper
 
 @Composable
 fun AdminMyPageScreen(
     navController: NavController,
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel
 ) {
+    // 네비게이션 관리자 생성
+    val navigator = remember { AdminMyPageNavigator(navController) }
+
+    val context = LocalContext.current
+
     // HomeViewModel에서 모든 데이터 가져오기
     val userData by viewModel.userData.collectAsState()
-    val allCafes by viewModel.cafes.collectAsState()
+    val registeredCafes by viewModel.adminCafes.collectAsState()
     var notificationEnabled by remember { mutableStateOf(true) }
 
     // 처음 한 번만 로드
@@ -62,94 +60,84 @@ fun AdminMyPageScreen(
         viewModel.loadHomeData()
     }
 
-    // 즐겨찾기 필터링
-    val favoriteCafeIds: Set<Long> = userData?.favoriteCafeIds?.toSet() ?: emptySet()
-    val favoriteCafes: List<StudyCafeSummaryDto> =
-        allCafes.filter { cafe -> cafe.id in favoriteCafeIds } ?: emptyList()
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(ColorWhite)
             .verticalScroll(rememberScrollState())
     ) {
-        TopBar()
+        // 상단 헤더 (제목)
+        AppTopBar(title = "마이페이지")
 
+        // 프로필 섹션
         ProfileCardSection(
             userName = userData?.name ?: "사용자",
             userEmail = userData?.email ?: "email@example.com",
             userImageUrl = userData?.imageUrl ?: "",
-            onEditClick = { navController.navigate("common/profile/edit") }
+            onEditClick = { navigator.navigateToEditProfile() }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        FavoritesHeaderSection(
-            onViewAll = { navController.navigate("user/favorites") }
-        )
+        // 등록한 카페 헤더
+        RegisteredCafesHeaderSection()
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (favoriteCafes.isEmpty()) {
-            EmptyFavoritesCard(
+        // 등록한 카페 목록 또는 빈 상태
+        if (registeredCafes.isEmpty()) {
+            EmptyRegisteredCafesCard(
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
         } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                favoriteCafes.forEach { cafe ->
-                    FavoritesCafeCard(cafe = cafe)
+            RegisteredCafesListSection(
+                cafes = registeredCafes,
+                onCafeClick = { cafe ->
+                    navigator.navigateToCafeDetail(cafe.id)
                 }
-            }
+            )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // 관리 및 설정 섹션
         ManagementSection(
             notificationEnabled = notificationEnabled,
             onNotificationToggle = { notificationEnabled = it },
-            onSettingsClick = { navController.navigate("common/settings") }
+            onNotificationClick = {navigator.navigateToNotifications() },
+            onSettingsClick = { navigator.navigateToAppSettings() }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // 로그아웃 버튼
         LogoutButton(
             onLogoutClick = {
-                viewModel.logout()
-                navController.navigate("auth/login") {
-                    popUpTo("user/mypage") { inclusive = true }
-                }
+                // 1. 서버/로컬 로그아웃
+                authViewModel.logout()
+
+                // 2. 자동 로그인 정보 완전히 제거
+                SharedPreferencesHelper.clearAutoLoginCredentials(context)
+
+                // 3. 로그인 화면으로 이동 + 백스텝 정리
+                navigator.navigateToLoginAndClearStack()
             },
             modifier = Modifier.padding(horizontal = 20.dp)
         )
 
+        // 하단 여유 공간
         Spacer(modifier = Modifier.height(100.dp))
     }
 }
 
-@Composable
-fun TopBar() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ColorWhite)
-            .padding(horizontal = 20.dp, vertical = 12.dp)
-    ) {
-        Text(
-            text = "마이페이지",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = ColorTextBlack,
-            modifier = Modifier.align(Alignment.Center)
-        )
-    }
-}
+// =====================================================
+// UI Components
+// =====================================================
 
+/**
+ * 프로필 카드 섹션
+ * 사용자 프로필 이미지, 이름, 이메일, 수정 버튼 표시
+ */
 @Composable
 fun ProfileCardSection(
     userName: String,
@@ -176,6 +164,7 @@ fun ProfileCardSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // 사용자 프로필 이미지
             Box(
                 modifier = Modifier
                     .size(80.dp)
@@ -193,6 +182,7 @@ fun ProfileCardSection(
                 }
             }
 
+            // 사용자 정보 (이름, 이메일)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center
@@ -212,6 +202,7 @@ fun ProfileCardSection(
                 )
             }
 
+            // 프로필 수정 버튼
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -232,8 +223,12 @@ fun ProfileCardSection(
     }
 }
 
+/**
+ * 등록한 카페 헤더 섹션
+ * 등록한 카페 제목
+ */
 @Composable
-fun FavoritesHeaderSection(onViewAll: () -> Unit) {
+fun RegisteredCafesHeaderSection() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -242,24 +237,20 @@ fun FavoritesHeaderSection(onViewAll: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "찜한 목록",
+            text = "등록한 카페 목록",
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = ColorTextBlack
         )
-
-        Text(
-            text = "더보기",
-            fontSize = 12.sp,
-            color = ColorPrimaryOrange,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.clickable { onViewAll() }
-        )
     }
 }
 
+/**
+ * 빈 등록한 카페 카드
+ * 아직 등록한 카페가 없을 때 표시
+ */
 @Composable
-fun EmptyFavoritesCard(modifier: Modifier = Modifier) {
+fun EmptyRegisteredCafesCard(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -275,7 +266,7 @@ fun EmptyFavoritesCard(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "아직 찜한 카페가 없어요",
+            text = "아직 등록한 카페가 없어요",
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             color = ColorTextDarkGray
@@ -283,8 +274,40 @@ fun EmptyFavoritesCard(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * 즐겨찾기 카페 리스트 섹션
+ * 즐겨찾기한 카페들을 가로 스크롤로 표시
+ */
 @Composable
-fun FavoritesCafeCard(cafe: StudyCafeSummaryDto) {
+fun RegisteredCafesListSection(
+    cafes: List<StudyCafeSummaryDto>,
+    onCafeClick: (StudyCafeSummaryDto) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        cafes.forEach { cafe ->
+            RegisteredCafeCard(
+                cafe = cafe,
+                onClick = { onCafeClick(cafe) }
+            )
+        }
+    }
+}
+
+/**
+ * 등록한 카페 카드
+ * 카페 이미지, 이름, 주소 표시
+ */
+@Composable
+fun RegisteredCafeCard(
+    cafe: StudyCafeSummaryDto,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .width(150.dp)
@@ -296,11 +319,12 @@ fun FavoritesCafeCard(cafe: StudyCafeSummaryDto) {
             )
             .clip(RoundedCornerShape(12.dp))
             .background(ColorCardBg)
-            .clickable { /* onClick(cafe)  */ }
+            .clickable { onClick }
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
         ) {
+            // 카페 이미지
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -317,32 +341,9 @@ fun FavoritesCafeCard(cafe: StudyCafeSummaryDto) {
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
-
-                Box(
-                    modifier = Modifier
-                        .padding(6.dp)
-                        .size(28.dp)
-                        .shadow(
-                            elevation = 4.dp,
-                            shape = RoundedCornerShape(50),
-                            ambientColor = ColorTextBlack.copy(alpha = 0.15f),
-                            spotColor = ColorTextBlack.copy(alpha = 0.08f)
-                        )
-                        .clip(RoundedCornerShape(50))
-                        .background(ColorWhite),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Favorite,
-                        contentDescription = "찜",
-                        tint = ColorPrimaryOrange,
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clickable {  }
-                    )
-                }
             }
 
+            // 카페 정보
             Column(modifier = Modifier.padding(10.dp)) {
                 Text(
                     text = cafe.name,
@@ -367,10 +368,15 @@ fun FavoritesCafeCard(cafe: StudyCafeSummaryDto) {
     }
 }
 
+/**
+ * 관리 및 설정 섹션
+ * 알림 설정 토글과 앱 설정 버튼
+ */
 @Composable
 fun ManagementSection(
     notificationEnabled: Boolean,
     onNotificationToggle: (Boolean) -> Unit,
+    onNotificationClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     Column(
@@ -379,6 +385,7 @@ fun ManagementSection(
             .background(ColorWhite)
             .padding(vertical = 12.dp)
     ) {
+        // 섹션 제목
         Text(
             text = "관리 및 설정",
             fontSize = 14.sp,
@@ -387,6 +394,7 @@ fun ManagementSection(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
         )
 
+        // 알림 설정
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -399,7 +407,8 @@ fun ManagementSection(
                 )
                 .clip(RoundedCornerShape(16.dp))
                 .background(ColorCardBg)
-                .padding(14.dp),
+                .padding(14.dp)
+                .clickable { onNotificationClick() },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -407,6 +416,7 @@ fun ManagementSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 알림 아이콘
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -422,6 +432,7 @@ fun ManagementSection(
                     )
                 }
 
+                // 알림 설정 텍스트
                 Text(
                     text = "알림 설정",
                     fontSize = 13.sp,
@@ -430,6 +441,7 @@ fun ManagementSection(
                 )
             }
 
+            // 토글 스위치
             Switch(
                 checked = notificationEnabled,
                 onCheckedChange = onNotificationToggle,
@@ -445,6 +457,7 @@ fun ManagementSection(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // 앱 설정
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -466,6 +479,7 @@ fun ManagementSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 설정 아이콘
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -481,6 +495,7 @@ fun ManagementSection(
                     )
                 }
 
+                // 앱 설정 텍스트
                 Text(
                     text = "앱 설정",
                     fontSize = 13.sp,
@@ -489,6 +504,7 @@ fun ManagementSection(
                 )
             }
 
+            // 이동 화살표
             Icon(
                 imageVector = Icons.Default.Edit,
                 contentDescription = "이동",
@@ -499,6 +515,10 @@ fun ManagementSection(
     }
 }
 
+/**
+ * 로그아웃 버튼
+ * 사용자가 로그아웃하고 로그인 화면으로 이동
+ */
 @Composable
 fun LogoutButton(
     onLogoutClick: () -> Unit,
