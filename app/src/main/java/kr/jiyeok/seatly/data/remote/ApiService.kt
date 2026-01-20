@@ -6,6 +6,7 @@ import retrofit2.http.*
 import kotlin.jvm.JvmSuppressWildcards
 import kr.jiyeok.seatly.data.remote.request.*
 import kr.jiyeok.seatly.data.remote.response.*
+import okhttp3.ResponseBody
 
 interface ApiService {
 
@@ -123,7 +124,9 @@ interface ApiService {
      */
     @POST("users/{id}/time")
     suspend fun addUserTimePass(
-        @Path("id") userId: Long
+        @Path("id") userId: Long,
+        @Query("studyCafeId") studyCafeId: Long,
+        @Query("time") time: Long
     ): Unit
 
     // =====================================================
@@ -324,7 +327,7 @@ interface ApiService {
     @POST("images/upload")
     suspend fun uploadImage(
         @Part file: MultipartBody.Part
-    ): ImageUploadResponse
+    ): String
 
     /**
      * GET /images/{imageId}
@@ -333,7 +336,7 @@ interface ApiService {
     @GET("images/{imageId}")
     suspend fun getImage(
         @Path("imageId") imageId: String
-    ): ByteArray
+    ): ResponseBody
 
     /**
      * DELETE /images/{imageId}
@@ -342,5 +345,5 @@ interface ApiService {
     @DELETE("images/{imageId}")
     suspend fun deleteImage(
         @Path("imageId") imageId: String
-    ): Unit
+    )
 }

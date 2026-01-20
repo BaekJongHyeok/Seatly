@@ -112,7 +112,7 @@ class CreateCafeViewModel @Inject constructor(
                 val result = repository.uploadImage(file)
                 when (result) {
                     is ApiResult.Success -> {
-                        val imageUrl = result.data?.imageUrl
+                        val imageUrl = result.data
                         if (imageUrl != null) {
                             val currentUrls = _uploadedImageUrls.value.toMutableList()
                             currentUrls.add(imageUrl)

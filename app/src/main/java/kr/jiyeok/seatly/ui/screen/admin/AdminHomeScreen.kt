@@ -17,11 +17,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -43,6 +46,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
+import kr.jiyeok.seatly.data.remote.response.UsageDto
 import kr.jiyeok.seatly.presentation.viewmodel.AdminHomeViewModel
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 import kr.jiyeok.seatly.ui.theme.ColorBgBeige
@@ -62,6 +66,7 @@ fun AdminHomeScreen(
 
     // AdminHomeViewModel 에서 모든 데이터 가져오기
     val registeredCafes by viewModel.cafes.collectAsState()
+    val cafeUsages by viewModel.cafeUsages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
 
@@ -74,6 +79,12 @@ fun AdminHomeScreen(
     // 처음 한 번만 홈 데이터 로드
     LaunchedEffect(Unit) {
         viewModel.loadRegisteredCafes()
+    }
+
+    LaunchedEffect(registeredCafes) {
+        registeredCafes.forEach { cafe ->
+            viewModel.loadCafeUsage(cafe.id)
+        }
     }
 
     Column(
@@ -112,6 +123,7 @@ fun AdminHomeScreen(
                 else -> {
                     CafeListContent(
                         cafes = registeredCafes,
+                        usages = cafeUsages,
                         onCafeClick = { cafeId ->
                             navController.navigate("admin/cafe/$cafeId")
                         }
@@ -170,6 +182,7 @@ fun EmptyState() {
 @Composable
 fun CafeListContent(
     cafes: List<StudyCafeSummaryDto>,
+    usages: Map<Long, UsageDto>,
     onCafeClick: (Long) -> Unit
 ) {
     Column(
@@ -190,12 +203,10 @@ fun CafeListContent(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {
-            items(
-                items = cafes,
-                key = { it.id }
-            ) { cafe ->
+            items(items = cafes, key = { it.id }) { cafe ->
                 AdminCafeItem(
                     cafe = cafe,
+                    usage = usages[cafe.id], // 해당 카페의 사용 현황 전달
                     onClick = { onCafeClick(cafe.id) }
                 )
             }
@@ -210,8 +221,13 @@ fun CafeListContent(
 @Composable
 fun AdminCafeItem(
     cafe: StudyCafeSummaryDto,
+    usage: UsageDto?,
     onClick: () -> Unit
 ) {
+    val total = usage?.totalCount ?: 0
+    val used = usage?.useCount ?: 0
+    val usedRatio = if (total > 0) used.toFloat() / total else 0f
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -226,58 +242,113 @@ fun AdminCafeItem(
             .clickable { onClick() }
             .padding(12.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            // 카페 이미지
-            AsyncImage(
-                model = cafe.mainImageUrl,
-                contentDescription = cafe.name,
-                modifier = Modifier
-                    .size(100.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(ColorBorderLight),
-                contentScale = ContentScale.Crop
-            )
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                // 카페 이미지
+                AsyncImage(
+                    model = cafe.mainImageUrl,
+                    contentDescription = cafe.name,
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(ColorBorderLight),
+                    contentScale = ContentScale.Crop
+                )
 
-            // 카페 정보
+                // 카페 정보
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // 카페 이름
+                    Text(
+                        text = cafe.name,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorTextBlack,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // 카페 주소
+                    Text(
+                        text = cafe.address,
+                        fontSize = 12.sp,
+                        color = ColorTextGray,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // 카페 태그 (24시간, 주차가능 등)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CafeTag(text = "24시간")
+                        CafeTag(text = "주차가능")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 2. 실시간 현황 섹션
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(top = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ColorWhite.copy(alpha = 0.5f))
+                    .padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 카페 이름
-                Text(
-                    text = cafe.name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = ColorTextBlack,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                // 카페 주소
-                Text(
-                    text = cafe.address,
-                    fontSize = 12.sp,
-                    color = ColorTextGray,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                // 카페 태그 (24시간, 주차가능 등)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CafeTag(text = "24시간")
-                    CafeTag(text = "주차가능")
+                when {
+                    // 데이터 로딩 전 (ViewModel에서 아직 Map에 데이터가 안 들어왔을 때)
+                    usage == null -> {
+                        Text(
+                            text = "현황 데이터를 불러오는 중...",
+                            fontSize = 12.sp,
+                            color = ColorTextGray
+                        )
+                    }
+                    // 좌석이 아직 등록되지 않은 경우 (total이 0)
+                    total == 0 -> {
+                        Text(
+                            text = "등록된 좌석이 없습니다. 좌석을 등록해주세요.",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = ColorTextGray
+                        )
+                    }
+                    // 정상 데이터가 있는 경우
+                    else -> {
+                        SeatProgressRow("$used / $total", usedRatio)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SeatProgressRow(value: String, ratio: Float) {
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("실시간 점유율", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = ColorTextBlack)
+            Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ColorTextBlack)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        LinearProgressIndicator(
+            progress = ratio,
+            modifier = Modifier.fillMaxWidth().height(12.dp).clip(CircleShape),
+            color = ColorPrimaryOrange,
+            trackColor = ColorWhite
+        )
     }
 }
 

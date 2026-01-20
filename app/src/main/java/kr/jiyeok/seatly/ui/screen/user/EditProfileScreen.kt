@@ -76,25 +76,15 @@ import kr.jiyeok.seatly.ui.theme.ColorTextLightGray
 import kr.jiyeok.seatly.ui.theme.ColorWarning
 import kr.jiyeok.seatly.ui.theme.ColorWhite
 
-
-/**
- * EditProfileScreen - 개인정보 수정 화면
- *
- * 기능:
- * - 프로필 사진 변경 (카메라/갤러리)
- * - 이름 수정
- * - 이메일 표시 (수정 불가)
- * - 휴대폰 번호 수정
- * - 비밀번호 변경
- * - 계정 탈퇴 (확인 다이얼로그)
- */
 @Composable
 fun EditProfileScreen(
     navController: NavController,
     viewModel: EditProfileViewModel = hiltViewModel()
 ) {
-    // ViewModel에서 데이터 가져오기
+    // 사용자 정보
     val userData by viewModel.userData.collectAsState()
+    val isAccountDeleted by viewModel.deleteAccountSuccess.collectAsState()
+    val isPwChanged by viewModel.changePasswordSuccess.collectAsState()
 
     // 로컬 상태
     var name by remember { mutableStateOf("") }
@@ -102,6 +92,7 @@ fun EditProfileScreen(
     var profileImageUri by remember { mutableStateOf<Uri?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
+
 
     // 초기값 설정
     LaunchedEffect(userData) {

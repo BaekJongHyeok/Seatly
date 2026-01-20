@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -38,9 +39,10 @@ import kr.jiyeok.seatly.ui.screen.user.UserHomeScreen
 import kr.jiyeok.seatly.ui.screen.user.UserMyPageScreen
 import kr.jiyeok.seatly.ui.screen.user.UserSearchScreen
 import androidx.compose.runtime.collectAsState
+import kr.jiyeok.seatly.ui.screen.admin.AdminCafeDetailScreen
 import kr.jiyeok.seatly.ui.screen.admin.AdminHomeScreen
+import kr.jiyeok.seatly.ui.screen.admin.cafe.CafeFormScreen
 import kr.jiyeok.seatly.ui.screen.common.NotificationsScreen
-import kr.jiyeok.seatly.ui.screen.user.AdminCafeDetailScreen
 
 /**
  * Seatly 앱의 최상위 네비게이션 구조를 정의하는 컴포저블
@@ -215,9 +217,14 @@ private fun NavGraphBuilder.defineAdminRoutes(navController: NavController, auth
     }
 
     // 카페 상세 페이지
-    composable("admin/cafe/{cafeId}", listOf(navArgument("cafeId") { type = NavType.StringType })) { backStackEntry ->
-        val cafeId = backStackEntry.arguments?.getString("cafeId")
-        AdminCafeDetailScreen(navController = navController, cafeId = cafeId)
+    composable("admin/cafe/{cafeId}", listOf(navArgument("cafeId") { type = NavType.LongType })) { backStackEntry ->
+        val cafeId = backStackEntry.arguments?.getLong("cafeId")
+
+        if (cafeId != null) {
+            AdminCafeDetailScreen(cafeId, navController)
+        } else {
+            Text("잘못된 접근입니다.")
+        }
     }
 
     // 카페 등록
@@ -228,7 +235,7 @@ private fun NavGraphBuilder.defineAdminRoutes(navController: NavController, auth
     // 카페 편집
     composable("admin/cafe/update/{cafeId}", listOf(navArgument("cafeId") { type = NavType.StringType })) { backStackEntry ->
         val cafeId = backStackEntry.arguments?.getString("cafeId")
-        UpdateCafeScreen(navController = navController, cafeId = cafeId)
+        CafeFormScreen(navController = navController, cafeId = cafeId?.toLong())
     }
 
     // 좌석 관리

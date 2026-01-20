@@ -75,8 +75,8 @@ data class CreateCafeRequest(
  * 카페 정보 수정 (관리자)
  */
 data class UpdateCafeRequest(
-    val name: String?,
-    val address: String?,
+    val name: String,
+    val address: String,
     val imageUrls: List<String> = emptyList(),
     val phoneNumber: String?,
     val facilities: List<EFacility> = emptyList(),

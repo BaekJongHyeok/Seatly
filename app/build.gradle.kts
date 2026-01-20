@@ -75,6 +75,8 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.4.0")
     implementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation("com.squareup.retrofit2:converter-scalars:2.9.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -71,8 +71,8 @@ class SeatlyRepositoryImpl @Inject constructor(
     override suspend fun getUsersInfoById(userId: Long) =
         safeApiCall { apiService.getUsersInfoById(userId) }
 
-    override suspend fun addUserTimePass(userId: Long) =
-        safeApiCall { apiService.addUserTimePass(userId) }
+    override suspend fun addUserTimePass(userId: Long, studyCafeId: Long, time: Long) =
+        safeApiCall { apiService.addUserTimePass(userId, studyCafeId, time) }
 
     // =====================================================
     // Sessions
@@ -150,8 +150,31 @@ class SeatlyRepositoryImpl @Inject constructor(
     override suspend fun uploadImage(file: okhttp3.MultipartBody.Part) =
         safeApiCall { apiService.uploadImage(file) }
 
-    override suspend fun getImage(imageId: String) =
-        safeApiCall { apiService.getImage(imageId) }
+    override suspend fun getImage(imageId: String): ApiResult<ByteArray> =
+        withContext(ioDispatcher) {
+            try {
+                val responseBody = apiService.getImage(imageId)
+                val byteArray = responseBody.bytes()
+                ApiResult.Success(byteArray)
+            } catch (e: Exception) {
+                Log.e("SeatlyRepository", "Image download failed", e)
+                val message = when (e) {
+                    is IOException -> "네트워크 오류: ${e.localizedMessage ?: "알 수 없는 오류"}"
+                    is HttpException -> {
+                        val code = e.code()
+                        when (code) {
+                            401 -> "인증이 필요합니다"
+                            403 -> "접근 권한이 없습니다"
+                            404 -> "이미지를 찾을 수 없습니다"
+                            500 -> "서버 오류가 발생했습니다"
+                            else -> "HTTP 오류 ($code): ${e.message}"
+                        }
+                    }
+                    else -> "알 수 없는 오류: ${e.localizedMessage ?: "오류 발생"}"
+                }
+                ApiResult.Failure(message, e)
+            }
+        }
 
     override suspend fun deleteImage(imageId: String) =
         safeApiCall { apiService.deleteImage(imageId) }

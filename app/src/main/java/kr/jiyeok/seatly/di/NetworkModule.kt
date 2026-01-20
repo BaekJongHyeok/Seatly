@@ -13,6 +13,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.converter.scalars.ScalarsConverterFactory  // 추가!
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,13 +22,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
-
 // ============ Configuration & Constants ============
-
 object NetworkConfig {
     const val PRODUCTION_BASE_URL = "http://3.27.78.54:8080/api/"
     const val DEBUG_BASE_URL = "http://localhost:8080/"
-
     const val CONNECT_TIMEOUT_SECONDS = 30L
     const val READ_TIMEOUT_SECONDS = 30L
     const val WRITE_TIMEOUT_SECONDS = 30L
@@ -42,7 +40,6 @@ object NetworkConfig {
 }
 
 // ============ Cookie Management ============
-
 /**
  * CookieJar 구현체 - 쿠키를 SharedPreferences에 저장
  * 서버에서 Set-Cookie로 보낸 accessToken, refreshToken을 자동으로 저장하고
@@ -56,7 +53,6 @@ class PersistentCookieJar(context: Context) : CookieJar {
         // 서버에서 Set-Cookie로 보낸 쿠키를 저장
         val host = url.host
         Log.d("CookieJar", "Saving ${cookies.size} cookies from $host")
-
         cookieStore[host] = cookies.toMutableList()
 
         // SharedPreferences에도 저장 (앱 재시작 후에도 유지)
@@ -68,7 +64,6 @@ class PersistentCookieJar(context: Context) : CookieJar {
 
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
         val host = url.host
-
         // 메모리에 있는 쿠키 로드
         val cookies = cookieStore[host]?.filter { !it.expiresAt.isExpired() }?.toMutableList() ?: mutableListOf()
 
@@ -81,10 +76,12 @@ class PersistentCookieJar(context: Context) : CookieJar {
             Log.d("CookieJar", "Loading accessToken from SharedPreferences")
             cookies.add(createCookie(host, "accessToken", accessToken))
         }
+
         if (refreshToken != null && !cookies.any { it.name == "refreshToken" }) {
             Log.d("CookieJar", "Loading refreshToken from SharedPreferences")
             cookies.add(createCookie(host, "refreshToken", refreshToken))
         }
+
         if (sessionId != null && !cookies.any { it.name == "JSESSIONID" }) {
             Log.d("CookieJar", "Loading JSESSIONID from SharedPreferences")
             cookies.add(createCookie(host, "JSESSIONID", sessionId))
@@ -119,7 +116,6 @@ class PersistentCookieJar(context: Context) : CookieJar {
 }
 
 // ============ Token Management ============
-
 interface TokenProvider {
     fun getAccessToken(): String?
     fun getRefreshToken(): String?
@@ -160,7 +156,6 @@ class SharedPrefsTokenProvider(context: Context) : TokenProvider {
 }
 
 // ============ Interceptors ============
-
 /**
  * Bearer Token Interceptor - 쿠키에서 토큰을 읽어 Authorization 헤더에 추가
  */
@@ -168,7 +163,6 @@ class BearerTokenInterceptor(
     private val cookieJar: CookieJar,
     @ApplicationContext private val context: Context
 ) : Interceptor {
-
     companion object {
         // 토큰이 필요 없는 엔드포인트 목록
         private val PUBLIC_ENDPOINTS = listOf(
@@ -209,27 +203,6 @@ class BearerTokenInterceptor(
 }
 
 /**
- * Logging Interceptor
- */
-class LoggingInterceptor : Interceptor {
-    override fun intercept(chain: Interceptor.Chain): okhttp3.Response {
-        if (!BuildConfig.DEBUG) {
-            return chain.proceed(chain.request())
-        }
-
-        val request = chain.request()
-        val startTime = System.currentTimeMillis()
-        Log.d("OkHttp", "→ ${request.method} ${request.url}")
-
-        val response = chain.proceed(request)
-        val duration = System.currentTimeMillis() - startTime
-        Log.d("OkHttp", "← ${response.code} (${duration}ms)")
-
-        return response
-    }
-}
-
-/**
  * Header Interceptor - 모든 요청에 공통 헤더 추가
  */
 class HeaderInterceptor : Interceptor {
@@ -244,7 +217,6 @@ class HeaderInterceptor : Interceptor {
 }
 
 // ============ DI Module ============
-
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
@@ -259,12 +231,6 @@ object NetworkModule {
     @Singleton
     fun provideTokenProvider(@ApplicationContext context: Context): TokenProvider {
         return SharedPrefsTokenProvider(context)
-    }
-
-    @Provides
-    @Singleton
-    fun provideDebugMockInterceptor(): DebugMockInterceptor {
-        return DebugMockInterceptor()
     }
 
     @Provides
@@ -304,7 +270,7 @@ object NetworkModule {
     ): OkHttpClient {
         return OkHttpClient.Builder()
             .cookieJar(cookieJar)
-            .addInterceptor(bearerTokenInterceptor)  // Bearer Token을 가장 먼저 추가
+            .addInterceptor(bearerTokenInterceptor) // Bearer Token을 가장 먼저 추가
             .addInterceptor(headerInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(NetworkConfig.CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -320,7 +286,8 @@ object NetworkModule {
         return Retrofit.Builder()
             .baseUrl(NetworkConfig.getBaseUrl())
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(ScalarsConverterFactory.create())  // String 처리를 위해 먼저!
+            .addConverterFactory(GsonConverterFactory.create())     // JSON 객체 처리
             .build()
     }
 
@@ -332,7 +299,6 @@ object NetworkModule {
 }
 
 // ============ Helper Extension ============
-
 /**
  * 쿠키 만료 확인
  */

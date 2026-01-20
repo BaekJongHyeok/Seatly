@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,7 +39,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.enums.ERole
@@ -46,24 +47,12 @@ import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.ui.component.AuthButton
 import kr.jiyeok.seatly.ui.component.EmailInputField
 import kr.jiyeok.seatly.ui.component.PasswordInputField
+import kr.jiyeok.seatly.ui.theme.*
 import kr.jiyeok.seatly.util.SharedPreferencesHelper
 
 /**
  * 로그인 화면
  * 사용자 인증을 처리하고, 성공 시 사용자 역할에 따라 해당 홈 화면으로 이동
- *
- * 기능:
- * - 이메일/비밀번호 입력
- * - 자동 로그인 저장
- * - 비밀번호 찾기
- * - 회원가입 이동
- * - 소셜 로그인 (Google, Kakao, Naver)
- *
- * 네비게이션:
- * - 로그인 성공 (ADMIN) → admin/home
- * - 로그인 성공 (USER) → user/home
- * - 비밀번호 찾기 → auth/password/step1
- * - 회원가입 → auth/signup
  */
 @Composable
 fun LoginScreen(
@@ -71,9 +60,12 @@ fun LoginScreen(
     viewModel: AuthViewModel
 ) {
     val context = LocalContext.current
+
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+
     var isAutoLogin by rememberSaveable { mutableStateOf(false) }
+
     val authState by viewModel.authState.collectAsState()
     val userRole by viewModel.userRole.collectAsState()
 
@@ -102,7 +94,7 @@ fun LoginScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colorResource(id = R.color.login_background))
+            .background(ColorWhite)
             .padding(horizontal = dimensionResource(id = R.dimen.login_horizontal_padding)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
@@ -138,15 +130,28 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_error_spacing)))
         }
 
-        AuthButton(
-            text = if (authState is AuthUiState.Loading) {
-                stringResource(id = R.string.login_loading)
-            } else {
-                stringResource(id = R.string.login_button)
-            },
-            onClick = { viewModel.login(email, password) },
-            enabled = authState !is AuthUiState.Loading
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(
+                    color = ColorPrimaryOrange,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .clickable(enabled = authState !is AuthUiState.Loading) { viewModel.login(email, password) },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (authState is AuthUiState.Loading) {
+                    stringResource(id = R.string.login_loading)
+                } else {
+                    stringResource(id = R.string.login_button)
+                },
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+        }
 
         Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_button_spacing)))
 
@@ -171,7 +176,6 @@ private fun tryAutoLogin(
         if (SharedPreferencesHelper.isAutoLoginEnabled(context)) {
             val savedEmail = SharedPreferencesHelper.getSavedEmail(context)
             val savedPassword = SharedPreferencesHelper.getSavedPassword(context)
-
             if (savedEmail.isNotEmpty() && savedPassword.isNotEmpty()) {
                 onCredentialsLoaded(savedEmail, savedPassword)
                 viewModel.login(savedEmail, savedPassword)
@@ -223,7 +227,6 @@ private fun handleLoginSuccess(
     }
 
     viewModel.setUserRole(userRole)
-
     val destination = if (userRole == ERole.ADMIN) {
         "admin/home"
     } else {
@@ -275,7 +278,7 @@ private fun LogoAndTitleSection() {
             modifier = Modifier
                 .size(dimensionResource(id = R.dimen.login_logo_size))
                 .clip(RoundedCornerShape(dimensionResource(id = R.dimen.login_logo_corner_radius)))
-                .background(color = colorResource(id = R.color.login_primary)),
+                .background(color = ColorPrimaryOrange),
             contentAlignment = Alignment.Center
         ) {
             Image(
@@ -291,7 +294,7 @@ private fun LogoAndTitleSection() {
             text = stringResource(id = R.string.login_app_name),
             fontSize = dimensionResource(id = R.dimen.login_title_text_size).value.sp,
             fontWeight = FontWeight.Bold,
-            color = colorResource(id = R.color.login_text_primary)
+            color = ColorTextBlack
         )
 
         Spacer(modifier = Modifier.height(dimensionResource(id = R.dimen.login_title_subtitle_spacing)))
@@ -300,7 +303,7 @@ private fun LogoAndTitleSection() {
             text = stringResource(id = R.string.login_tagline),
             fontSize = dimensionResource(id = R.dimen.login_subtitle_text_size).value.sp,
             fontWeight = FontWeight.Normal,
-            color = colorResource(id = R.color.login_text_secondary)
+            color = ColorTextGray
         )
     }
 }
@@ -326,7 +329,7 @@ private fun InputFieldsSection(
                 text = stringResource(id = R.string.login_email_label),
                 fontSize = dimensionResource(id = R.dimen.login_label_text_size).value.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = colorResource(id = R.color.login_text_primary),
+                color = ColorTextBlack,
                 modifier = Modifier.padding(bottom = dimensionResource(id = R.dimen.login_label_spacing))
             )
 
@@ -344,7 +347,7 @@ private fun InputFieldsSection(
                 text = stringResource(id = R.string.login_password_label),
                 fontSize = dimensionResource(id = R.dimen.login_label_text_size).value.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = colorResource(id = R.color.login_text_primary),
+                color = ColorTextBlack,
                 modifier = Modifier.padding(bottom = dimensionResource(id = R.dimen.login_label_spacing))
             )
 
@@ -378,13 +381,18 @@ private fun AutoLoginAndPasswordRecoveryRow(
             Checkbox(
                 checked = isAutoLogin,
                 onCheckedChange = onAutoLoginChange,
-                modifier = Modifier.size(dimensionResource(id = R.dimen.login_checkbox_size))
+                modifier = Modifier.size(dimensionResource(id = R.dimen.login_checkbox_size)),
+                colors = CheckboxDefaults.colors(
+                    checkedColor = ColorPrimaryOrange,
+                    uncheckedColor = ColorBorderLight,
+                    checkmarkColor = ColorWhite
+                )
             )
 
             Text(
                 text = stringResource(id = R.string.login_auto_login),
                 fontSize = dimensionResource(id = R.dimen.login_label_text_size).value.sp,
-                color = colorResource(id = R.color.login_text_primary),
+                color = ColorTextBlack,
                 modifier = Modifier.padding(start = dimensionResource(id = R.dimen.login_checkbox_text_padding))
             )
         }
@@ -393,7 +401,7 @@ private fun AutoLoginAndPasswordRecoveryRow(
             text = stringResource(id = R.string.login_forgot_password),
             fontSize = dimensionResource(id = R.dimen.login_label_text_size).value.sp,
             fontWeight = FontWeight.SemiBold,
-            color = colorResource(id = R.color.login_primary),
+            color = ColorPrimaryOrange,
             modifier = Modifier
                 .clickable { onForgotPasswordClick() }
                 .padding(dimensionResource(id = R.dimen.login_forgot_password_padding))
@@ -408,7 +416,7 @@ private fun AutoLoginAndPasswordRecoveryRow(
 private fun ErrorMessage(message: String) {
     Text(
         text = message,
-        color = colorResource(id = R.color.login_primary),
+        color = ColorWarning,
         fontSize = dimensionResource(id = R.dimen.login_label_text_size).value.sp,
         modifier = Modifier
             .fillMaxWidth()
@@ -438,13 +446,13 @@ private fun SocialLoginSection() {
                 modifier = Modifier
                     .weight(1f)
                     .height(dimensionResource(id = R.dimen.login_divider_line_height))
-                    .background(colorResource(id = R.color.login_divider))
+                    .background(ColorBorderLight)
             )
 
             Text(
                 text = stringResource(id = R.string.login_divider_or),
                 fontSize = dimensionResource(id = R.dimen.login_divider_text_size).value.sp,
-                color = colorResource(id = R.color.login_text_secondary),
+                color = ColorTextGray,
                 modifier = Modifier.padding(horizontal = dimensionResource(id = R.dimen.login_divider_padding))
             )
 
@@ -452,7 +460,7 @@ private fun SocialLoginSection() {
                 modifier = Modifier
                     .weight(1f)
                     .height(dimensionResource(id = R.dimen.login_divider_line_height))
-                    .background(colorResource(id = R.color.login_divider))
+                    .background(ColorBorderLight)
             )
         }
 
@@ -471,15 +479,16 @@ private fun SocialLoginButtons() {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(dimensionResource(id = R.dimen.login_social_button_spacing))
     ) {
+        // Google 로그인
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
                     .size(dimensionResource(id = R.dimen.login_social_button_size))
                     .clip(CircleShape)
-                    .background(colorResource(id = R.color.login_background))
+                    .background(ColorWhite)
                     .border(
                         dimensionResource(id = R.dimen.social_button_border_width),
-                        colorResource(id = R.color.login_social_border),
+                        ColorBorderLight,
                         CircleShape
                     )
                     .clickable { },
@@ -493,6 +502,7 @@ private fun SocialLoginButtons() {
             }
         }
 
+        // Kakao 로그인
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
@@ -510,6 +520,7 @@ private fun SocialLoginButtons() {
             }
         }
 
+        // Naver 로그인
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
@@ -521,7 +532,7 @@ private fun SocialLoginButtons() {
             ) {
                 Text(
                     text = stringResource(id = R.string.login_naver_text),
-                    color = colorResource(id = R.color.login_background),
+                    color = ColorWhite,
                     fontWeight = FontWeight.Bold,
                     fontSize = dimensionResource(id = R.dimen.login_social_naver_text_size).value.sp
                 )
@@ -543,14 +554,16 @@ private fun SignUpSection(onSignUpClick: () -> Unit) {
         Text(
             text = stringResource(id = R.string.login_no_account),
             fontSize = dimensionResource(id = R.dimen.login_signup_text_size).value.sp,
-            color = colorResource(id = R.color.login_text_tertiary)
+            color = ColorTextGray
         )
+
+        Spacer(Modifier.width(4.dp))
 
         Text(
             text = stringResource(id = R.string.login_signup),
             fontSize = dimensionResource(id = R.dimen.login_signup_text_size).value.sp,
             fontWeight = FontWeight.Bold,
-            color = colorResource(id = R.color.login_primary),
+            color = ColorPrimaryOrange,
             modifier = Modifier.clickable { onSignUpClick() }
         )
     }

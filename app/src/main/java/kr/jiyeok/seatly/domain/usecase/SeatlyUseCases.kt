@@ -180,9 +180,10 @@ class AddUserTimePassUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(userId: Long): ApiResult<Unit> =
-        withContext(ioDispatcher) { repository.addUserTimePass(userId) }
+    suspend operator fun invoke(userId: Long, studyCafeId: Long, time: Long): ApiResult<Unit> =
+        withContext(ioDispatcher) { repository.addUserTimePass(userId, studyCafeId, time) }
 }
+
 
 // =====================================================
 // Session UseCases
@@ -448,7 +449,7 @@ class UploadImageUseCase @Inject constructor(
     private val repository: SeatlyRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    suspend operator fun invoke(file: MultipartBody.Part): ApiResult<ImageUploadResponse> =
+    suspend operator fun invoke(file: MultipartBody.Part): ApiResult<String> =
         withContext(ioDispatcher) { repository.uploadImage(file) }
 }
 

@@ -4,9 +4,12 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kr.jiyeok.seatly.data.remote.request.ChangePasswordRequest
 import kr.jiyeok.seatly.data.remote.request.UpdateUserInfoRequest
@@ -14,225 +17,144 @@ import kr.jiyeok.seatly.data.remote.response.UserInfoDetailDto
 import kr.jiyeok.seatly.data.remote.response.UserInfoSummaryDto
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.data.repository.SeatlyRepository
+import kr.jiyeok.seatly.di.IoDispatcher
+import kr.jiyeok.seatly.domain.usecase.ChangePasswordUseCase
+import kr.jiyeok.seatly.domain.usecase.DeleteAccountUseCase
+import kr.jiyeok.seatly.domain.usecase.GetUserInfoUseCase
+import kr.jiyeok.seatly.domain.usecase.UpdateUserInfoUseCase
 import javax.inject.Inject
 
 /**
- * EditProfileViewModel - 개인정보 수정 화면 데이터 관리
- *
- * 기능:
- * - User 정보 로드
- * - 프로필 사진 변경
- * - 이름, 전화번호 수정
- * - 계정 탈퇴
- * - 로딩, 에러 상태 관리
+ * EditProfileScreen 데이터 관리
  */
 @HiltViewModel
 class EditProfileViewModel @Inject constructor(
-    private val repository: SeatlyRepository
+    private val getUserInfoUseCase: GetUserInfoUseCase,
+    private val updateUserInfoUseCase: UpdateUserInfoUseCase,
+    private val changePasswordUseCase: ChangePasswordUseCase,
+    private val deleteAccountUseCase: DeleteAccountUseCase,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
-    // =====================================================
-    // User Data
-    // =====================================================
+    // 사용자 정보
     private val _userData = MutableStateFlow<UserInfoSummaryDto?>(null)
     val userData: StateFlow<UserInfoSummaryDto?> = _userData.asStateFlow()
 
-    // =====================================================
-    // Loading State
-    // =====================================================
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    // =====================================================
-    // Error State
-    // =====================================================
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-
-    // =====================================================
-    // Change Password State
-    // =====================================================
+    // 비밀번호 변경
     private val _changePasswordSuccess = MutableStateFlow(false)
     val changePasswordSuccess: StateFlow<Boolean> = _changePasswordSuccess
 
-    // =====================================================
-    // Delete Account State
-    // =====================================================
+    // 계정 삭제
     private val _deleteAccountSuccess = MutableStateFlow(false)
     val deleteAccountSuccess: StateFlow<Boolean> = _deleteAccountSuccess.asStateFlow()
 
-    // =====================================================
-    // Initialization
-    // =====================================================
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    init {
-        loadUserProfile()
-    }
-
-    // =====================================================
-    // Public Methods - Data Loading
-    // =====================================================
+    private val _events = Channel<String>(Channel.Factory.BUFFERED)
+    val events = _events.receiveAsFlow()
 
     /**
-     * 사용자 프로필 정보 로드
+     * 사용자 프로필 조회
      */
     fun loadUserProfile() {
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
-            _errorMessage.value = null
-
             try {
-                val result = repository.getUserInfo()
-                when (result) {
+                when (val result = getUserInfoUseCase()) {
                     is ApiResult.Success -> {
                         _userData.value = result.data
                     }
                     is ApiResult.Failure -> {
-                        _errorMessage.value = result.message
+                        _userData.value = null
+                        _events.send(result.message ?: "사용자 정보 조회 실패")
                     }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Unknown error"
+                _events.send(e.message ?: "알 수 없는 오류")
             } finally {
                 _isLoading.value = false
             }
         }
     }
-
-    // =====================================================
-    // Public Methods - Profile Update
-    // =====================================================
 
     /**
      * 사용자 프로필 업데이트
-     * - 이름
-     * - 전화번호
-     * - 프로필 사진
      */
-    fun updateUserProfile(
-        name: String,
-        phoneNumber: String,
-        imageUri: Uri? = null
-    ) {
-        viewModelScope.launch {
+    fun updateUserProfile(name: String, phoneNumber: String, imageUri: Uri? = null) {
+        viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
-            _errorMessage.value = null
-
             try {
-                // 이미지 업로드 (필요시)
                 val imagePath = if (imageUri != null) {
-                    imageUri.toString()  // Uri를 String 경로로 변환
+                    imageUri.toString()
                 } else {
-                    userData.value?.imageUrl  // 기존 이미지 URL 유지
+                    userData.value?.imageUrl
                 }
 
                 // 사용자 정보 업데이트
-                val result = repository.updateUserInfo(UpdateUserInfoRequest(name, phoneNumber, imagePath))
-
-                when (result) {
+                val updateRequest = UpdateUserInfoRequest(name, phoneNumber, imagePath)
+                when (val result = updateUserInfoUseCase(updateRequest)) {
                     is ApiResult.Success -> {
                         loadUserProfile()
-                        _errorMessage.value = null
                     }
                     is ApiResult.Failure -> {
-                        _errorMessage.value = result.message
+                        _events.send(result.message ?: "사용자 정보 업데이트 실패")
                     }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Unknown error"
+                _events.send(e.message ?: "알 수 없는 오류")
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    // =====================================================
-    // Public Methods - Change Password
-    // =====================================================
     /**
-     * 비밀번호 변경 요청
-     *
-     * 기능:
-     * - API를 통해 비밀번호 변경 요청
-     * - 성공 시 로그아웃 처리 필요
-     * - 실패 시 에러 메시지 표시
+     * 비밀번호 변경
      */
     fun changePassword(currentPassword: String, newPassword: String) {
         viewModelScope.launch {
             _isLoading.value = true
-            _errorMessage.value = null
-
             try {
-                // 비밀번호 변경 API 호출
-                val result = repository.changePassword(ChangePasswordRequest(currentPassword, newPassword))
-
-                when (result) {
+                val changeRequest = ChangePasswordRequest(currentPassword, newPassword)
+                when (val result = changePasswordUseCase(changeRequest)) {
                     is ApiResult.Success -> {
                         _changePasswordSuccess.value = true
-                        _errorMessage.value = null
                     }
                     is ApiResult.Failure -> {
-                        _errorMessage.value = result.message
                         _deleteAccountSuccess.value = false
+                        _events.send(result.message ?: "비밀번호 변경 실패")
                     }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Change Password failed"
-                _deleteAccountSuccess.value = false
+                _events.send(e.message ?: "알 수 없는 오류")
             } finally {
                 _isLoading.value = false
             }
         }
     }
-
-    // =====================================================
-    // Public Methods - Delete Account
-    // =====================================================
 
     /**
      * 계정 탈퇴 요청
-     *
-     * 기능:
-     * - API를 통해 계정 삭제 요청
-     * - 성공 시 로그아웃 처리 필요
-     * - 실패 시 에러 메시지 표시
      */
     fun deleteAccount() {
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
-            _errorMessage.value = null
-
             try {
-                // 계정 탈퇴 API 호출
-                val result = repository.deleteAccount()
-
-                when (result) {
+                when (val result = deleteAccountUseCase()) {
                     is ApiResult.Success -> {
                         _deleteAccountSuccess.value = true
-                        _errorMessage.value = null
                     }
                     is ApiResult.Failure -> {
-                        _errorMessage.value = result.message
                         _deleteAccountSuccess.value = false
+                        _events.send(result.message ?: "계정 탈퇴 실패")
                     }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Account deletion failed"
-                _deleteAccountSuccess.value = false
+                _events.send(e.message ?: "알 수 없는 오류")
             } finally {
                 _isLoading.value = false
             }
         }
-    }
-
-    // =====================================================
-    // Error Handling
-    // =====================================================
-
-    /**
-     * 에러 메시지 초기화
-     */
-    fun clearError() {
-        _errorMessage.value = null
     }
 }

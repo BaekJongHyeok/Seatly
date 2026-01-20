@@ -35,7 +35,7 @@ interface SeatlyRepository {
 
     suspend fun getUsersInfo(studyCafeId: Long): ApiResult<List<UserTimePassInfo>>
     suspend fun getUsersInfoById(userId: Long): ApiResult<UserInfoSummaryDto>
-    suspend fun addUserTimePass(userId: Long): ApiResult<Unit>
+    suspend fun addUserTimePass(userId: Long, studyCafeId: Long, time: Long): ApiResult<Unit>
 
     // =====================================================
     // Sessions
@@ -75,7 +75,7 @@ interface SeatlyRepository {
     // Images
     // =====================================================
 
-    suspend fun uploadImage(file: okhttp3.MultipartBody.Part): ApiResult<ImageUploadResponse>
+    suspend fun uploadImage(file: okhttp3.MultipartBody.Part): ApiResult<String>
     suspend fun getImage(imageId: String): ApiResult<ByteArray>
     suspend fun deleteImage(imageId: String): ApiResult<Unit>
 }
