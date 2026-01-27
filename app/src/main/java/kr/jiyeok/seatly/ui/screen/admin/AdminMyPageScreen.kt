@@ -53,6 +53,9 @@ fun AdminMyPageScreen(
 ) {
     val context = LocalContext.current
 
+    // 뒤로가기 종료 핸들러 추가
+    kr.jiyeok.seatly.ui.component.common.ExitBackHandler()
+
     // UI State 수집 - lifecycle aware
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val logoutState by viewModel.logoutState.collectAsStateWithLifecycle()

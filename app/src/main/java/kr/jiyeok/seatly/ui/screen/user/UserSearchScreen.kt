@@ -58,6 +58,7 @@ import androidx.navigation.NavController
 import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.presentation.viewmodel.SearchViewModel
+import kr.jiyeok.seatly.ui.component.common.AppTopBar
 import kr.jiyeok.seatly.ui.navigation.UserSearchNavigator
 import kr.jiyeok.seatly.ui.theme.ColorBgBeige
 import kr.jiyeok.seatly.ui.theme.ColorBorderLight
@@ -76,6 +77,9 @@ fun UserSearchScreen(
     val navigator = remember { UserSearchNavigator(navController) }
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    
+    // 뒤로가기 종료 핸들러 추가
+    kr.jiyeok.seatly.ui.component.common.ExitBackHandler()
 
     // ViewModel State
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -103,9 +107,7 @@ fun UserSearchScreen(
             }
     ) {
         // 검색 헤더
-        SearchHeader(
-            onBackClick = { navigator.goBack() }
-        )
+        AppTopBar(title = "검색")
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -142,39 +144,6 @@ fun UserSearchScreen(
 // =====================================================
 // UI Components
 // =====================================================
-
-/**
- * 검색 헤더
- */
-@Composable
-fun SearchHeader(
-    onBackClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ColorWhite)
-            .padding(horizontal = 20.dp, vertical = 12.dp)
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "뒤로가기",
-            tint = ColorTextBlack,
-            modifier = Modifier
-                .size(24.dp)
-                .clickable { onBackClick() }
-                .align(Alignment.CenterStart)
-        )
-
-        Text(
-            text = "검색",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = ColorTextBlack,
-            modifier = Modifier.align(Alignment.Center)
-        )
-    }
-}
 
 /**
  * 검색 입력 필드

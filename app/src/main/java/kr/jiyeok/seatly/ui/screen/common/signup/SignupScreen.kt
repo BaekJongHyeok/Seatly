@@ -27,7 +27,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -37,6 +39,7 @@ import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.data.remote.request.RegisterRequest
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
+import kr.jiyeok.seatly.ui.screen.admin.formatKoreanPhoneFromDigits
 import kr.jiyeok.seatly.ui.theme.ColorBorderLight
 import kr.jiyeok.seatly.ui.theme.ColorInputBg
 import kr.jiyeok.seatly.ui.theme.ColorPrimaryOrange
@@ -93,7 +96,8 @@ data class FormState(
     val password: String = "",
     val confirmPassword: String = "",
     val name: String = "",
-    val phone: String = ""
+    val phone: String = "",
+    val phoneDisplay: TextFieldValue = TextFieldValue("")
 )
 
 data class ErrorState(
@@ -407,17 +411,26 @@ fun SignupScreen(
             Spacer(modifier = Modifier.height(SPACING_LG.dp))
 
             // 휴대폰 번호
-            FormField(
+            PhoneFormField(
                 label = "휴대폰번호",
-                value = formState.phone,
-                onValueChange = {
-                    formState = formState.copy(phone = it)
-                    clearFieldError("phone")
+                value = formState.phoneDisplay,
+                onValueChange = { newValue ->
+                    val digitsOnly = newValue.text.filter { it.isDigit() }
+                    if (digitsOnly.length <= 11) {
+                        val formatted = formatKoreanPhoneFromDigits(digitsOnly)
+                        formState = formState.copy(
+                            phone = digitsOnly,
+                            phoneDisplay = TextFieldValue(
+                                text = formatted,
+                                selection = TextRange(formatted.length)
+                            )
+                        )
+                        clearFieldError("phone")
+                    }
                 },
                 placeholder = PHONE_HINT,
                 error = errorState.phone,
                 helperText = "010-1234-5678 형식",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 trailingIcon = if (formState.phone.isNotBlank() && isPhoneValid) {
                     { ValidCheckIcon() }
                 } else {
@@ -527,6 +540,45 @@ private fun FormField(
 }
 
 @Composable
+private fun PhoneFormField(
+    label: String,
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    placeholder: String,
+    error: String? = null,
+    helperText: String? = null,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    trailingIcon: @Composable (() -> Unit)? = null
+) {
+    Column {
+        LabelWithRequired(text = label)
+        Spacer(modifier = Modifier.height(SPACING_SM.dp))
+        PhoneInputBox(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = placeholder,
+            modifier = modifier,
+            trailingIcon = trailingIcon
+        )
+
+        error?.let {
+            Spacer(modifier = Modifier.height(SPACING_SM.dp))
+            Text(text = it, color = ErrorColor, fontSize = 12.sp)
+        }
+
+        helperText?.let {
+            Spacer(modifier = Modifier.height(SPACING_SM.dp))
+            Text(
+                text = it,
+                color = TextHelper,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun LabelWithRequired(text: String, required: Boolean = true) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
@@ -583,6 +635,65 @@ private fun InputBox(
                     keyboardOptions = keyboardOptions,
                     decorationBox = { innerTextField ->
                         if (value.isEmpty()) {
+                            Text(
+                                text = placeholder,
+                                color = TextHelper,
+                                fontSize = 16.sp
+                            )
+                        }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            innerTextField()
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+
+                if (trailingIcon != null) {
+                    Box(
+                        modifier = Modifier.padding(start = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        trailingIcon()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhoneInputBox(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    placeholder: String = "",
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    trailingIcon: @Composable (() -> Unit)? = null
+) {
+    Box(modifier = modifier) {
+        Surface(
+            shape = RoundedCornerShape(INPUT_RADIUS.dp),
+            color = InputBg,
+            shadowElevation = 0.dp,
+            border = BorderStroke(1.dp, InputBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(INPUT_HEIGHT.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(start = 18.dp, end = 18.dp)
+                    .fillMaxSize()
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 16.sp),
+                    cursorBrush = SolidColor(PrimaryColor),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    decorationBox = { innerTextField ->
+                        if (value.text.isEmpty()) {
                             Text(
                                 text = placeholder,
                                 color = TextHelper,

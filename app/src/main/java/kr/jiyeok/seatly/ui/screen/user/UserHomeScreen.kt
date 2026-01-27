@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EventSeat
 import androidx.compose.material.icons.filled.Favorite
@@ -40,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -62,6 +64,9 @@ fun UserHomeScreen(
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
+    // 뒤로가기 종료 핸들러 추가
+    kr.jiyeok.seatly.ui.component.common.ExitBackHandler()
+
     // 네비게이션 관리자 생성
     val navigator = remember { UserHomeNavigator(navController) }
 
@@ -70,6 +75,7 @@ fun UserHomeScreen(
     val favoriteCafeIds by viewModel.favoriteCafeIds.collectAsState()
     val userSessions by viewModel.userSessions.collectAsState()
     val allCafes by viewModel.cafes.collectAsState()
+    val imageBitmapCache by viewModel.imageBitmapCache.collectAsState()
     var timeUpdateTrigger by remember { mutableIntStateOf(0) }
 
     // 처음 한 번만 홈 데이터 로드
@@ -143,6 +149,7 @@ fun UserHomeScreen(
 
                 SessionCard(
                     cafe = displayCafe,
+                    imageBitmap = displayCafe.mainImageUrl?.let { imageBitmapCache[it] },
                     elapsedTime = elapsedTime,
                     progressValue = progress,
                     onViewDetail = { navigator.navigateToCafeDetail(sessionDto.studyCafeId) },
@@ -175,6 +182,7 @@ fun UserHomeScreen(
         // 즐겨찾기 카페 섹션
         FavoritesCafeSection(
             cafes = favoriteCafes,
+            imageBitmapCache = imageBitmapCache,
             onViewAll = { navigator.navigateToFavorites() },
             onItemClick = { cafe -> navigator.navigateToCafeDetail(cafe.id) },
             onToggleFavorite = { cafe ->
@@ -438,6 +446,7 @@ fun CafeFindSection(onSearch: () -> Unit) {
 @Composable
 fun SessionCard(
     cafe: StudyCafeSummaryDto,
+    imageBitmap: android.graphics.Bitmap?,
     elapsedTime: String,
     progressValue: Float,
     onViewDetail: () -> Unit,
@@ -475,12 +484,21 @@ fun SessionCard(
                         .background(ColorBrownBg),
                     contentAlignment = Alignment.Center
                 ) {
-                    AsyncImage(
-                        model = cafe.mainImageUrl,
-                        contentDescription = cafe.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                    if (imageBitmap != null) {
+                        Image(
+                            bitmap = imageBitmap.asImageBitmap(),
+                            contentDescription = cafe.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        AsyncImage(
+                            model = cafe.mainImageUrl,
+                            contentDescription = cafe.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 }
 
                 // 카페 정보 (이름, 주소, 경과 시간)
@@ -628,6 +646,7 @@ fun NoActiveSessionCard(
 @Composable
 fun FavoritesCafeSection(
     cafes: List<StudyCafeSummaryDto>,
+    imageBitmapCache: Map<String, android.graphics.Bitmap>,
     onViewAll: () -> Unit,
     onItemClick: (StudyCafeSummaryDto) -> Unit,
     onToggleFavorite: (StudyCafeSummaryDto) -> Unit
@@ -722,6 +741,7 @@ fun FavoritesCafeSection(
                 cafes.forEach { cafe ->
                     CafeCardHorizontal(
                         cafe = cafe,
+                        imageBitmap = cafe.mainImageUrl?.let { imageBitmapCache[it] },
                         onClick = onItemClick,
                         onFavoriteClick = { onToggleFavorite(cafe) }
                     )
@@ -738,6 +758,7 @@ fun FavoritesCafeSection(
 @Composable
 fun CafeCardHorizontal(
     cafe: StudyCafeSummaryDto,
+    imageBitmap: android.graphics.Bitmap?,
     onClick: (StudyCafeSummaryDto) -> Unit,
     onFavoriteClick: () -> Unit
 ) {
@@ -768,12 +789,21 @@ fun CafeCardHorizontal(
                     .background(ColorBrownBg),
                 contentAlignment = Alignment.TopEnd
             ) {
-                AsyncImage(
-                    model = cafe.mainImageUrl,
-                    contentDescription = cafe.name,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+                if (imageBitmap != null) {
+                    Image(
+                        bitmap = imageBitmap.asImageBitmap(),
+                        contentDescription = cafe.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    AsyncImage(
+                        model = cafe.mainImageUrl,
+                        contentDescription = cafe.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
 
                 // 찜 버튼
                 Box(

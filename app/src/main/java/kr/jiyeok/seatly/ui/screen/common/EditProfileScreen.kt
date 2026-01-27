@@ -56,8 +56,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +71,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import kr.jiyeok.seatly.presentation.viewmodel.EditProfileViewModel
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
+import kr.jiyeok.seatly.ui.screen.admin.formatKoreanPhoneFromDigits
 import kr.jiyeok.seatly.ui.theme.ColorBgBeige
 import kr.jiyeok.seatly.ui.theme.ColorBorderLight
 import kr.jiyeok.seatly.ui.theme.ColorBrownBg
@@ -97,6 +101,7 @@ fun EditProfileScreen(
     // 로컬 상태
     var name by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
+    var phoneDisplay by remember { mutableStateOf(TextFieldValue("")) }
     var profileImageUri by remember { mutableStateOf<Uri?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
@@ -115,6 +120,8 @@ fun EditProfileScreen(
         userData?.let {
             name = it.name ?: ""
             phoneNumber = it.phone ?: ""
+            val formatted = formatKoreanPhoneFromDigits(it.phone ?: "")
+            phoneDisplay = TextFieldValue(formatted, TextRange(formatted.length))
             originalName = it.name ?: ""
             originalPhone = it.phone ?: ""
             originalImageUrl = it.imageUrl
@@ -163,9 +170,9 @@ fun EditProfileScreen(
     }
 
     // 변경 감지: 이름, 전화번호, 이미지 중 하나라도 변경되었는지 확인
-    val hasChanges = remember(name, phoneNumber, profileImageUri) {
+    val hasChanges = remember(name, phoneDisplay, profileImageUri) {
         name != originalName ||
-                phoneNumber != originalPhone ||
+                phoneDisplay.text.filter { it.isDigit() } != originalPhone ||
                 profileImageUri != null
     }
 
@@ -438,8 +445,18 @@ fun EditProfileScreen(
                     )
                 }
                 TextField(
-                    value = phoneNumber,
-                    onValueChange = { phoneNumber = it },
+                    value = phoneDisplay,
+                    onValueChange = { newValue ->
+                        val digitsOnly = newValue.text.filter { it.isDigit() }
+                        if (digitsOnly.length <= 11) {
+                            phoneNumber = digitsOnly
+                            val formatted = formatKoreanPhoneFromDigits(digitsOnly)
+                            phoneDisplay = TextFieldValue(
+                                text = formatted,
+                                selection = TextRange(formatted.length)
+                            )
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
@@ -451,6 +468,9 @@ fun EditProfileScreen(
                         )
                     },
                     singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = KeyboardType.Phone
+                    ),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = ColorInputBg,
                         unfocusedContainerColor = ColorInputBg,

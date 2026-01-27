@@ -71,6 +71,9 @@ fun AdminHomeScreen(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
 
+    // 뒤로가기 종료 핸들러 추가
+    kr.jiyeok.seatly.ui.component.common.ExitBackHandler()
+
     // State 구독
     val cafes by viewModel.cafes.collectAsState()
     val cafeUsages by viewModel.cafeUsages.collectAsState()

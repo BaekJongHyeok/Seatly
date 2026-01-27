@@ -26,11 +26,13 @@ import kr.jiyeok.seatly.data.remote.response.StudyCafeDetailDto
 import kr.jiyeok.seatly.data.remote.response.UsageDto
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.di.IoDispatcher
+import kr.jiyeok.seatly.domain.usecase.AssignSeatUseCase
 import kr.jiyeok.seatly.domain.usecase.GetCafeDetailUseCase
 import kr.jiyeok.seatly.domain.usecase.GetCafeSeatsUseCase
 import kr.jiyeok.seatly.domain.usecase.GetCafeUsageUseCase
 import kr.jiyeok.seatly.domain.usecase.GetImageUseCase
 import kr.jiyeok.seatly.domain.usecase.GetSessionsUseCase
+import kr.jiyeok.seatly.domain.usecase.StartSessionUseCase
 import javax.inject.Inject
 
 
@@ -41,6 +43,8 @@ class CafeDetailViewModel @Inject constructor(
     private val getCafeSeatsUseCase: GetCafeSeatsUseCase,
     private val getImageUseCase: GetImageUseCase,
     private val getSessionsUseCase: GetSessionsUseCase,
+    private val assignSeatUseCase: AssignSeatUseCase,
+    private val startSessionUseCase: StartSessionUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -61,6 +65,7 @@ class CafeDetailViewModel @Inject constructor(
         val isLoadingUsage: Boolean = false,
         val isLoadingSeats: Boolean = false,
         val isLoadingSessions: Boolean = false,
+        val isLoadingAssignment: Boolean = false,
         val error: String? = null
     )
 
@@ -274,6 +279,47 @@ class CafeDetailViewModel @Inject constructor(
             }
         } catch (e: Exception) {
             _uiState.update { it.copy(isLoadingSessions = false) }
+        }
+    }
+
+    /**
+     * 좌석 배정 및 이용 시작
+     */
+    fun assignSeat(seatId: String, currentCafeId: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            _uiState.update { it.copy(isLoadingAssignment = true) }
+            try {
+                // 1. 좌석 배정 (Assign)
+                when (val assignResult = assignSeatUseCase(seatId)) {
+                    is ApiResult.Success -> {
+                        val session = assignResult.data
+                        if (session != null) {
+                            // 2. 이용 시작 (Start)
+                            when (val startResult = startSessionUseCase(session.id)) {
+                                is ApiResult.Success -> {
+                                    _uiState.update { it.copy(isLoadingAssignment = false) }
+                                    _events.send("좌석 이용이 시작되었습니다.")
+                                    loadSessions(currentCafeId)
+                                }
+                                is ApiResult.Failure -> {
+                                    _uiState.update { it.copy(isLoadingAssignment = false) }
+                                    _events.send(startResult.message ?: "이용 시작 실패")
+                                }
+                            }
+                        } else {
+                            _uiState.update { it.copy(isLoadingAssignment = false) }
+                            _events.send("세션 정보를 가져올 수 없습니다.")
+                        }
+                    }
+                    is ApiResult.Failure -> {
+                        _uiState.update { it.copy(isLoadingAssignment = false) }
+                        _events.send(assignResult.message ?: "좌석 배정 실패")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoadingAssignment = false) }
+                _events.send(e.message ?: "알 수 없는 오류")
+            }
         }
     }
 

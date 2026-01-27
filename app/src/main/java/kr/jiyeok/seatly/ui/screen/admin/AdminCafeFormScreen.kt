@@ -40,6 +40,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
@@ -89,6 +91,27 @@ fun rotateBitmap(bitmap: Bitmap, degrees: Float): Bitmap {
     return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }
 
+fun formatKoreanPhoneFromDigits(digits: String): String {
+    if (digits.isEmpty()) return ""
+    return if (digits.startsWith("02")) {
+        // 서울 지역번호 (02)
+        when (digits.length) {
+            in 0..2 -> digits
+            in 3..5 -> "${digits.substring(0, 2)}-${digits.substring(2)}"
+            in 6..9 -> "${digits.substring(0, 2)}-${digits.substring(2, digits.length - 4)}-${digits.takeLast(4)}"
+            else -> "${digits.substring(0, 2)}-${digits.substring(2, 6)}-${digits.substring(6, min(10, digits.length))}"
+        }
+    } else {
+        // 휴대폰 및 기타 지역번호 (010, 031 등)
+        when (digits.length) {
+            in 0..3 -> digits
+            in 4..6 -> "${digits.substring(0, 3)}-${digits.substring(3)}"
+            in 7..10 -> "${digits.substring(0, 3)}-${digits.substring(3, 6)}-${digits.substring(6)}"
+            else -> "${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7, 11)}"
+        }
+    }
+}
+
 /**
  * 카페 생성/수정 통합 화면
  * @param cafeId null이면 생성 모드, 값이 있으면 수정 모드
@@ -105,7 +128,7 @@ fun AdminCafeFormScreen(
     var cafeName by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
-    var phoneDisplay by remember { mutableStateOf("") }
+    var phoneDisplay by remember { mutableStateOf(TextFieldValue("")) }
     var description by remember { mutableStateOf("") }
     var showAddressSearch by remember { mutableStateOf(false) }
 
@@ -291,7 +314,8 @@ fun AdminCafeFormScreen(
             cafeName = data.name
             address = data.address
             phone = data.phone.toString()
-            phoneDisplay = data.phone.toString()
+            val formattedPhone = formatKoreanPhoneFromDigits(data.phone.toString())
+            phoneDisplay = TextFieldValue(formattedPhone, TextRange(formattedPhone.length))
             description = data.description ?: ""
 
             // 영업시간 파싱
@@ -368,25 +392,6 @@ fun AdminCafeFormScreen(
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun formatKoreanPhoneFromDigits(digits: String): String {
-        if (digits.isEmpty()) return ""
-        return if (digits.startsWith("02")) {
-            when (digits.length) {
-                in 0..2 -> digits
-                in 3..5 -> "${digits.substring(0, 2)}-${digits.substring(2)}"
-                in 6..9 -> "${digits.substring(0, 2)}-${digits.substring(2, digits.length - 4)}-${digits.takeLast(4)}"
-                else -> "${digits.substring(0, 2)}-${digits.substring(2, 6)}-${digits.substring(6, min(10, digits.length))}"
-            }
-        } else {
-            when (digits.length) {
-                in 0..3 -> digits
-                in 4..7 -> "${digits.substring(0, 3)}-${digits.substring(3)}"
-                in 8..11 -> "${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}"
-                else -> "${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7, 11)}"
-            }
         }
     }
 
@@ -490,13 +495,17 @@ fun AdminCafeFormScreen(
                     // 3. Phone
                     Text("전화번호", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ColorTextBlack)
                     Spacer(modifier = Modifier.height(8.dp))
-                    AppTextField(
+                    PhoneTextField(
                         value = phoneDisplay,
-                        onValueChange = { input ->
-                            val digitsOnly = input.filter { it.isDigit() }
+                        onValueChange = { newValue ->
+                            val digitsOnly = newValue.text.filter { it.isDigit() }
                             if (digitsOnly.length <= 11) {
                                 phone = digitsOnly
-                                phoneDisplay = formatKoreanPhoneFromDigits(digitsOnly)
+                                val formatted = formatKoreanPhoneFromDigits(digitsOnly)
+                                phoneDisplay = TextFieldValue(
+                                    text = formatted,
+                                    selection = TextRange(formatted.length)
+                                )
                                 phoneError = null
                             }
                         },
@@ -931,7 +940,7 @@ fun AdminCafeFormScreen(
                                     val request = UpdateCafeRequest(
                                         name = cafeName,
                                         address = address,
-                                        phoneNumber = phoneDisplay,
+                                        phoneNumber = phone,
                                         openingHours = openingHoursStr,
                                         description = if (description.isBlank()) null else description,
                                         facilities = selectedFacilities.toList(),
@@ -942,7 +951,7 @@ fun AdminCafeFormScreen(
                                     val request = CreateCafeRequest(
                                         name = cafeName,
                                         address = address,
-                                        phoneNumber = phoneDisplay,
+                                        phoneNumber = phone,
                                         openingHours = openingHoursStr,
                                         description = if (description.isBlank()) null else description,
                                         facilities = selectedFacilities.toList(),
@@ -1381,6 +1390,68 @@ fun rememberBitmapForUri(uri: Uri): ImageBitmap? {
         bitmap = bmp?.asImageBitmap()
     }
     return bitmap
+}
+
+@Composable
+fun PhoneTextField(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    placeholder: String,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    isErrorBorder: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    var focused by remember { mutableStateOf(false) }
+    val baseModifier = modifier
+        .fillMaxWidth()
+        .defaultMinSize(minHeight = 52.dp)
+        .clip(RoundedCornerShape(12.dp))
+        .background(ColorInputBg, RoundedCornerShape(12.dp))
+        .border(
+            BorderStroke(
+                1.dp,
+                if (focused || isErrorBorder) ColorPrimaryOrange else ColorBorderLight
+            ),
+            RoundedCornerShape(12.dp)
+        )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = baseModifier.padding(horizontal = 12.dp, vertical = 0.dp)
+    ) {
+        if (leading != null) {
+            Box(modifier = Modifier.padding(end = 8.dp)) { leading() }
+        }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .defaultMinSize(minHeight = 52.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = TextStyle(color = ColorTextBlack, fontSize = 15.sp),
+                cursorBrush = SolidColor(ColorPrimaryOrange),
+                keyboardOptions = keyboardOptions,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { state -> focused = state.isFocused },
+                decorationBox = { innerTextField ->
+                    if (value.text.isEmpty()) {
+                        Text(text = placeholder, color = ColorTextGray, fontSize = 15.sp)
+                    }
+                    innerTextField()
+                }
+            )
+        }
+        if (trailing != null) {
+            Box(modifier = Modifier.padding(start = 8.dp)) { trailing() }
+        }
+    }
 }
 
 @Composable

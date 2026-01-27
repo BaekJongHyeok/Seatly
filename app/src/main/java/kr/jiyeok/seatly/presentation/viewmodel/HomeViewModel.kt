@@ -220,7 +220,12 @@ class HomeViewModel @Inject constructor(
             try {
                 when (val result = getStudyCafesUseCase()) {
                     is ApiResult.Success -> {
-                        _cafes.value = result.data ?: emptyList()
+                        val cafeList = result.data ?: emptyList()
+                        _cafes.value = cafeList
+                        // 이미지 로드 트리거
+                        cafeList.forEach { cafe ->
+                            cafe.mainImageUrl?.let { url -> loadImage(url) }
+                        }
                     }
                     is ApiResult.Failure -> {
                         _cafes.value = emptyList()
@@ -239,7 +244,12 @@ class HomeViewModel @Inject constructor(
             try {
                 when (val result = getAdminCafesUseCase()) {
                     is ApiResult.Success -> {
-                        _adminCafes.value = result.data ?: emptyList()
+                        val cafeList = result.data ?: emptyList()
+                        _adminCafes.value = cafeList
+                        // 이미지 로드 트리거
+                        cafeList.forEach { cafe ->
+                            cafe.mainImageUrl?.let { url -> loadImage(url) }
+                        }
                     }
                     is ApiResult.Failure -> {
                         _adminCafes.value = emptyList()

@@ -79,6 +79,7 @@ dependencies {
     implementation(libs.google.maps)
     implementation(libs.maps.compose)
 
+    implementation("androidx.compose.ui:ui-graphics:1.x.x")
     implementation("io.coil-kt:coil-compose:2.4.0")
     implementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
