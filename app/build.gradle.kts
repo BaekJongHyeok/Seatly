@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -21,6 +23,10 @@ android {
 
         // Replace with your real backend base URL for build variants as needed.
         buildConfigField("String", "SEATLY_BASE_URL", "\"https://api.seatly.example/\"")
+
+        val properties = Properties()
+        properties.load(project.rootProject.file("local.properties").inputStream())
+        manifestPlaceholders["MAPS_API_KEY"] = properties.getProperty("MAPS_API_KEY", "")
     }
 
     buildTypes {
@@ -77,7 +83,9 @@ dependencies {
     implementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("com.squareup.retrofit2:converter-scalars:2.9.0")
-
+    implementation("com.google.maps.android:maps-compose:4.3.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.android.gms:play-services-location:21.1.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

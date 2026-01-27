@@ -1,4 +1,4 @@
-package kr.jiyeok.seatly.ui.screen.admin
+package kr.jiyeok.seatly.ui.screen.user
 
 import android.content.Intent
 import android.location.Geocoder
@@ -8,7 +8,21 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -17,9 +31,35 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.AcUnit
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.LocalCafe
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MeetingRoom
+import androidx.compose.material.icons.filled.Outlet
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,14 +88,19 @@ import kotlinx.coroutines.withContext
 import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.enums.EFacility
 import kr.jiyeok.seatly.data.remote.response.UsageDto
-import kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel
-import kr.jiyeok.seatly.ui.theme.*
+import kr.jiyeok.seatly.presentation.viewmodel.CafeDetailViewModel
+import kr.jiyeok.seatly.ui.theme.ColorBgBeige
+import kr.jiyeok.seatly.ui.theme.ColorBorderLight
+import kr.jiyeok.seatly.ui.theme.ColorPrimaryOrange
+import kr.jiyeok.seatly.ui.theme.ColorTextBlack
+import kr.jiyeok.seatly.ui.theme.ColorTextGray
+import kr.jiyeok.seatly.ui.theme.ColorWhite
 import java.text.NumberFormat
 import java.util.Locale
 
 @Composable
-fun AdminCafeInfoTab(
-    viewModel: AdminCafeDetailViewModel,
+fun UserCafeInfoTab(
+    viewModel: CafeDetailViewModel,
     navController: NavController
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -123,7 +168,7 @@ private fun LoadingView() {
             )
 
             Text(
-                text = "카페 정보를 불러오는 중...",
+                text = "카페 정보 불러오는 중...",
                 fontSize = 14.sp,
                 color = ColorTextGray,
                 fontWeight = FontWeight.Medium
@@ -134,26 +179,26 @@ private fun LoadingView() {
 
 @Composable
 private fun BoxScope.CafeInfoContent(
-    uiState: AdminCafeDetailViewModel.CafeDetailUiState,
+    uiState: CafeDetailViewModel.CafeDetailUiState,
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     scrollState: ScrollState,
     navController: NavController
 ) {
+    val gallery = remember(uiState.cafeInfo?.imageUrls) {
+        if (uiState.cafeInfo?.imageUrls.isNullOrEmpty()) {
+            listOf("")
+        } else {
+            uiState.cafeInfo?.imageUrls!!
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
             .padding(bottom = 100.dp)
     ) {
-        val gallery = remember(uiState.cafeInfo?.imageUrls) {
-            if (uiState.cafeInfo?.imageUrls.isNullOrEmpty()) {
-                listOf("")
-            } else {
-                uiState.cafeInfo?.imageUrls!!
-            }
-        }
-
         HeaderSection(
             images = gallery,
             imageBitmapCache = uiState.images
@@ -161,7 +206,7 @@ private fun BoxScope.CafeInfoContent(
 
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .offset(y = (-40).dp)
                 .padding(horizontal = 20.dp)
         ) {
@@ -200,23 +245,11 @@ private fun BoxScope.CafeInfoContent(
         }
     }
 
-    FloatingActionButton(
-        onClick = {
-            uiState.cafeInfo?.id?.let { cafeId ->
-                navController.navigate("admin/cafe/update/$cafeId")
-            }
-        },
-        modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(end = 20.dp, bottom = 20.dp),
-        containerColor = ColorPrimaryOrange,
-        contentColor = ColorWhite
-    ) {
-        Icon(
-            imageVector = Icons.Default.Edit,
-            contentDescription = "카페 편집"
-        )
-    }
+    BottomActionBar(
+        modifier = Modifier.align(Alignment.BottomCenter),
+        onBack = { navController.popBackStack() },
+        onSelectSeats = { navController.navigate("") }
+    )
 }
 
 @Composable
@@ -575,9 +608,15 @@ private fun FacilitiesSection(facilities: List<EFacility>) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             for (i in facilities.indices step 2) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FacilityItem(facilities[i], Modifier.weight(1f))
+                    FacilityItem(
+                        facilities[i],
+                        Modifier.weight(1f)
+                    )
                     if (i + 1 < facilities.size) {
-                        FacilityItem(facilities[i + 1], Modifier.weight(1f))
+                        FacilityItem(
+                            facilities[i + 1],
+                            Modifier.weight(1f)
+                        )
                     } else {
                         Spacer(Modifier.weight(1f))
                     }
@@ -766,6 +805,43 @@ private fun LocationSection(
                 color = ColorPrimaryOrange,
                 modifier = Modifier.size(40.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun BottomActionBar(modifier: Modifier = Modifier, onBack: () -> Unit, onSelectSeats: () -> Unit) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(80.dp),
+        color = ColorBgBeige.copy(alpha = 0.98f),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, ColorWhite)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Button(
+                onClick = onBack,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                colors = ButtonDefaults.buttonColors(containerColor = ColorWhite),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, ColorBorderLight)
+            ) {
+                Text("뒤로 가기", color = ColorTextBlack, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+
+            Button(
+                onClick = onSelectSeats,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                colors = ButtonDefaults.buttonColors(containerColor = ColorPrimaryOrange),
+                shape = RoundedCornerShape(12.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+            ) {
+                Text("좌석 선택", color = ColorWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
         }
     }
 }

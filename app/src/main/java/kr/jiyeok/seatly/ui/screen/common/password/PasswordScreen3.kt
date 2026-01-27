@@ -13,13 +13,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kr.jiyeok.seatly.ui.component.AuthButton
-import kr.jiyeok.seatly.ui.component.PasswordInputField
+import kr.jiyeok.seatly.ui.component.common.AuthButton
+import kr.jiyeok.seatly.ui.component.common.PasswordInputField
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 
 // Helper functions (Defined outside Composable)
@@ -300,7 +300,7 @@ fun PasswordScreen3(
                         // Mock: 2초 후 성공 처리
                         isLoading = true
                         scope.launch {
-                            kotlinx.coroutines.delay(2000)
+                            delay(2000)
                             isLoading = false
                             onCompleteNavigate() // 로그인 화면으로 이동
                             // 실제 API: viewModel.resetPassword(password)

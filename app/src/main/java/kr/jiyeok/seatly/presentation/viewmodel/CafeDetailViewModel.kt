@@ -1,232 +1,330 @@
 package kr.jiyeok.seatly.presentation.viewmodel
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kr.jiyeok.seatly.data.remote.response.SeatDto
+import kr.jiyeok.seatly.data.remote.response.SessionDto
 import kr.jiyeok.seatly.data.remote.response.StudyCafeDetailDto
+import kr.jiyeok.seatly.data.remote.response.UsageDto
 import kr.jiyeok.seatly.data.repository.ApiResult
+import kr.jiyeok.seatly.di.IoDispatcher
 import kr.jiyeok.seatly.domain.usecase.GetCafeDetailUseCase
 import kr.jiyeok.seatly.domain.usecase.GetCafeSeatsUseCase
-import kr.jiyeok.seatly.di.IoDispatcher
-import kotlinx.coroutines.CoroutineDispatcher
-import kr.jiyeok.seatly.data.remote.enums.ESeatStatus
-import kr.jiyeok.seatly.data.remote.response.UsageDto
 import kr.jiyeok.seatly.domain.usecase.GetCafeUsageUseCase
+import kr.jiyeok.seatly.domain.usecase.GetImageUseCase
+import kr.jiyeok.seatly.domain.usecase.GetSessionsUseCase
 import javax.inject.Inject
 
-/**
- * Cafe Detail ViewModel
- *
- * 역할:
- * - 카페 상세 정보 조회
- * - 카페 좌석 관리
- * - 좌석 예약/자동 배정 처리
- * - 세션 시작 처리
- *
- * UI는 StateFlow를 통해 상태를 관찰하고,
- * 에러/이벤트는 [events] Channel을 통해 수신합니다
- */
-
-/**
- * 카페 상세 UI 상태
- */
-sealed interface CafeDetailUiState {
-    object Idle : CafeDetailUiState
-    object Loading : CafeDetailUiState
-    data class Success(val message: String = "") : CafeDetailUiState
-    data class Error(val message: String) : CafeDetailUiState
-}
 
 @HiltViewModel
 class CafeDetailViewModel @Inject constructor(
     private val getCafeDetailUseCase: GetCafeDetailUseCase,
-    private val getCafeSeatsUseCase: GetCafeSeatsUseCase,
     private val getCafeUsageUseCase: GetCafeUsageUseCase,
+    private val getCafeSeatsUseCase: GetCafeSeatsUseCase,
+    private val getImageUseCase: GetImageUseCase,
+    private val getSessionsUseCase: GetSessionsUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
     // =====================================================
-    // State Management
+    // UI State
     // =====================================================
 
     /**
-     * 카페 상세 UI 상태
-     * Idle → Loading → Success/Error
+     * 카페 상세 화면의 전체 UI 상태를 관리하는 데이터 클래스
      */
-    private val _uiState = MutableStateFlow<CafeDetailUiState>(CafeDetailUiState.Idle)
+    data class CafeDetailUiState(
+        val cafeInfo: StudyCafeDetailDto? = null,
+        val cafeUsage: UsageDto? = null,
+        val seats: List<SeatDto> = emptyList(),
+        val sessions: List<SessionDto> = emptyList(),
+        val images: Map<String, Bitmap> = emptyMap(),
+        val isLoadingInfo: Boolean = false,
+        val isLoadingUsage: Boolean = false,
+        val isLoadingSeats: Boolean = false,
+        val isLoadingSessions: Boolean = false,
+        val error: String? = null
+    )
+
+    private val _uiState = MutableStateFlow(CafeDetailUiState())
     val uiState: StateFlow<CafeDetailUiState> = _uiState.asStateFlow()
 
-    /**
-     * 카페 상세 정보
-     */
-    private val _cafeDetail = MutableStateFlow<StudyCafeDetailDto?>(null)
-    val cafeDetail: StateFlow<StudyCafeDetailDto?> = _cafeDetail.asStateFlow()
+    // Derived State: 하나라도 로딩 중이면 true
+    val isAnyLoading: StateFlow<Boolean> = _uiState
+        .map { state ->
+            state.isLoadingInfo ||
+                    state.isLoadingUsage ||
+                    state.isLoadingSeats ||
+                    state.isLoadingSessions
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
 
-    /**
-     * 카페 사용 현황
-     */
-    private val _cafeUsage = MutableStateFlow<UsageDto>(UsageDto(0, 0))
-    val cafeUsage: StateFlow<UsageDto> = _cafeUsage.asStateFlow()
-
-    /**
-     * 카페 좌석 목록
-     */
-    private val _seats = MutableStateFlow<List<SeatDto>>(emptyList())
-    val seats: StateFlow<List<SeatDto>> = _seats.asStateFlow()
-
-    /**
-     * 선택된 좌석
-     */
-    private val _selectedSeat = MutableStateFlow<SeatDto?>(null)
-    val selectedSeat: StateFlow<SeatDto?> = _selectedSeat.asStateFlow()
-
-    /**
-     * 로딩 상태
-     */
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    /**
-     * 에러 메시지
-     */
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
-
-    /**
-     * 에러/이벤트 메시지 Channel
-     * UI에서 토스트 메시지나 스낵바로 표시
-     */
+    // 이벤트 채널 (Toast 메시지 등)
     private val _events = Channel<String>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
+
+    // 이미지 로딩 중복 방지
+    private val loadingImageIds = mutableSetOf<String>()
+    val isLoading: StateFlow<Boolean> = isAnyLoading
+
 
     // =====================================================
     // Public Methods
     // =====================================================
 
     /**
-     * 카페 상세 정보 로드
+     * 카페 상세 정보를 병렬로 로드
      */
-    fun loadCafeDetail(cafeId: Long) {
+    fun loadCafeDetailInfos(cafeId: Long) {
         viewModelScope.launch(ioDispatcher) {
-            _isLoading.value = true
-            _uiState.value = CafeDetailUiState.Loading
-            _error.value = null
-            try {
-                when (val result = getCafeDetailUseCase(cafeId)) {
-                    is ApiResult.Success -> {
-                        _cafeDetail.value = result.data
-                        _uiState.value = CafeDetailUiState.Success("카페 정보 로드 완료")
+            awaitAll(
+                async { loadCafeInfo(cafeId) },
+                async { loadCafeUsage(cafeId) },
+                async { loadSeatInfo(cafeId) },
+                async { loadSessions(cafeId) }
+            )
+        }
+    }
+
+
+    // =====================================================
+    // Private Methods
+    // =====================================================
+
+    /**
+     * 카페 기본 정보 로드
+     */
+    private suspend fun loadCafeInfo(cafeId: Long) {
+        _uiState.update { it.copy(isLoadingInfo = true) }
+
+        try {
+            when (val result = getCafeDetailUseCase(cafeId)) {
+                is ApiResult.Success -> {
+                    val cafeInfo = result.data
+                    _uiState.update {
+                        it.copy(
+                            cafeInfo = cafeInfo,
+                            isLoadingInfo = false,
+                            error = null
+                        )
                     }
-                    is ApiResult.Failure -> {
-                        _error.value = result.message ?: "카페 상세 조회 실패"
-                        _uiState.value = CafeDetailUiState.Error(result.message ?: "카페 상세 조회 실패")
-                        _events.send(result.message ?: "카페 상세 조회 실패")
+
+                    // 이미지 자동 로드
+                    cafeInfo?.imageUrls?.forEach { imageId ->
+                        loadImage(imageId)
                     }
                 }
+                is ApiResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoadingInfo = false,
+                            error = result.message
+                        )
+                    }
+                    _events.send(result.message ?: "카페 정보 조회 실패")
+                }
+            }
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    isLoadingInfo = false,
+                    error = e.message
+                )
+            }
+            _events.send(e.message ?: "알 수 없는 오류")
+        }
+    }
+
+    /**
+     * 카페 사용 현황 로드
+     */
+    private suspend fun loadCafeUsage(cafeId: Long) {
+        _uiState.update { it.copy(isLoadingUsage = true) }
+
+        try {
+            when (val result = getCafeUsageUseCase(cafeId)) {
+                is ApiResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            cafeUsage = result.data,
+                            isLoadingUsage = false
+                        )
+                    }
+                }
+                is ApiResult.Failure -> {
+                    _uiState.update { it.copy(isLoadingUsage = false) }
+                    // Usage는 중요도가 낮으므로 실패해도 Toast 표시 안 함
+                }
+            }
+        } catch (e: Exception) {
+            _uiState.update { it.copy(isLoadingUsage = false) }
+        }
+    }
+
+
+    /**
+     * 이미지 로드 (공개 메서드, UI에서 직접 호출 가능)
+     */
+    fun loadImage(imageId: String) {
+        // 이미 로드되었거나 로딩 중이면 스킵
+        if (_uiState.value.images.containsKey(imageId)) return
+
+        synchronized(loadingImageIds) {
+            if (loadingImageIds.contains(imageId)) return
+            loadingImageIds.add(imageId)
+        }
+
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                when (val result = getImageUseCase(imageId)) {
+                    is ApiResult.Success -> {
+                        result.data?.let { imageData ->
+                            val bitmap = withContext(Dispatchers.Default) {
+                                decodeSampledBitmap(imageData, 800, 800)
+                            }
+                            bitmap?.let {
+                                _uiState.update { state ->
+                                    state.copy(images = state.images + (imageId to it))
+                                }
+                            }
+                        }
+                    }
+                    is ApiResult.Failure -> {
+                        // 이미지 로드 실패는 무시 (선택적)
+                    }
+                }
+            } catch (e: Exception) {
+                // 예외 발생 시 무시
             } finally {
-                _isLoading.value = false
+                synchronized(loadingImageIds) {
+                    loadingImageIds.remove(imageId)
+                }
             }
         }
     }
 
     /**
-     * 카페 사용 현황 조회
+     * 좌석 정보 로드
      */
-    fun loadCafeUsage(cafeId: Long) {
-        viewModelScope.launch(ioDispatcher) {
-            _isLoading.value = true
-            _uiState.value = CafeDetailUiState.Loading
-            _error.value = null
-            try {
-                when (val result = getCafeUsageUseCase(cafeId)) {
-                    is ApiResult.Success -> {
-                        _cafeUsage.value = result.data!!
-                        _uiState.value = CafeDetailUiState.Success("카페 이용 현황 조회 완료")
-                    }
-                    is ApiResult.Failure -> {
-                        _error.value = result.message ?: "카페 이용 현황 조회 실패"
-                        _uiState.value = CafeDetailUiState.Error(result.message ?: "카페 이용 현황 조회 실패")
-                        _events.send(result.message ?: "카페 이용 현황 조회 실패")
+    private suspend fun loadSeatInfo(cafeId: Long) {
+        _uiState.update { it.copy(isLoadingSeats = true) }
+
+        try {
+            when (val result = getCafeSeatsUseCase(cafeId)) {
+                is ApiResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            seats = result.data ?: emptyList(),
+                            isLoadingSeats = false
+                        )
                     }
                 }
-            } finally {
-                _isLoading.value = false
+                is ApiResult.Failure -> {
+                    _uiState.update { it.copy(isLoadingSeats = false) }
+                    _events.send(result.message ?: "좌석 정보 조회 실패")
+                }
             }
+        } catch (e: Exception) {
+            _uiState.update { it.copy(isLoadingSeats = false) }
+            _events.send(e.message ?: "알 수 없는 오류")
         }
     }
 
     /**
-     * 카페 좌석 목록 로드
+     * 세션 정보 로드
      */
-    fun loadCafeSeats(cafeId: Long) {
-        viewModelScope.launch(ioDispatcher) {
-            _isLoading.value = true
-            _error.value = null
-            try {
-                when (val result = getCafeSeatsUseCase(cafeId)) {
-                    is ApiResult.Success -> {
-                        _seats.value = result.data ?: emptyList()
-                        _uiState.value = CafeDetailUiState.Success("좌석 정보 로드 완료")
-                    }
-                    is ApiResult.Failure -> {
-                        _error.value = result.message ?: "좌석 조회 실패"
-                        _uiState.value = CafeDetailUiState.Error(result.message ?: "좌석 조회 실패")
-                        _events.send(result.message ?: "좌석 조회 실패")
+    private suspend fun loadSessions(cafeId: Long) {
+        _uiState.update { it.copy(isLoadingSessions = true) }
+        try {
+            when (val result = getSessionsUseCase(cafeId)) {
+                is ApiResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            sessions = result.data ?: emptyList(),
+                            isLoadingSessions = false
+                        )
                     }
                 }
-            } finally {
-                _isLoading.value = false
+                is ApiResult.Failure -> {
+                    _uiState.update { it.copy(isLoadingSessions = false) }
+                    // 세션 정보는 중요도가 낮으므로 실패해도 Toast 표시 안 함
+                }
+            }
+        } catch (e: Exception) {
+            _uiState.update { it.copy(isLoadingSessions = false) }
+        }
+    }
+
+    /**
+     * 샘플링하여 Bitmap 디코딩 (메모리 최적화)
+     */
+    private fun decodeSampledBitmap(
+        data: ByteArray,
+        reqWidth: Int,
+        reqHeight: Int
+    ): Bitmap? {
+        return try {
+            val options = BitmapFactory.Options().apply {
+                // 먼저 이미지 크기만 확인
+                inJustDecodeBounds = true
+                BitmapFactory.decodeByteArray(data, 0, data.size, this)
+
+                // 샘플링 비율 계산
+                inSampleSize = calculateInSampleSize(this, reqWidth, reqHeight)
+
+                // 실제 디코딩
+                inJustDecodeBounds = false
+            }
+
+            BitmapFactory.decodeByteArray(data, 0, data.size, options)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 샘플링 비율 계산
+     */
+    private fun calculateInSampleSize(
+        options: BitmapFactory.Options,
+        reqWidth: Int,
+        reqHeight: Int
+    ): Int {
+        val (height: Int, width: Int) = options.run { outHeight to outWidth }
+        var inSampleSize = 1
+
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight: Int = height / 2
+            val halfWidth: Int = width / 2
+
+            while (halfHeight / inSampleSize >= reqHeight &&
+                halfWidth / inSampleSize >= reqWidth) {
+                inSampleSize *= 2
             }
         }
-    }
 
-    /**
-     * 좌석 선택
-     */
-    suspend fun selectSeat(seat: SeatDto) {
-        // 좌석 가용성 확인
-        if (seat.status == ESeatStatus.AVAILABLE == true) {
-            _selectedSeat.value = seat
-            _events.send("좌석 ${seat.name}이 선택되었습니다")
-        } else {
-            _error.value = "사용 불가능한 좌석입니다"
-            _events.send("사용 불가능한 좌석입니다")
-        }
-    }
-
-    /**
-     * 선택된 좌석 해제
-     */
-    fun deselectSeat() {
-        _selectedSeat.value = null
-    }
-
-    /**
-     * 사용 가능한 좌석 필터링
-     */
-    fun getAvailableSeats(): List<SeatDto> {
-        return _seats.value.filter {
-            it.status == ESeatStatus.AVAILABLE == true
-        }
-    }
-
-    /**
-     * 에러 초기화
-     */
-    fun clearError() {
-        _error.value = null
-    }
-
-    /**
-     * 상태 초기화
-     */
-    fun resetState() {
-        _uiState.value = CafeDetailUiState.Idle
-        _error.value = null
-        _selectedSeat.value = null
+        return inSampleSize
     }
 }

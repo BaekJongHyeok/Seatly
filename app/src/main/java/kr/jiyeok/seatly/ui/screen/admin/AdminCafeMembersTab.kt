@@ -15,30 +15,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import kr.jiyeok.seatly.data.remote.response.UserTimePassInfo
 import kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel
 import kr.jiyeok.seatly.ui.theme.*
 
+/**
+ * 카페 멤버 관리 탭
+ * - 멤버 검색, 통계, 목록 표시
+ */
 @Composable
 fun AdminCafeMembersTab(
     viewModel: AdminCafeDetailViewModel,
     cafeId: Long
 ) {
-    val cafeMembers by viewModel.cafeMembers.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    // UI State 구독
+    val uiState by viewModel.uiState.collectAsState()
+
+    // 로컬 검색 상태
     var searchQuery by remember { mutableStateOf("") }
 
-    // 데이터 로드
-    LaunchedEffect(cafeId) {
-        viewModel.loadCafeMembers(cafeId)
+    // 필터링 최적화 (derivedStateOf 사용)
+    val filteredMembers = remember(uiState.members, searchQuery) {
+        if (searchQuery.isEmpty()) {
+            uiState.members
+        } else {
+            uiState.members.filter { member ->
+                member.name.contains(searchQuery, ignoreCase = true)
+            }
+        }
     }
 
-    Surface(color = ColorWhite, modifier = Modifier.fillMaxSize()) {
+    Surface(
+        color = ColorWhite,
+        modifier = Modifier.fillMaxSize()
+    ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
@@ -46,7 +59,7 @@ fun AdminCafeMembersTab(
                     .padding(horizontal = 20.dp, vertical = 16.dp)
             ) {
                 // 검색 바
-                SearchBar(
+                MemberSearchBar(
                     query = searchQuery,
                     onQueryChange = { searchQuery = it }
                 )
@@ -55,89 +68,95 @@ fun AdminCafeMembersTab(
 
                 // 멤버 통계 카드
                 MemberStatisticsCard(
-                    totalCount = cafeMembers?.size ?: 0,
-                    activeCount = cafeMembers?.size  ?: 0
+                    totalCount = uiState.members.size,
+                    activeCount = uiState.members.size
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // 섹션 헤더
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "전체 멤버",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ColorTextBlack
-                    )
-                    Text(
-                        "${cafeMembers?.size ?: 0}명",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = ColorTextGray
-                    )
-                }
+                MemberListHeader(
+                    totalCount = filteredMembers.size,
+                    isFiltered = searchQuery.isNotEmpty()
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 멤버 리스트
-                if (isLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = ColorPrimaryOrange)
-                    }
-                } else {
-                    val filteredMembers = cafeMembers?.filter {
-                        it.name.contains(searchQuery, ignoreCase = true)
-                    } ?: emptyList()
-
-                    if (filteredMembers.isEmpty()) {
-                        EmptyMembersView()
-                    } else {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize()
+                when {
+                    uiState.isLoadingMembers -> {
+                        // 로딩 중
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            items(filteredMembers) { member ->
-                                MemberItem(member)
-                            }
+                            CircularProgressIndicator(
+                                color = ColorPrimaryOrange,
+                                modifier = Modifier.size(48.dp)
+                            )
                         }
+                    }
+                    filteredMembers.isEmpty() -> {
+                        // 빈 상태
+                        if (searchQuery.isEmpty()) {
+                            EmptyMembersView()
+                        } else {
+                            EmptySearchResultView()
+                        }
+                    }
+                    else -> {
+                        // 멤버 리스트
+                        MemberList(members = filteredMembers)
                     }
                 }
             }
 
             // 하단 플로팅 버튼
             FloatingActionButton(
-                onClick = { /* TODO: 멤버 추가 */ },
+                onClick = { /* TODO: 멤버 추가 다이얼로그 */ },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 20.dp, bottom = 20.dp),
                 containerColor = ColorPrimaryOrange,
                 contentColor = ColorWhite
             ) {
-                Icon(Icons.Default.PersonAdd, contentDescription = "멤버 추가")
+                Icon(
+                    imageVector = Icons.Default.PersonAdd,
+                    contentDescription = "멤버 추가"
+                )
             }
         }
     }
 }
 
+// =====================================================
+// Search Bar
+// =====================================================
+
+/**
+ * 멤버 검색 바
+ */
 @Composable
-private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
+private fun MemberSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit
+) {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
         modifier = Modifier
             .fillMaxWidth()
             .shadow(1.dp, RoundedCornerShape(16.dp)),
-        placeholder = { Text("이름으로 검색", color = ColorTextGray, fontSize = 14.sp) },
+        placeholder = {
+            Text(
+                text = "이름으로 검색",
+                color = ColorTextGray,
+                fontSize = 14.sp
+            )
+        },
         leadingIcon = {
             Icon(
-                Icons.Default.Search,
+                imageVector = Icons.Default.Search,
                 contentDescription = null,
                 tint = ColorTextGray,
                 modifier = Modifier.size(20.dp)
@@ -154,8 +173,18 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
     )
 }
 
+// =====================================================
+// Statistics Card
+// =====================================================
+
+/**
+ * 멤버 통계 카드
+ */
 @Composable
-private fun MemberStatisticsCard(totalCount: Int, activeCount: Int) {
+private fun MemberStatisticsCard(
+    totalCount: Int,
+    activeCount: Int
+) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -169,20 +198,34 @@ private fun MemberStatisticsCard(totalCount: Int, activeCount: Int) {
                 .padding(24.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            StatisticItem("전체 멤버", totalCount.toString())
-            Divider(
+            StatisticItem(
+                label = "전체 멤버",
+                value = totalCount.toString()
+            )
+
+            VerticalDivider(
                 modifier = Modifier
                     .width(1.dp)
                     .height(50.dp),
                 color = ColorBorderLight
             )
-            StatisticItem("활성 멤버", activeCount.toString())
+
+            StatisticItem(
+                label = "활성 멤버",
+                value = activeCount.toString()
+            )
         }
     }
 }
 
+/**
+ * 통계 아이템
+ */
 @Composable
-private fun StatisticItem(label: String, value: String) {
+private fun StatisticItem(
+    label: String,
+    value: String
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -193,6 +236,7 @@ private fun StatisticItem(label: String, value: String) {
             color = ColorTextGray,
             fontWeight = FontWeight.Medium
         )
+
         Text(
             text = value,
             fontSize = 24.sp,
@@ -202,6 +246,65 @@ private fun StatisticItem(label: String, value: String) {
     }
 }
 
+// =====================================================
+// Member List Header
+// =====================================================
+
+/**
+ * 멤버 리스트 헤더
+ */
+@Composable
+private fun MemberListHeader(
+    totalCount: Int,
+    isFiltered: Boolean
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (isFiltered) "검색 결과" else "전체 멤버",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = ColorTextBlack
+        )
+
+        Text(
+            text = "${totalCount}명",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = ColorTextGray
+        )
+    }
+}
+
+// =====================================================
+// Member List
+// =====================================================
+
+/**
+ * 멤버 리스트
+ */
+@Composable
+private fun MemberList(members: List<UserTimePassInfo>) {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 80.dp) // FAB 공간 확보
+    ) {
+        items(
+            items = members,
+            key = { it.id }
+        ) { member ->
+            MemberItem(member = member)
+        }
+    }
+}
+
+/**
+ * 멤버 아이템
+ */
 @Composable
 private fun MemberItem(member: UserTimePassInfo) {
     Surface(
@@ -223,19 +326,26 @@ private fun MemberItem(member: UserTimePassInfo) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f)
             ) {
-//                // 프로필 이미지
-//                AsyncImage(
-//                    model = member.profileImageUrl,
-//                    contentDescription = null,
-//                    modifier = Modifier
-//                        .size(48.dp)
-//                        .clip(CircleShape)
-//                        .background(ColorWhite),
-//                    contentScale = ContentScale.Crop
-//                )
+                // 프로필 이미지 (향후 구현)
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(ColorPrimaryOrange.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = member.name.firstOrNull()?.toString() ?: "?",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorPrimaryOrange
+                    )
+                }
 
                 // 멤버 정보
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -247,31 +357,69 @@ private fun MemberItem(member: UserTimePassInfo) {
                             color = ColorTextBlack
                         )
 
-//                        // 활성 상태 뱃지
-//                        if (member.isActive) {
-//                            Box(
-//                                modifier = Modifier
-//                                    .background(
-//                                        ColorPrimaryOrange.copy(alpha = 0.1f),
-//                                        RoundedCornerShape(4.dp)
-//                                    )
-//                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-//                            ) {
-//                                Text(
-//                                    "활성",
-//                                    fontSize = 10.sp,
-//                                    color = ColorPrimaryOrange,
-//                                    fontWeight = FontWeight.Medium
-//                                )
-//                            }
-//                        }
+                        // 잔여 시간 표시
+                        if (member.leftTime > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        ColorPrimaryOrange.copy(alpha = 0.1f),
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "${member.leftTime}분 남음",
+                                    fontSize = 10.sp,
+                                    color = ColorPrimaryOrange,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
+
+                    // 추가 정보 (이메일 등)
+                    Text(
+                        text = "ID: ${member.id}",
+                        fontSize = 12.sp,
+                        color = ColorTextGray
+                    )
                 }
+            }
+
+            // 잔여 시간 큰 숫자로 표시
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = "${member.leftTime}",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (member.leftTime > 60) {
+                        ColorPrimaryOrange
+                    } else if (member.leftTime > 0) {
+                        ColorWarning
+                    } else {
+                        ColorTextGray
+                    }
+                )
+                Text(
+                    text = "분",
+                    fontSize = 12.sp,
+                    color = ColorTextGray
+                )
             }
         }
     }
 }
 
+// =====================================================
+// Empty States
+// =====================================================
+
+/**
+ * 멤버가 없을 때
+ */
 @Composable
 private fun EmptyMembersView() {
     Box(
@@ -283,16 +431,59 @@ private fun EmptyMembersView() {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
-                Icons.Default.PersonAdd,
+                imageVector = Icons.Default.PersonAdd,
                 contentDescription = null,
                 modifier = Modifier.size(64.dp),
                 tint = ColorTextGray.copy(alpha = 0.5f)
             )
+
             Text(
-                "등록된 멤버가 없습니다",
+                text = "등록된 멤버가 없습니다",
                 fontSize = 16.sp,
                 color = ColorTextGray,
                 fontWeight = FontWeight.Medium
+            )
+
+            Text(
+                text = "우측 하단 버튼을 눌러 멤버를 추가하세요",
+                fontSize = 13.sp,
+                color = ColorTextGray.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * 검색 결과가 없을 때
+ */
+@Composable
+private fun EmptySearchResultView() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = ColorTextGray.copy(alpha = 0.5f)
+            )
+
+            Text(
+                text = "검색 결과가 없습니다",
+                fontSize = 16.sp,
+                color = ColorTextGray,
+                fontWeight = FontWeight.Medium
+            )
+
+            Text(
+                text = "다른 이름으로 검색해보세요",
+                fontSize = 13.sp,
+                color = ColorTextGray.copy(alpha = 0.7f)
             )
         }
     }

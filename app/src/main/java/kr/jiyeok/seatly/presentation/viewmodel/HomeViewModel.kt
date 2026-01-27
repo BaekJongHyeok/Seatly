@@ -1,5 +1,7 @@
 package kr.jiyeok.seatly.presentation.viewmodel
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -17,18 +19,7 @@ import kr.jiyeok.seatly.domain.usecase.*
 import javax.inject.Inject
 
 /**
- * HomeScreen Fat ViewModel (하이브리드 방식)
- *
- * 역할:
- * - 사용자 정보 관리 (UserViewModel 기능 통합)
- * - 카페 목록 관리
- * - 세션 관리
- * - 즐겨찾기 관리
- *
- * 💡 특징:
- * - Repository 캐싱으로 중복 API 요청 방지
- * - 각 화면에 필요한 모든 기능을 포함
- * - UI는 이 ViewModel만 사용
+ * HomeScreen ViewModel
  */
 
 sealed interface HomeUiState {
@@ -45,7 +36,7 @@ class HomeViewModel @Inject constructor(
     private val getFavoriteCafesUseCase: GetFavoriteCafesUseCase,
     private val getCurrentSessions: GetCurrentSessions,
     private val getMyTimePassesUseCase: GetMyTimePassesUseCase,
-    private val updateUserInfoUseCase: UpdateUserInfoUseCase,
+    private val getImageUseCase: GetImageUseCase,
 
     // Cafe 관련 UseCase
     private val getStudyCafesUseCase: GetStudyCafesUseCase,
@@ -57,14 +48,11 @@ class HomeViewModel @Inject constructor(
     private val getSessionsUseCase: GetSessionsUseCase,
     private val endSessionUseCase: EndSessionUseCase,
 
-    // 로그아웃
-    private val logoutUseCase: LogoutUseCase,
-
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
     // =====================================================
-    // State Management - User
+    // State
     // =====================================================
 
     private val _userData = MutableStateFlow<UserInfoSummaryDto?>(null)
@@ -99,28 +87,25 @@ class HomeViewModel @Inject constructor(
     private val _currentSession = MutableStateFlow<SessionDto?>(null)
     val currentSession: StateFlow<SessionDto?> = _currentSession.asStateFlow()
 
-    // =====================================================
-    // State Management - General
-    // =====================================================
+    private val _imageBitmapCache = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
+    val imageBitmapCache: StateFlow<Map<String, Bitmap>> = _imageBitmapCache.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
-
     private val _events = Channel<String>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
+    private val loadingImageIds = mutableSetOf<String>()
+
     // =====================================================
-    // Public Methods - 초기 로드
+    // Public Methods
     // =====================================================
 
     fun loadHomeData(studyCafeId: Long? = null) {
         viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
             _userState.value = HomeUiState.Loading
-            _error.value = null
 
             try {
                 // 유저 기본 정보 조회
@@ -155,18 +140,16 @@ class HomeViewModel @Inject constructor(
             try {
                 when (val result = getUserInfoUseCase()) {
                     is ApiResult.Success -> {
-                        val userInfo = result.data
-                        if (userInfo != null) {
-                            _userData.value = userInfo
+                        val userData = result.data
+                        if (userData != null) {
+                            _userData.value = userData
                         }
                     }
                     is ApiResult.Failure -> {
-                        _error.value = result.message ?: "사용자 정보 조회 실패"
                         _events.send(result.message ?: "사용자 정보 조회 실패")
                     }
                 }
             } catch (e: Exception) {
-                _error.value = e.message ?: "알 수 없는 오류"
                 _events.send(e.message ?: "알 수 없는 오류")
             }
         }
@@ -183,12 +166,10 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                     is ApiResult.Failure -> {
-                        _error.value = result.message ?: "즐겨찾기 카페 조회 실패"
                         _events.send(result.message ?: "즐겨찾기 카페 조회 실패")
                     }
                 }
             } catch (e: Exception) {
-                _error.value = e.message ?: "알 수 없는 오류"
                 _events.send(e.message ?: "알 수 없는 오류")
             }
         }
@@ -205,12 +186,10 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                     is ApiResult.Failure -> {
-                        _error.value = result.message ?: "현재 세션 정보 조회 실패"
                         _events.send(result.message ?: "현재 세션 정보 조회 실패")
                     }
                 }
             } catch (e: Exception) {
-                _error.value = e.message ?: "알 수 없는 오류"
                 _events.send(e.message ?: "알 수 없는 오류")
             }
         }
@@ -227,12 +206,10 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                     is ApiResult.Failure -> {
-                        _error.value = result.message ?: "현재 세션 정보 조회 실패"
                         _events.send(result.message ?: "현재 세션 정보 조회 실패")
                     }
                 }
             } catch (e: Exception) {
-                _error.value = e.message ?: "알 수 없는 오류"
                 _events.send(e.message ?: "알 수 없는 오류")
             }
         }
@@ -379,36 +356,87 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    // =====================================================
-    // Public Methods - Logout
-    // =====================================================
-    fun logout() {
-        viewModelScope.launch(ioDispatcher) {
-            try {
-                when (val result = logoutUseCase()) {
-                    is ApiResult.Success -> {
-                        _events.send("로그아웃 되었습니다")
-                    }
-                    is ApiResult.Failure -> {
-                        _events.send(result.message ?: "즐겨찾기 제거 실패")
+
+    /**
+     * 서버 이미지 로드 (ByteArray)
+     */
+    private suspend fun loadImage(imageId: String) {
+        if (_imageBitmapCache.value.containsKey(imageId)) return
+
+        synchronized(loadingImageIds) {
+            if (loadingImageIds.contains(imageId)) return
+            loadingImageIds.add(imageId)
+        }
+
+        try {
+            when (val result = getImageUseCase(imageId)) {
+                is ApiResult.Success -> {
+                    result.data?.let { imageData ->
+                        val bitmap = decodeSampledBitmap(imageData, 200, 200)
+                        bitmap?.let {
+                            _imageBitmapCache.update { cache -> cache + (imageId to it) }
+                        }
                     }
                 }
-            } catch (e: Exception) {
-                _events.send(e.message ?: "알 수 없는 오류")
+                is ApiResult.Failure -> {
+
+                }
+            }
+        } catch (e: Exception) {
+
+        } finally {
+            synchronized(loadingImageIds) {
+                loadingImageIds.remove(imageId)
             }
         }
     }
 
-    // =====================================================
-    // Public Methods - 유틸리티
-    // =====================================================
+    /**
+     * 샘플링하여 Bitmap 디코딩
+     */
+    private fun decodeSampledBitmap(
+        data: ByteArray,
+        reqWidth: Int,
+        reqHeight: Int
+    ): Bitmap? {
+        return try {
+            // 먼저 이미지 크기만 확인
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+                BitmapFactory.decodeByteArray(data, 0, data.size, this)
 
-    fun clearError() {
-        _error.value = null
+                // 샘플링 비율 계산
+                inSampleSize = calculateInSampleSize(this, reqWidth, reqHeight)
+                inJustDecodeBounds = false
+            }
+
+            // 실제 디코딩 (이 부분이 문제였습니다)
+            BitmapFactory.decodeByteArray(data, 0, data.size, options)
+        } catch (e: Exception) {
+            null
+        }
     }
 
-    fun resetState() {
-        _userState.value = HomeUiState.Idle
-        _error.value = null
+    /**
+     * 샘플링 비율 계산
+     */
+    private fun calculateInSampleSize(
+        options: BitmapFactory.Options,
+        reqWidth: Int,
+        reqHeight: Int
+    ): Int {
+        val (height: Int, width: Int) = options.run { outHeight to outWidth }
+        var inSampleSize = 1
+
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight: Int = height / 2
+            val halfWidth: Int = width / 2
+
+            while (halfHeight / inSampleSize >= reqHeight &&
+                halfWidth / inSampleSize >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
     }
 }

@@ -1,4 +1,4 @@
-package kr.jiyeok.seatly.ui.component
+package kr.jiyeok.seatly.ui.component.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

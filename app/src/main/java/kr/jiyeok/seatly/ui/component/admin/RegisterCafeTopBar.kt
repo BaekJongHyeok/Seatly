@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import kr.jiyeok.seatly.ui.component.MaterialSymbol
+import kr.jiyeok.seatly.ui.component.common.MaterialSymbol
 
 @Composable
 fun RegisterCafeTopBar(

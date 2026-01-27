@@ -1,6 +1,7 @@
-package kr.jiyeok.seatly.ui.screen.user
+package kr.jiyeok.seatly.ui.screen.common
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -52,9 +54,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -81,10 +85,14 @@ fun EditProfileScreen(
     navController: NavController,
     viewModel: EditProfileViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+
     // 사용자 정보
     val userData by viewModel.userData.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     val isAccountDeleted by viewModel.deleteAccountSuccess.collectAsState()
     val isPwChanged by viewModel.changePasswordSuccess.collectAsState()
+    val updateSuccess by viewModel.updateSuccess.collectAsState()
 
     // 로컬 상태
     var name by remember { mutableStateOf("") }
@@ -93,12 +101,57 @@ fun EditProfileScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
 
+    // 원본 데이터 저장 (변경 감지용)
+    var originalName by remember { mutableStateOf("") }
+    var originalPhone by remember { mutableStateOf("") }
+    var originalImageUrl by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        viewModel.loadUserProfile()
+    }
 
     // 초기값 설정
     LaunchedEffect(userData) {
         userData?.let {
             name = it.name ?: ""
             phoneNumber = it.phone ?: ""
+            originalName = it.name ?: ""
+            originalPhone = it.phone ?: ""
+            originalImageUrl = it.imageUrl
+        }
+    }
+
+    // 업데이트 성공 시 뒤로가기
+    LaunchedEffect(updateSuccess) {
+        if (updateSuccess) {
+            Toast.makeText(context, "프로필이 업데이트되었습니다", Toast.LENGTH_SHORT).show()
+            viewModel.resetUpdateSuccess()
+            navController.popBackStack()
+        }
+    }
+
+    // 계정 삭제 성공 시 로그인 화면으로
+    LaunchedEffect(isAccountDeleted) {
+        if (isAccountDeleted) {
+            Toast.makeText(context, "계정이 삭제되었습니다", Toast.LENGTH_SHORT).show()
+            // 로그인 화면으로 이동 + 백스택 클리어
+            navController.navigate("login") {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
+    // 비밀번호 변경 성공
+    LaunchedEffect(isPwChanged) {
+        if (isPwChanged) {
+            Toast.makeText(context, "비밀번호가 변경되었습니다", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // 이벤트 수집 (토스트)
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -107,6 +160,13 @@ fun EditProfileScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { profileImageUri = it }
+    }
+
+    // 변경 감지: 이름, 전화번호, 이미지 중 하나라도 변경되었는지 확인
+    val hasChanges = remember(name, phoneNumber, profileImageUri) {
+        name != originalName ||
+                phoneNumber != originalPhone ||
+                profileImageUri != null
     }
 
     // 비밀번호 변경 다이얼로그
@@ -135,375 +195,390 @@ fun EditProfileScreen(
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ColorWhite)
-            .verticalScroll(rememberScrollState())
-    ) {
-        // =====================================================
-        // Top Bar - 뒤로가기 + 제목 + 완료 체크 아이콘
-        // =====================================================
-        AppTopBar(
-            title = "개인정보 수정",
-            leftContent = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = ColorTextBlack,
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable { navController.popBackStack() }
-                )
-            },
-            rightContent = {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "완료",
-                    tint = ColorPrimaryOrange,
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable {
-                            viewModel.updateUserProfile(
-                                name = name,
-                                phoneNumber = phoneNumber,
-                                imageUri = profileImageUri
-                            )
-                            navController.popBackStack()
-                        }
-                )
-            }
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // =====================================================
-        // Profile Image Section
-        // =====================================================
-        Box(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(16.dp),
-                    ambientColor = ColorTextBlack.copy(alpha = 0.15f),
-                    spotColor = ColorTextBlack.copy(alpha = 0.08f)
-                )
-                .clip(RoundedCornerShape(16.dp))
-                .background(ColorBgBeige)
-                .padding(vertical = 32.dp),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .background(ColorWhite)
+                .verticalScroll(rememberScrollState())
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape)
-                        .background(ColorBrownBg),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (profileImageUri != null) {
-                        AsyncImage(
-                            model = profileImageUri,
-                            contentDescription = "프로필 사진",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else if (!userData?.imageUrl.isNullOrEmpty()) {
-                        AsyncImage(
-                            model = userData?.imageUrl,
-                            contentDescription = "프로필 사진",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-
-                    Box(
+            // =====================================================
+            // Top Bar - 뒤로가기 + 제목 + 저장 버튼 (변경 시에만 표시)
+            // =====================================================
+            AppTopBar(
+                title = "개인정보 수정",
+                leftContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "뒤로가기",
+                        tint = ColorTextBlack,
                         modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .offset(x = (-6).dp, y = (-6).dp)
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(ColorWhite)
-                            .border(width = 2.dp, color = ColorBorderLight, shape = CircleShape)
-                            .clickable { galleryLauncher.launch("image/*") },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CameraAlt,
-                            contentDescription = "사진 변경",
-                            tint = ColorPrimaryOrange,
-                            modifier = Modifier.size(20.dp)
+                            .size(24.dp)
+                            .clickable { navController.popBackStack() }
+                    )
+                },
+                rightContent = {
+                    // 변경 사항이 있을 때만 "저장" 버튼 표시
+                    if (hasChanges) {
+                        Text(
+                            text = "저장",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ColorPrimaryOrange,
+                            modifier = Modifier.clickable {
+                                if (!isLoading) {
+                                    viewModel.updateUserProfile(
+                                        name = name,
+                                        phoneNumber = phoneNumber,
+                                        imageUri = profileImageUri
+                                    )
+                                }
+                            }
                         )
                     }
                 }
-
-                Text(
-                    text = "프로필 사진 변경",
-                    fontSize = 12.sp,
-                    color = ColorTextLightGray
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // =====================================================
-        // Name Input
-        // =====================================================
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-        ) {
-            Text(
-                text = "이름 *",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = ColorTextBlack,
-                modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            TextField(
-                value = name,
-                onValueChange = { name = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                placeholder = {
-                    Text(
-                        text = "이름을 입력하세요",
-                        color = ColorTextLightGray,
-                        fontSize = 14.sp
-                    )
-                },
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = ColorInputBg,
-                    unfocusedContainerColor = ColorInputBg,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = ColorTextBlack,
-                    unfocusedTextColor = ColorTextBlack
-                ),
-                shape = RoundedCornerShape(8.dp),
-                textStyle = androidx.compose.ui.text.TextStyle(
-                    fontSize = 14.sp,
-                    color = ColorTextBlack
-                )
-            )
-        }
+            Spacer(modifier = Modifier.height(12.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // =====================================================
-        // Email Display (Read-Only)
-        // =====================================================
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = "이메일 *",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = ColorTextBlack
-                )
-            }
-
+            // =====================================================
+            // Profile Image Section
+            // =====================================================
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
-                    .background(ColorInputBg, RoundedCornerShape(8.dp))
-                    .border(1.dp, Color.Transparent, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp),
-                contentAlignment = Alignment.CenterStart
+                    .padding(horizontal = 20.dp)
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = RoundedCornerShape(16.dp),
+                        ambientColor = ColorTextBlack.copy(alpha = 0.15f),
+                        spotColor = ColorTextBlack.copy(alpha = 0.08f)
+                    )
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(ColorBgBeige)
+                    .padding(vertical = 32.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = userData?.email ?: "email@example.com",
-                    fontSize = 14.sp,
-                    color = ColorTextDarkGray
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(CircleShape)
+                            .background(ColorBrownBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // 새로 선택한 이미지 우선 표시
+                        if (profileImageUri != null) {
+                            AsyncImage(
+                                model = profileImageUri,
+                                contentDescription = "프로필 사진",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else if (!userData?.imageUrl.isNullOrEmpty()) {
+                            // 기존 이미지 표시
+                            AsyncImage(
+                                model = userData?.imageUrl,
+                                contentDescription = "프로필 사진",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
 
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = "잠금",
-                    tint = ColorTextLightGray,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 12.dp)
-                )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = (-6).dp, y = (-6).dp)
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(ColorWhite)
+                                .border(width = 2.dp, color = ColorBorderLight, shape = CircleShape)
+                                .clickable { galleryLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "사진 변경",
+                                tint = ColorPrimaryOrange,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "프로필 사진 변경",
+                        fontSize = 12.sp,
+                        color = ColorTextLightGray
+                    )
+                }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-        // =====================================================
-        // Phone Number Input
-        // =====================================================
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-        ) {
-            Row(
+            // =====================================================
+            // Name Input
+            // =====================================================
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    .padding(horizontal = 20.dp)
             ) {
                 Text(
-                    text = "휴대폰 번호 *",
+                    text = "이름 *",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = ColorTextBlack
+                    color = ColorTextBlack,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                TextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    placeholder = {
+                        Text(
+                            text = "이름을 입력하세요",
+                            color = ColorTextLightGray,
+                            fontSize = 14.sp
+                        )
+                    },
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = ColorInputBg,
+                        unfocusedContainerColor = ColorInputBg,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = ColorTextBlack,
+                        unfocusedTextColor = ColorTextBlack
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontSize = 14.sp,
+                        color = ColorTextBlack
+                    )
                 )
             }
 
-            TextField(
-                value = phoneNumber,
-                onValueChange = { phoneNumber = it },
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // =====================================================
+            // Email Display (Read-Only)
+            // =====================================================
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
-                placeholder = {
-                    Text(
-                        text = "010-1234-5678",
-                        color = ColorTextLightGray,
-                        fontSize = 14.sp
-                    )
-                },
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = ColorInputBg,
-                    unfocusedContainerColor = ColorInputBg,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = ColorTextBlack,
-                    unfocusedTextColor = ColorTextBlack
-                ),
-                shape = RoundedCornerShape(8.dp),
-                textStyle = androidx.compose.ui.text.TextStyle(
-                    fontSize = 14.sp,
-                    color = ColorTextBlack
-                )
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // =====================================================
-        // Password Change Section
-        // =====================================================
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .height(48.dp)
-                .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(8.dp),
-                    ambientColor = ColorTextBlack.copy(alpha = 0.15f),
-                    spotColor = ColorTextBlack.copy(alpha = 0.08f)
-                )
-                .clip(RoundedCornerShape(8.dp))
-                .background(ColorBgBeige)
-                .clickable { showChangePasswordDialog = true }
-                .padding(horizontal = 14.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 20.dp)
             ) {
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = "비밀번호",
-                        tint = ColorPrimaryOrange,
-                        modifier = Modifier.size(20.dp)
-                    )
-
                     Text(
-                        text = "비밀번호 변경",
+                        text = "이메일 *",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         color = ColorTextBlack
                     )
                 }
-
-                Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = "이동",
-                    tint = ColorTextLightGray,
-                    modifier = Modifier.size(20.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .background(ColorInputBg, RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.Transparent, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = userData?.email ?: "email@example.com",
+                        fontSize = 14.sp,
+                        color = ColorTextDarkGray
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "잠금",
+                        tint = ColorTextLightGray,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 12.dp)
+                    )
+                }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // =====================================================
-        // Delete Account Section
-        // =====================================================
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .height(48.dp)
-                .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(8.dp),
-                    ambientColor = ColorTextBlack.copy(alpha = 0.15f),
-                    spotColor = ColorTextBlack.copy(alpha = 0.08f)
-                )
-                .clip(RoundedCornerShape(8.dp))
-                .background(ColorBgBeige)
-                .clickable { showDeleteDialog = true }
-                .padding(horizontal = 14.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            // =====================================================
+            // Phone Number Input
+            // =====================================================
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
             ) {
-                Text(
-                    text = "계정 탈퇴",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = ColorWarning
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "휴대폰 번호 *",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = ColorTextBlack
+                    )
+                }
+                TextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    placeholder = {
+                        Text(
+                            text = "010-1234-5678",
+                            color = ColorTextLightGray,
+                            fontSize = 14.sp
+                        )
+                    },
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = ColorInputBg,
+                        unfocusedContainerColor = ColorInputBg,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = ColorTextBlack,
+                        unfocusedTextColor = ColorTextBlack
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontSize = 14.sp,
+                        color = ColorTextBlack
+                    )
                 )
+            }
 
-                Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = "이동",
-                    tint = ColorTextLightGray,
-                    modifier = Modifier.size(20.dp)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // =====================================================
+            // Password Change Section
+            // =====================================================
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .height(48.dp)
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = RoundedCornerShape(8.dp),
+                        ambientColor = ColorTextBlack.copy(alpha = 0.15f),
+                        spotColor = ColorTextBlack.copy(alpha = 0.08f)
+                    )
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ColorBgBeige)
+                    .clickable { showChangePasswordDialog = true }
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "비밀번호",
+                            tint = ColorPrimaryOrange,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "비밀번호 변경",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = ColorTextBlack
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = "이동",
+                        tint = ColorTextLightGray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // =====================================================
+            // Delete Account Section
+            // =====================================================
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .height(48.dp)
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = RoundedCornerShape(8.dp),
+                        ambientColor = ColorTextBlack.copy(alpha = 0.15f),
+                        spotColor = ColorTextBlack.copy(alpha = 0.08f)
+                    )
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ColorBgBeige)
+                    .clickable { showDeleteDialog = true }
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "계정 탈퇴",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = ColorWarning
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = "이동",
+                        tint = ColorTextLightGray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(100.dp))
+        }
+
+        // 로딩 오버레이
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = ColorPrimaryOrange,
+                    strokeWidth = 3.dp
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(100.dp))
     }
 }
 
@@ -524,7 +599,7 @@ private fun ChangePasswordDialog(
     var passwordStrength by remember { mutableStateOf(0f) }
     var passwordError by remember { mutableStateOf("") }
 
-    LaunchedEffect(newPassword) {
+    LaunchedEffect(newPassword, confirmPassword) {
         if (newPassword.isEmpty()) {
             passwordStrength = 0f
             passwordError = ""
@@ -535,6 +610,7 @@ private fun ChangePasswordDialog(
                 newPassword.any { it.isUpperCase() } && newPassword.any { it.isDigit() } -> 1f
                 else -> 0.8f
             }
+
             passwordError = when {
                 newPassword.length < 6 -> "6자리 이상이고 문자와 숫자 조합만 혼합되면 됩니다."
                 confirmPassword.isNotEmpty() && newPassword != confirmPassword -> "비밀번호가 일치하지 않습니다."
@@ -542,6 +618,7 @@ private fun ChangePasswordDialog(
             }
         }
     }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -582,7 +659,9 @@ private fun ChangePasswordDialog(
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
+
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -633,6 +712,7 @@ private fun ChangePasswordDialog(
                         )
                     )
                 }
+
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -682,9 +762,10 @@ private fun ChangePasswordDialog(
                             color = ColorTextBlack
                         )
                     )
+
                     if (newPassword.isNotEmpty()) {
                         LinearProgressIndicator(
-                            progress = passwordStrength,
+                            progress = { passwordStrength },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(4.dp)
@@ -694,6 +775,7 @@ private fun ChangePasswordDialog(
                         )
                     }
                 }
+
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -775,6 +857,7 @@ private fun ChangePasswordDialog(
                             )
                         )
                     }
+
                     if (passwordError.isNotEmpty()) {
                         Text(
                             text = passwordError,
@@ -783,7 +866,9 @@ private fun ChangePasswordDialog(
                         )
                     }
                 }
+
                 Spacer(modifier = Modifier.height(12.dp))
+
                 Button(
                     onClick = {
                         if (currentPassword.isNotEmpty() && newPassword.isNotEmpty() && confirmPassword.isNotEmpty() && newPassword == confirmPassword) {
@@ -862,7 +947,7 @@ private fun DeleteAccountDialog(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = ColorTextBlack,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
 
                 // 설명 텍스트 (빨간색)
@@ -870,7 +955,7 @@ private fun DeleteAccountDialog(
                     text = "탈퇴 시 모든 정보가 영구적으로 삭제되며\n복구할 수 없습니다.",
                     fontSize = 13.sp,
                     color = ColorWarning,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    textAlign = TextAlign.Center,
                     lineHeight = 18.sp
                 )
 
@@ -880,7 +965,7 @@ private fun DeleteAccountDialog(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = ColorTextBlack,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))

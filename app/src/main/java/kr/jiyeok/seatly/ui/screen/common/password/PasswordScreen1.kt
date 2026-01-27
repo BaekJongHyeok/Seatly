@@ -15,13 +15,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kr.jiyeok.seatly.ui.component.AuthButton
-import kr.jiyeok.seatly.ui.component.EmailInputField
+import kr.jiyeok.seatly.ui.component.common.AuthButton
+import kr.jiyeok.seatly.ui.component.common.EmailInputField
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 
 @Composable
@@ -192,7 +192,7 @@ fun PasswordScreen1(
                                 isLoading = true
                                 scope.launch {
                                     // ★ Mock: 2초 후 성공 처리
-                                    kotlinx.coroutines.delay(2000)
+                                    delay(2000)
                                     isLoading = false
                                     currentStep = 2 // 다음 단계로 이동
                                     // 실제 API 호출은 ViewModel에서 처리하면 됨:

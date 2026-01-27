@@ -1,4 +1,4 @@
-package kr.jiyeok.seatly.ui.screen.admin.cafe
+package kr.jiyeok.seatly.ui.screen.admin
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -51,7 +53,7 @@ import kr.jiyeok.seatly.data.remote.enums.EFacility
 import kr.jiyeok.seatly.data.remote.request.CreateCafeRequest
 import kr.jiyeok.seatly.data.remote.request.UpdateCafeRequest
 import kr.jiyeok.seatly.presentation.viewmodel.CafeFormViewModel
-import kr.jiyeok.seatly.ui.component.MaterialSymbol
+import kr.jiyeok.seatly.ui.component.common.MaterialSymbol
 import kr.jiyeok.seatly.ui.screen.manager.RegisterCafeTopBar
 import kr.jiyeok.seatly.ui.theme.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -61,6 +63,25 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.math.min
 import kotlin.math.sqrt
+
+// 요일 Enum
+enum class DayOfWeek(val displayName: String, val shortName: String) {
+    MONDAY("월요일", "월"),
+    TUESDAY("화요일", "화"),
+    WEDNESDAY("수요일", "수"),
+    THURSDAY("목요일", "목"),
+    FRIDAY("금요일", "금"),
+    SATURDAY("토요일", "토"),
+    SUNDAY("일요일", "일")
+}
+
+// 요일별 영업시간 데이터 클래스
+data class DailyOperatingHours(
+    val dayOfWeek: String,
+    val isClosed: Boolean = false,
+    val openTime: String = "0900", // HHMM 형식
+    val closeTime: String = "2200"
+)
 
 fun rotateBitmap(bitmap: Bitmap, degrees: Float): Bitmap {
     val matrix = Matrix()
@@ -73,7 +94,7 @@ fun rotateBitmap(bitmap: Bitmap, degrees: Float): Bitmap {
  * @param cafeId null이면 생성 모드, 값이 있으면 수정 모드
  */
 @Composable
-fun CafeFormScreen(
+fun AdminCafeFormScreen(
     navController: NavController,
     cafeId: Long? = null,
     viewModel: CafeFormViewModel = hiltViewModel(),
@@ -85,20 +106,45 @@ fun CafeFormScreen(
     var address by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var phoneDisplay by remember { mutableStateOf("") }
-    var startTime by remember { mutableStateOf("0900") }
-    var endTime by remember { mutableStateOf("2400") }
     var description by remember { mutableStateOf("") }
-    var showStartTimePicker by remember { mutableStateOf(false) }
-    var showEndTimePicker by remember { mutableStateOf(false) }
     var showAddressSearch by remember { mutableStateOf(false) }
+
+    // 요일별 영업시간 상태
+    val weeklyHours = remember {
+        mutableStateListOf(
+            DailyOperatingHours(DayOfWeek.MONDAY.name, false, "0900", "2200"),
+            DailyOperatingHours(DayOfWeek.TUESDAY.name, false, "0900", "2200"),
+            DailyOperatingHours(DayOfWeek.WEDNESDAY.name, false, "0900", "2200"),
+            DailyOperatingHours(DayOfWeek.THURSDAY.name, false, "0900", "2200"),
+            DailyOperatingHours(DayOfWeek.FRIDAY.name, false, "0900", "2200"),
+            DailyOperatingHours(DayOfWeek.SATURDAY.name, false, "0900", "2200"),
+            DailyOperatingHours(DayOfWeek.SUNDAY.name, false, "0900", "2200")
+        )
+    }
+
+    var bulkEditMode by remember { mutableStateOf(true) }
+    var bulkStartTime by remember { mutableStateOf("0900") }
+    var bulkEndTime by remember { mutableStateOf("2200") }
+    var showBulkStartTimePicker by remember { mutableStateOf(false) }
+    var showBulkEndTimePicker by remember { mutableStateOf(false) }
+
+    // 요일별 시간 선택용 상태
+    var showWeeklyTimePicker by remember { mutableStateOf(false) }
+    var selectedDayForTimePicker by remember { mutableStateOf<DayOfWeek?>(null) }
+    var isSelectingStartTime by remember { mutableStateOf(true) }
+
     val holidays = listOf("월", "화", "수", "목", "금", "토", "일", "명절", "연중무휴")
-    var selectedHolidays by remember { mutableStateOf(setOf("연중무휴")) }
+    var selectedHolidays by remember { mutableStateOf(setOf<String>("연중무휴")) }
     var showAllHolidays by remember { mutableStateOf(false) }
+
     val selectedFacilities = remember { mutableStateListOf<EFacility>() }
     val images = remember { mutableStateListOf<Uri>() }
     val context = LocalContext.current
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
+
+    // Gson 인스턴스
+    val gson = remember { Gson() }
 
     // ViewModel states
     val isLoading by viewModel.isLoading.collectAsState()
@@ -144,6 +190,7 @@ fun CafeFormScreen(
                 ExifInterface.TAG_ORIENTATION,
                 ExifInterface.ORIENTATION_NORMAL
             ) ?: ExifInterface.ORIENTATION_NORMAL
+
             bitmap = when (orientation) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> rotateBitmap(bitmap, 90f)
                 ExifInterface.ORIENTATION_ROTATE_180 -> rotateBitmap(bitmap, 180f)
@@ -155,7 +202,6 @@ fun CafeFormScreen(
             var quality = 90
             var outputStream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
-
             while (outputStream.size() > 1048576 && quality > 10) {
                 outputStream.reset()
                 quality -= 10
@@ -177,7 +223,6 @@ fun CafeFormScreen(
             file.outputStream().use { fileOut ->
                 fileOut.write(outputStream.toByteArray())
             }
-
             bitmap.recycle()
             return file
         } catch (e: Exception) {
@@ -248,11 +293,66 @@ fun CafeFormScreen(
             phone = data.phone.toString()
             phoneDisplay = data.phone.toString()
             description = data.description ?: ""
-            val hours = data.openingHours?.split("-")
-            if (hours?.size == 2) {
-                startTime = hours[0].trim()
-                endTime = hours[1].trim()
+
+            // 영업시간 파싱
+            data.openingHours?.let { hoursStr ->
+                try {
+                    if (hoursStr.contains(",") && hoursStr.contains("=")) {
+                        // 새로운 형식: "MONDAY=09:00-22:00,TUESDAY=Closed,..."
+                        val dayHoursList = hoursStr.split(",")
+                        weeklyHours.clear()
+
+                        dayHoursList.forEach { dayHours ->
+                            val parts = dayHours.split("=")
+                            if (parts.size == 2) {
+                                val dayOfWeek = parts[0]
+                                val timeInfo = parts[1]
+
+                                if (timeInfo == "Closed") {
+                                    weeklyHours.add(
+                                        DailyOperatingHours(
+                                            dayOfWeek = dayOfWeek,
+                                            isClosed = true,
+                                            openTime = "0900",
+                                            closeTime = "2200"
+                                        )
+                                    )
+                                } else {
+                                    val times = timeInfo.split("-")
+                                    if (times.size == 2) {
+                                        // "09:00" -> "0900" 변환
+                                        val openTime = times[0].replace(":", "")
+                                        val closeTime = times[1].replace(":", "")
+                                        weeklyHours.add(
+                                            DailyOperatingHours(
+                                                dayOfWeek = dayOfWeek,
+                                                isClosed = false,
+                                                openTime = openTime,
+                                                closeTime = closeTime
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        bulkEditMode = false
+                    } else if (hoursStr.contains("-")) {
+                        // 기존 형식: "09:00-24:00" 또는 "0900-2400"
+                        val hours = hoursStr.split("-")
+                        if (hours.size == 2) {
+                            // "09:00" -> "0900" 변환
+                            bulkStartTime = hours[0].trim().replace(":", "")
+                            bulkEndTime = hours[1].trim().replace(":", "")
+                            bulkEditMode = true
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    // 파싱 실패 시 기본값
+                    bulkEditMode = true
+                }
             }
+
             selectedFacilities.clear()
             selectedFacilities.addAll(data.facilities)
         }
@@ -308,15 +408,14 @@ fun CafeFormScreen(
                         onBack = { navController.popBackStack() },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(ColorBorderLight)
+                    )
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(ColorBorderLight)
-                )
 
                 // Body - scrollable
                 Column(
@@ -412,33 +511,30 @@ fun CafeFormScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 4. Opening Hours
-                    Text("운영 시간", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ColorTextBlack)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AppTextField(
-                            value = startTime,
-                            onValueChange = {},
-                            placeholder = "시작",
-                            leading = { MaterialSymbol(name = "schedule", size = 18.sp, tint = ColorTextGray) },
-                            readOnly = true,
-                            onClick = { showStartTimePicker = true },
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text("~", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ColorTextBlack)
-                        AppTextField(
-                            value = endTime,
-                            onValueChange = {},
-                            placeholder = "종료",
-                            readOnly = true,
-                            onClick = { showEndTimePicker = true },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    // 4. Operating Hours - 새로운 요일별 시스템
+                    OperatingHoursSection(
+                        weeklyHours = weeklyHours,
+                        bulkEditMode = bulkEditMode,
+                        onBulkEditModeChange = { bulkEditMode = it },
+                        bulkStartTime = bulkStartTime,
+                        bulkEndTime = bulkEndTime,
+                        onBulkStartTimeChange = { showBulkStartTimePicker = true },
+                        onBulkEndTimeChange = { showBulkEndTimePicker = true },
+                        onShowTimePicker = { dayOfWeek, isStart ->
+                            selectedDayForTimePicker = dayOfWeek
+                            isSelectingStartTime = isStart
+                            showWeeklyTimePicker = true
+                        },
+                        onApplyBulkTime = {
+                            weeklyHours.forEachIndexed { index, _ ->
+                                weeklyHours[index] = weeklyHours[index].copy(
+                                    openTime = bulkStartTime,
+                                    closeTime = bulkEndTime,
+                                    isClosed = false
+                                )
+                            }
+                        }
+                    )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -463,7 +559,6 @@ fun CafeFormScreen(
                             MaterialSymbol(name = "expand_more", size = 20.sp, tint = ColorPrimaryOrange)
                         }
                     }
-
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -497,7 +592,6 @@ fun CafeFormScreen(
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.SemiBold
                                             )
-
                                             if (holiday != "연중무휴") {
                                                 Box(
                                                     modifier = Modifier
@@ -531,7 +625,6 @@ fun CafeFormScreen(
                         if (showAllHolidays) {
                             val unselectedHolidays = holidays.filter { !selectedHolidays.contains(it) }
                             val holidayRows: List<List<String>> = unselectedHolidays.chunked(3)
-
                             holidayRows.forEach { row ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -590,7 +683,6 @@ fun CafeFormScreen(
 
                     val facilitiesList = EFacility.values().toList()
                     val facilitiesRows = facilitiesList.chunked(4)
-
                     facilitiesRows.forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -669,7 +761,6 @@ fun CafeFormScreen(
                         Text("카페 사진 (최대 5장)", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ColorTextBlack)
                         Text("$totalImageCount/5", fontSize = 13.sp, color = ColorTextBlack)
                     }
-
                     Spacer(modifier = Modifier.height(12.dp))
 
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -821,7 +912,20 @@ fun CafeFormScreen(
 
                                 if (!ok) return@Button
 
-                                val openingHoursStr = "$startTime-$endTime"
+                                // 요일별 영업시간을 커스텀 String 형식으로 변환
+                                val openingHoursStr = if (bulkEditMode) {
+                                    // 일괄 적용 모드: 기존 형식 유지
+                                    "${formatTimeToHHMM(bulkStartTime)}-${formatTimeToHHMM(bulkEndTime)}"
+                                } else {
+                                    // 요일별 설정: "MONDAY=09:00-22:00,TUESDAY=Closed,..."
+                                    weeklyHours.joinToString(",") { hours ->
+                                        if (hours.isClosed) {
+                                            "${hours.dayOfWeek}=Closed"
+                                        } else {
+                                            "${hours.dayOfWeek}=${formatTimeToHHMM(hours.openTime)}-${formatTimeToHHMM(hours.closeTime)}"
+                                        }
+                                    }
+                                }
 
                                 if (isEditMode && cafeId != null) {
                                     val request = UpdateCafeRequest(
@@ -831,7 +935,7 @@ fun CafeFormScreen(
                                         openingHours = openingHoursStr,
                                         description = if (description.isBlank()) null else description,
                                         facilities = selectedFacilities.toList(),
-                                        imageUrls = emptyList() // ViewModel에서 자동으로 처리
+                                        imageUrls = emptyList()
                                     )
                                     viewModel.updateCafe(cafeId, request)
                                 } else {
@@ -842,7 +946,7 @@ fun CafeFormScreen(
                                         openingHours = openingHoursStr,
                                         description = if (description.isBlank()) null else description,
                                         facilities = selectedFacilities.toList(),
-                                        imageUrls = emptyList() // ViewModel에서 자동으로 처리
+                                        imageUrls = emptyList()
                                     )
                                     viewModel.createCafe(request)
                                 }
@@ -876,26 +980,52 @@ fun CafeFormScreen(
             }
 
             // Dialogs
-            if (showStartTimePicker) {
+            if (showBulkStartTimePicker) {
                 ScrollableTimePickerDialog(
-                    initialTime = startTime,
+                    initialTime = bulkStartTime,
                     onConfirm = { time ->
-                        startTime = time
-                        showStartTimePicker = false
+                        bulkStartTime = time
+                        showBulkStartTimePicker = false
                     },
-                    onDismiss = { showStartTimePicker = false }
+                    onDismiss = { showBulkStartTimePicker = false }
                 )
             }
 
-            if (showEndTimePicker) {
+            if (showBulkEndTimePicker) {
                 ScrollableTimePickerDialog(
-                    initialTime = endTime,
+                    initialTime = bulkEndTime,
                     onConfirm = { time ->
-                        endTime = time
-                        showEndTimePicker = false
+                        bulkEndTime = time
+                        showBulkEndTimePicker = false
                     },
-                    onDismiss = { showEndTimePicker = false }
+                    onDismiss = { showBulkEndTimePicker = false }
                 )
+            }
+
+            if (showWeeklyTimePicker && selectedDayForTimePicker != null) {
+                val dayIndex = weeklyHours.indexOfFirst {
+                    it.dayOfWeek == selectedDayForTimePicker!!.name
+                }
+                if (dayIndex != -1) {
+                    val currentTime = if (isSelectingStartTime) {
+                        weeklyHours[dayIndex].openTime
+                    } else {
+                        weeklyHours[dayIndex].closeTime
+                    }
+
+                    ScrollableTimePickerDialog(
+                        initialTime = currentTime,
+                        onConfirm = { time ->
+                            weeklyHours[dayIndex] = if (isSelectingStartTime) {
+                                weeklyHours[dayIndex].copy(openTime = time)
+                            } else {
+                                weeklyHours[dayIndex].copy(closeTime = time)
+                            }
+                            showWeeklyTimePicker = false
+                        },
+                        onDismiss = { showWeeklyTimePicker = false }
+                    )
+                }
             }
 
             if (showAddressSearch) {
@@ -911,6 +1041,256 @@ fun CafeFormScreen(
     }
 }
 
+// 요일별 영업시간 섹션 Composable
+@Composable
+fun OperatingHoursSection(
+    weeklyHours: SnapshotStateList<DailyOperatingHours>,
+    bulkEditMode: Boolean,
+    onBulkEditModeChange: (Boolean) -> Unit,
+    bulkStartTime: String,
+    bulkEndTime: String,
+    onBulkStartTimeChange: () -> Unit,
+    onBulkEndTimeChange: () -> Unit,
+    onShowTimePicker: (DayOfWeek, Boolean) -> Unit,
+    onApplyBulkTime: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 헤더 및 일괄 적용 토글
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "운영 시간",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = ColorTextBlack
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    if (bulkEditMode) "일괄 적용" else "요일별 설정",
+                    fontSize = 12.sp,
+                    color = ColorTextGray
+                )
+                Switch(
+                    checked = !bulkEditMode,
+                    onCheckedChange = { onBulkEditModeChange(!it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = ColorWhite,
+                        checkedTrackColor = ColorPrimaryOrange,
+                        uncheckedThumbColor = ColorWhite,
+                        uncheckedTrackColor = ColorBorderLight
+                    )
+                )
+            }
+        }
+
+        if (bulkEditMode) {
+            // 일괄 적용 모드
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AppTextField(
+                    value = formatTimeDisplay(bulkStartTime),
+                    onValueChange = {},
+                    placeholder = "시작",
+                    leading = {
+                        MaterialSymbol(
+                            name = "schedule",
+                            size = 18.sp,
+                            tint = ColorTextGray
+                        )
+                    },
+                    readOnly = true,
+                    onClick = onBulkStartTimeChange,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Text("~", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ColorTextBlack)
+
+                AppTextField(
+                    value = formatTimeDisplay(bulkEndTime),
+                    onValueChange = {},
+                    placeholder = "종료",
+                    readOnly = true,
+                    onClick = onBulkEndTimeChange,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // 일괄 적용 버튼
+            Button(
+                onClick = onApplyBulkTime,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ColorBgBeige,
+                    contentColor = ColorPrimaryOrange
+                ),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("전체 요일에 적용", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+        } else {
+            // 요일별 설정 모드
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                weeklyHours.forEachIndexed { index, hours ->
+                    val dayOfWeek = DayOfWeek.valueOf(hours.dayOfWeek)
+                    DailyHoursRow(
+                        dailyHours = hours,
+                        dayDisplayName = dayOfWeek.displayName,
+                        onClosedChange = { isClosed ->
+                            weeklyHours[index] = hours.copy(isClosed = isClosed)
+                        },
+                        onStartTimeClick = {
+                            onShowTimePicker(dayOfWeek, true)
+                        },
+                        onEndTimeClick = {
+                            onShowTimePicker(dayOfWeek, false)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DailyHoursRow(
+    dailyHours: DailyOperatingHours,
+    dayDisplayName: String,
+    onClosedChange: (Boolean) -> Unit,
+    onStartTimeClick: () -> Unit,
+    onEndTimeClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (dailyHours.isClosed) ColorInputBg else Color(0xFFFFF9F6))
+            .border(
+                BorderStroke(1.dp, ColorBorderLight),
+                RoundedCornerShape(12.dp)
+            )
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 요일 및 휴무 체크박스
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.width(100.dp)
+        ) {
+            Checkbox(
+                checked = dailyHours.isClosed,
+                onCheckedChange = onClosedChange,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = ColorPrimaryOrange,
+                    uncheckedColor = ColorBorderLight
+                ),
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = dayDisplayName,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (dailyHours.isClosed) ColorTextGray else ColorTextBlack
+            )
+        }
+
+        // 시간 선택
+        if (!dailyHours.isClosed) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ColorWhite)
+                        .border(
+                            BorderStroke(1.dp, ColorBorderLight),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .clickable { onStartTimeClick() }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = formatTimeDisplay(dailyHours.openTime),
+                        fontSize = 13.sp,
+                        color = ColorTextBlack
+                    )
+                }
+
+                Text("~", fontSize = 14.sp, color = ColorTextGray)
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ColorWhite)
+                        .border(
+                            BorderStroke(1.dp, ColorBorderLight),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .clickable { onEndTimeClick() }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = formatTimeDisplay(dailyHours.closeTime),
+                        fontSize = 13.sp,
+                        color = ColorTextBlack
+                    )
+                }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "휴무",
+                    fontSize = 13.sp,
+                    color = ColorTextGray,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+// 시간 포맷 헬퍼 함수
+fun formatTimeDisplay(time: String): String {
+    if (time.length != 4) return time
+    val hour = time.substring(0, 2)
+    val minute = time.substring(2, 4)
+    return "$hour:$minute"
+}
+
+// HHMM -> HH:MM 변환 함수
+fun formatTimeToHHMM(time: String): String {
+    if (time.length == 4) {
+        return "${time.substring(0, 2)}:${time.substring(2, 4)}"
+    }
+    return time
+}
+
 // 서버 이미지를 로드하는 Composable
 @Composable
 fun ServerImageItem(
@@ -921,12 +1301,10 @@ fun ServerImageItem(
     val imageDataCache by viewModel.imageDataCache.collectAsState()
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
-    // 이미지 로드 트리거
     LaunchedEffect(imageUrl) {
         viewModel.loadImage(imageUrl)
     }
 
-    // ByteArray를 Bitmap으로 변환
     LaunchedEffect(imageDataCache) {
         val imageData = imageDataCache[imageUrl]
         if (imageData != null) {
@@ -949,7 +1327,6 @@ fun ServerImageItem(
             .background(ColorBgBeige),
         contentAlignment = Alignment.TopEnd
     ) {
-        // Bitmap 표시
         if (bitmap != null) {
             Image(
                 bitmap = bitmap!!,
@@ -958,7 +1335,6 @@ fun ServerImageItem(
                 contentScale = ContentScale.Crop
             )
         } else {
-            // 로딩 중 표시
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -1022,7 +1398,6 @@ fun AppTextField(
     modifier: Modifier = Modifier
 ) {
     var focused by remember { mutableStateOf(false) }
-
     val baseModifier = modifier
         .fillMaxWidth()
         .defaultMinSize(minHeight = 52.dp)
@@ -1049,7 +1424,6 @@ fun AppTextField(
             if (leading != null) {
                 Box(modifier = Modifier.padding(end = 8.dp)) { leading() }
             }
-
             Box(modifier = Modifier.weight(1f)) {
                 if (value.isEmpty()) {
                     Text(text = placeholder, color = ColorTextGray, fontSize = 15.sp)
@@ -1057,7 +1431,6 @@ fun AppTextField(
                     Text(text = value, color = ColorTextBlack, fontSize = 15.sp)
                 }
             }
-
             if (trailing != null) {
                 Box(modifier = Modifier.padding(start = 8.dp)) { trailing() }
             }
@@ -1070,7 +1443,6 @@ fun AppTextField(
             if (leading != null) {
                 Box(modifier = Modifier.padding(end = 8.dp)) { leading() }
             }
-
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -1095,7 +1467,6 @@ fun AppTextField(
                     }
                 )
             }
-
             if (trailing != null) {
                 Box(modifier = Modifier.padding(start = 8.dp)) { trailing() }
             }
@@ -1138,7 +1509,6 @@ private fun AddressSearchDialog(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf(listOf<String>()) }
-
     val sampleAddresses = listOf(
         "서울특별시 강남구 테헤란로 123",
         "서울특별시 서초구 서초대로 201",
@@ -1320,9 +1690,24 @@ private fun ScrollableTimePickerDialog(
     onDismiss: () -> Unit
 ) {
     val parts = initialTime.split(":")
-    var selectedHour by remember { mutableStateOf(parts.getOrNull(0)?.toIntOrNull() ?: 9) }
-    var selectedMinute by remember { mutableStateOf(parts.getOrNull(1)?.toIntOrNull() ?: 0) }
-
+    var selectedHour by remember {
+        mutableStateOf(
+            if (initialTime.length == 4) {
+                initialTime.substring(0, 2).toIntOrNull() ?: 9
+            } else {
+                parts.getOrNull(0)?.toIntOrNull() ?: 9
+            }
+        )
+    }
+    var selectedMinute by remember {
+        mutableStateOf(
+            if (initialTime.length == 4) {
+                initialTime.substring(2, 4).toIntOrNull() ?: 0
+            } else {
+                parts.getOrNull(1)?.toIntOrNull() ?: 0
+            }
+        )
+    }
     val hours = (0..23).toList()
     val minutes = (0..59).filter { it % 5 == 0 }
 
@@ -1365,7 +1750,6 @@ private fun ScrollableTimePickerDialog(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Hour picker
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
@@ -1397,7 +1781,6 @@ private fun ScrollableTimePickerDialog(
 
                     Text(":", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = ColorTextBlack)
 
-                    // Minute picker
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
@@ -1443,7 +1826,6 @@ private fun ScrollableTimePickerDialog(
                     ) {
                         Text("취소", color = ColorTextBlack)
                     }
-
                     Button(
                         onClick = {
                             val timeStr = "${selectedHour.toString().padStart(2, '0')}${selectedMinute.toString().padStart(2, '0')}"

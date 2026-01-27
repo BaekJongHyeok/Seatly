@@ -22,27 +22,23 @@ import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.ui.component.common.BottomNavigationBar
 import kr.jiyeok.seatly.ui.screen.admin.AdminMyPageScreen
-import kr.jiyeok.seatly.ui.screen.admin.cafe.CreateCafeScreen
-import kr.jiyeok.seatly.ui.screen.admin.cafe.UpdateCafeScreen
-import kr.jiyeok.seatly.ui.screen.admin.seat.CurrentSeatScreen
-import kr.jiyeok.seatly.ui.screen.admin.seat.SeatLayoutScreen
 import kr.jiyeok.seatly.ui.screen.common.DashboardScreen
 import kr.jiyeok.seatly.ui.screen.common.LoginScreen
 import kr.jiyeok.seatly.ui.screen.common.password.PasswordScreen1
 import kr.jiyeok.seatly.ui.screen.common.password.PasswordScreen2
 import kr.jiyeok.seatly.ui.screen.common.password.PasswordScreen3
 import kr.jiyeok.seatly.ui.screen.common.signup.SignupScreen
-import kr.jiyeok.seatly.ui.screen.user.AppSettings
-import kr.jiyeok.seatly.ui.screen.user.UserCafeDetailScreen
-import kr.jiyeok.seatly.ui.screen.user.EditProfileScreen
+import kr.jiyeok.seatly.ui.screen.common.AppSettings
+import kr.jiyeok.seatly.ui.screen.common.EditProfileScreen
 import kr.jiyeok.seatly.ui.screen.user.UserHomeScreen
 import kr.jiyeok.seatly.ui.screen.user.UserMyPageScreen
 import kr.jiyeok.seatly.ui.screen.user.UserSearchScreen
 import androidx.compose.runtime.collectAsState
 import kr.jiyeok.seatly.ui.screen.admin.AdminCafeDetailScreen
 import kr.jiyeok.seatly.ui.screen.admin.AdminHomeScreen
-import kr.jiyeok.seatly.ui.screen.admin.cafe.CafeFormScreen
+import kr.jiyeok.seatly.ui.screen.admin.AdminCafeFormScreen
 import kr.jiyeok.seatly.ui.screen.common.NotificationsScreen
+import kr.jiyeok.seatly.ui.screen.user.UserCafeDetailScreen
 
 /**
  * Seatly 앱의 최상위 네비게이션 구조를 정의하는 컴포저블
@@ -193,7 +189,12 @@ private fun NavGraphBuilder.defineUserRoutes(navController: NavController, authV
     // 카페 상세 정보
     composable("user/cafe/{cafeId}", listOf(navArgument("cafeId") { type = NavType.StringType })) { backStackEntry ->
         val cafeId = backStackEntry.arguments?.getString("cafeId")
-        UserCafeDetailScreen(navController = navController, cafeId = cafeId)
+
+        if (cafeId != null) {
+            UserCafeDetailScreen(navController, cafeId.toLong())
+        } else {
+            Text("잘못된 접근입니다.")
+        }
     }
 }
 
@@ -204,11 +205,6 @@ private fun NavGraphBuilder.defineAdminRoutes(navController: NavController, auth
     // 홈
     composable("admin/home") {
         AdminHomeScreen(navController = navController)
-    }
-
-    // 등록헌 카페 리스트
-    composable("admin/cafe/list") {
-//        StudyCafeListScreen(navController = navController)
     }
 
     // 마이페이지
@@ -229,29 +225,13 @@ private fun NavGraphBuilder.defineAdminRoutes(navController: NavController, auth
 
     // 카페 등록
     composable("admin/cafe/create") {
-        CreateCafeScreen(navController = navController)
+        AdminCafeFormScreen(navController = navController)
     }
 
     // 카페 편집
     composable("admin/cafe/update/{cafeId}", listOf(navArgument("cafeId") { type = NavType.StringType })) { backStackEntry ->
         val cafeId = backStackEntry.arguments?.getString("cafeId")
-        CafeFormScreen(navController = navController, cafeId = cafeId?.toLong())
-    }
-
-    // 좌석 관리
-    composable("admin/seat/management") {
-        SeatLayoutScreen(
-            onSave = { navController.popBackStack() },
-            onBack = { navController.popBackStack() }
-        )
-    }
-
-    // 현재 좌석
-    composable("admin/seat/current") {
-        CurrentSeatScreen(
-            navController = navController,
-            onBack = { navController.popBackStack() }
-        )
+        AdminCafeFormScreen(navController = navController, cafeId = cafeId?.toLong())
     }
 }
 

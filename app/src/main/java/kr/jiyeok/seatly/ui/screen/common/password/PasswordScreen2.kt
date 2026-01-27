@@ -25,8 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kr.jiyeok.seatly.ui.component.AuthButton
+import kr.jiyeok.seatly.ui.component.common.AuthButton
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 
 @Composable
@@ -272,7 +273,7 @@ fun PasswordScreen2(
                                 isLoading = true
                                 scope.launch {
                                     // ★ Mock: 2초 후 성공 처리
-                                    kotlinx.coroutines.delay(2000)
+                                    delay(2000)
                                     isLoading = false
                                     currentStep = 3 // 다음 단계로 이동
                                     // 실제 API: viewModel.verifyCode(code)

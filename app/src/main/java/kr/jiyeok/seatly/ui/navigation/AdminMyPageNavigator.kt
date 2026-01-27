@@ -7,7 +7,7 @@ import androidx.navigation.NavController
  */
 object AdminMyPageRoutes {
     const val EDIT_PROFILE = "common/profile/edit"
-    const val CAFE_DETAIL = "user/cafe"
+    const val CAFE_DETAIL = "admin/cafe"
     const val NOTIFICATIONS = "common/notifications"
     const val APP_SETTINGS = "common/settings"
     const val DASHBOARD = "common/dashboard"

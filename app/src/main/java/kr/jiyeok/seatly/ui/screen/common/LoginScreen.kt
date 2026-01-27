@@ -44,9 +44,8 @@ import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.presentation.viewmodel.AuthUiState
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
-import kr.jiyeok.seatly.ui.component.AuthButton
-import kr.jiyeok.seatly.ui.component.EmailInputField
-import kr.jiyeok.seatly.ui.component.PasswordInputField
+import kr.jiyeok.seatly.ui.component.common.EmailInputField
+import kr.jiyeok.seatly.ui.component.common.PasswordInputField
 import kr.jiyeok.seatly.ui.theme.*
 import kr.jiyeok.seatly.util.SharedPreferencesHelper
 
