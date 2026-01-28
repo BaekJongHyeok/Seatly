@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Seatly - 스터디카페 좌석 예약 서비스">
+    <title>Seatly - 스터디카페 좌석 예약</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        #root {
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            background: white;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: auto;
+            position: relative;
+        }
+        
+        @media (max-width: 480px) {
+            body {
+                background: white;
+            }
+            
+            #root {
+                max-width: 100%;
+                box-shadow: none;
+            }
+        }
+        
+        #loading {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: white;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 24px;
+            color: #666;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .loading-subtitle {
+            margin-top: 8px;
+            color: #999;
+            font-size: 14px;
+        }
+        
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div id="loading">
+            <div class="spinner"></div>
+            <p class="loading-text">Seatly 로딩 중...</p>
+            <p class="loading-subtitle">스터디카페 좌석 예약 서비스</p>
+        </div>
+    </div>
+    <script src="seatly.js"></script>
+</body>
+</html>
