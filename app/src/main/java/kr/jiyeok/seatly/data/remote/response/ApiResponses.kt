@@ -39,7 +39,7 @@ data class UserInfoDetailDto(
  */
 data class UserTimePassInfo(
     val id: Long,
-    val name: String,
+    val name: String?,
     val cafeId: Long,
     val leftTime: Long,
     val totalTime: Long
@@ -83,6 +83,18 @@ data class UserTimePass(
     val totalTime: Long
 )
 
+/**
+ * 시간권 요청 DTO
+ */
+data class TimePassRequestDto(
+    val id: Long,
+    val userId: Long,
+    val studyCafeId: Long,
+    val time: Long,
+    val status: String? = null, // "PENDING", "ACCEPTED", "REJECTED"
+    val createdAt: String? = null
+)
+
 // =====================================================
 // Study Cafe Responses
 // =====================================================
@@ -110,7 +122,8 @@ data class StudyCafeDetailDto(
     val phone: String?,
     val facilities: List<EFacility> = emptyList(),
     val openingHours: String? = null,
-    val description: String? = null
+    val description: String? = null,
+    val timePassList: List<Long>? = null
 )
 
 /**

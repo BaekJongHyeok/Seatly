@@ -94,6 +94,22 @@ class SeatlyRepositoryImpl @Inject constructor(
         safeApiCall { apiService.autoAssignSeat(studyCafeId) }
 
     // =====================================================
+    // Time Pass Requests
+    // =====================================================
+
+    override suspend fun requestTimePass(studyCafeId: Long, time: Long) =
+        safeApiCall { apiService.requestTimePass(studyCafeId, time) }
+
+    override suspend fun getTimePassRequests(studyCafeId: Long) =
+        safeApiCall { apiService.getTimePassRequests(studyCafeId) }
+
+    override suspend fun acceptTimePassRequest(requestId: Long) =
+        safeApiCall { apiService.acceptTimePassRequest(requestId) }
+
+    override suspend fun rejectTimePassRequest(requestId: Long) =
+        safeApiCall { apiService.rejectTimePassRequest(requestId) }
+
+    // =====================================================
     // Study Cafes
     // =====================================================
 

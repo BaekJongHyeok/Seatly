@@ -34,6 +34,7 @@ interface SeatlyRepository {
     // =====================================================
 
     suspend fun getUsersInfo(studyCafeId: Long): ApiResult<List<UserTimePassInfo>>
+
     suspend fun getUsersInfoById(userId: Long): ApiResult<UserInfoSummaryDto>
     suspend fun addUserTimePass(userId: Long, studyCafeId: Long, time: Long): ApiResult<Unit>
 
@@ -46,6 +47,15 @@ interface SeatlyRepository {
     suspend fun endSession(sessionId: Long): ApiResult<Unit>
     suspend fun assignSeat(seatId: String): ApiResult<SessionDto>
     suspend fun autoAssignSeat(studyCafeId: Long): ApiResult<SessionDto>
+
+    // =====================================================
+    // Time Pass Requests
+    // =====================================================
+
+    suspend fun requestTimePass(studyCafeId: Long, time: Long): ApiResult<Unit>
+    suspend fun getTimePassRequests(studyCafeId: Long): ApiResult<List<TimePassRequestDto>>
+    suspend fun acceptTimePassRequest(requestId: Long): ApiResult<Unit>
+    suspend fun rejectTimePassRequest(requestId: Long): ApiResult<Unit>
 
     // =====================================================
     // Study Cafes

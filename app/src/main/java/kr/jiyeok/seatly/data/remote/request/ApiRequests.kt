@@ -53,6 +53,19 @@ data class ChangePasswordRequest(
 )
 
 // =====================================================
+// Time Pass Request Requests
+// =====================================================
+
+/**
+ * POST /api/time-passes/request 요청
+ * 사용자가 시간권 요청
+ */
+data class RequestTimePassRequest(
+    val studyCafeId: Long,
+    val time: Long
+)
+
+// =====================================================
 // Study Cafe Requests
 // =====================================================
 
@@ -67,7 +80,8 @@ data class CreateCafeRequest(
     val phoneNumber: String?,
     val facilities: List<EFacility> = emptyList(),
     val openingHours: String? = null,
-    val description: String? = null
+    val description: String? = null,
+    val timePassList: List<Long>? = null
 )
 
 /**
@@ -81,7 +95,8 @@ data class UpdateCafeRequest(
     val phoneNumber: String?,
     val facilities: List<EFacility> = emptyList(),
     val openingHours: String? = null,
-    val description: String? = null
+    val description: String? = null,
+    val timePassList: List<Long>? = null
 )
 
 // =====================================================

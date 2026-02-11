@@ -142,7 +142,8 @@ fun UserCafeInfoTab(
                     selectedTab = selectedTab,
                     onTabSelected = { selectedTab = it },
                     scrollState = scrollState,
-                    navController = navController
+                    navController = navController,
+                    viewModel = viewModel
                 )
             }
         }
@@ -183,7 +184,8 @@ private fun BoxScope.CafeInfoContent(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     scrollState: ScrollState,
-    navController: NavController
+    navController: NavController,
+    viewModel: CafeDetailViewModel
 ) {
     val gallery = remember(uiState.cafeInfo?.imageUrls) {
         if (uiState.cafeInfo?.imageUrls.isNullOrEmpty()) {
@@ -226,7 +228,12 @@ private fun BoxScope.CafeInfoContent(
                 label = "tab_content_animation"
             ) { tab ->
                 if (tab == 0) {
-                    FeeSection()
+                    uiState.cafeInfo?.let { cafeInfo ->
+                        FeeSection(
+                            viewModel = viewModel,
+                            cafeId = cafeInfo.id
+                        )
+                    }
                 } else {
                     SeatStatusSection(uiState.cafeUsage)
                 }
@@ -451,23 +458,30 @@ private fun TabButton(
 }
 
 @Composable
-private fun FeeSection() {
+private fun FeeSection(
+    viewModel: CafeDetailViewModel,
+    cafeId: Long
+) {
+    // 시간권 데이터: 라벨과 분 단위 시간
     val fees = listOf(
-        "1시간" to 4500,
-        "4시간" to 17000,
-        "8시간" to 32000,
-        "회원권" to 80000
+        "1시간" to 60,
+        "4시간" to 240,
+        "8시간" to 480,
+        "12시간" to 720
     )
 
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = 10.dp)
     ) {
-        items(fees) { (label, price) ->
+        items(fees) { (label, timeInMinutes) ->
             Surface(
                 modifier = Modifier
                     .size(160.dp, 130.dp)
-                    .shadow(1.dp, RoundedCornerShape(20.dp)),
+                    .shadow(1.dp, RoundedCornerShape(20.dp))
+                    .clickable {
+                        viewModel.requestTimePass(cafeId, timeInMinutes.toLong())
+                    },
                 shape = RoundedCornerShape(20.dp),
                 color = ColorBgBeige
             ) {
@@ -477,26 +491,46 @@ private fun FeeSection() {
                         .fillMaxSize(),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = label,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ColorTextBlack
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ColorTextBlack
+                        )
+                        
+                        // "요청" 아이콘 또는 라벨
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = ColorPrimaryOrange.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = "요청",
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ColorPrimaryOrange
+                            )
+                        }
+                    }
 
                     Column {
                         Text(
-                            text = "₩${NumberFormat.getInstance().format(price)}",
+                            text = "${timeInMinutes}분",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = ColorPrimaryOrange
                         )
 
                         Text(
-                            text = "₩${NumberFormat.getInstance().format(price + 1000)}",
-                            fontSize = 13.sp,
+                            text = "터치하여 요청",
+                            fontSize = 11.sp,
                             color = ColorTextGray,
-                            textDecoration = TextDecoration.LineThrough
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }

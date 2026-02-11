@@ -7,6 +7,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -20,6 +21,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
+import kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel
 import kr.jiyeok.seatly.ui.component.common.BottomNavigationBar
 import kr.jiyeok.seatly.ui.screen.admin.AdminMyPageScreen
 import kr.jiyeok.seatly.ui.screen.common.DashboardScreen
@@ -37,6 +39,7 @@ import androidx.compose.runtime.collectAsState
 import kr.jiyeok.seatly.ui.screen.admin.AdminCafeDetailScreen
 import kr.jiyeok.seatly.ui.screen.admin.AdminHomeScreen
 import kr.jiyeok.seatly.ui.screen.admin.AdminCafeFormScreen
+import kr.jiyeok.seatly.ui.screen.admin.TimePassRequestsScreen
 import kr.jiyeok.seatly.ui.screen.common.NotificationsScreen
 import kr.jiyeok.seatly.ui.screen.user.UserCafeDetailScreen
 
@@ -232,6 +235,26 @@ private fun NavGraphBuilder.defineAdminRoutes(navController: NavController, auth
     composable("admin/cafe/update/{cafeId}", listOf(navArgument("cafeId") { type = NavType.StringType })) { backStackEntry ->
         val cafeId = backStackEntry.arguments?.getString("cafeId")
         AdminCafeFormScreen(navController = navController, cafeId = cafeId?.toLong())
+    }
+    
+    // 시간권 요청 목록
+    composable("admin/cafe/{cafeId}/timepass-requests", listOf(navArgument("cafeId") { type = NavType.LongType })) { backStackEntry ->
+        val cafeId = backStackEntry.arguments?.getLong("cafeId")
+        
+        if (cafeId != null) {
+            // Parent navigation entry의 ViewModel을 공유
+            val parentEntry = remember(backStackEntry) {
+                navController.getBackStackEntry("admin/cafe/{cafeId}")
+            }
+            
+            TimePassRequestsScreen(
+                viewModel = hiltViewModel(parentEntry),
+                cafeId = cafeId,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        } else {
+            Text("잘못된 접근입니다.")
+        }
     }
 }
 

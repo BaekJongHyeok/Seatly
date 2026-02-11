@@ -250,6 +250,58 @@ class AutoAssignSeatUseCase @Inject constructor(
 }
 
 // =====================================================
+// Time Pass Request UseCases
+// =====================================================
+
+/**
+ * POST /api/time-passes/request
+ * 사용자가 시간권 요청
+ */
+class RequestTimePassUseCase @Inject constructor(
+    private val repository: SeatlyRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
+    suspend operator fun invoke(studyCafeId: Long, time: Long): ApiResult<Unit> =
+        withContext(ioDispatcher) { repository.requestTimePass(studyCafeId, time) }
+}
+
+/**
+ * GET /api/time-passes/request
+ * 관리자가 요청 목록 조회
+ */
+class GetTimePassRequestsUseCase @Inject constructor(
+    private val repository: SeatlyRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
+    suspend operator fun invoke(studyCafeId: Long): ApiResult<List<TimePassRequestDto>> =
+        withContext(ioDispatcher) { repository.getTimePassRequests(studyCafeId) }
+}
+
+/**
+ * POST /api/time-passes/request/accept
+ * 관리자가 요청 수락
+ */
+class AcceptTimePassRequestUseCase @Inject constructor(
+    private val repository: SeatlyRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
+    suspend operator fun invoke(requestId: Long): ApiResult<Unit> =
+        withContext(ioDispatcher) { repository.acceptTimePassRequest(requestId) }
+}
+
+/**
+ * POST /api/time-passes/request/reject
+ * 관리자가 요청 거절
+ */
+class RejectTimePassRequestUseCase @Inject constructor(
+    private val repository: SeatlyRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
+    suspend operator fun invoke(requestId: Long): ApiResult<Unit> =
+        withContext(ioDispatcher) { repository.rejectTimePassRequest(requestId) }
+}
+
+// =====================================================
 // Study Cafe UseCases
 // =====================================================
 

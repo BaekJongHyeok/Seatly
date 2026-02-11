@@ -33,6 +33,9 @@ import kr.jiyeok.seatly.domain.usecase.GetCafeUsageUseCase
 import kr.jiyeok.seatly.domain.usecase.GetImageUseCase
 import kr.jiyeok.seatly.domain.usecase.GetSessionsUseCase
 import kr.jiyeok.seatly.domain.usecase.StartSessionUseCase
+import kr.jiyeok.seatly.domain.usecase.RequestTimePassUseCase
+import kr.jiyeok.seatly.domain.websocket.WebSocketManager
+import kr.jiyeok.seatly.data.remote.response.WebSocketMessage
 import javax.inject.Inject
 
 
@@ -45,6 +48,8 @@ class CafeDetailViewModel @Inject constructor(
     private val getSessionsUseCase: GetSessionsUseCase,
     private val assignSeatUseCase: AssignSeatUseCase,
     private val startSessionUseCase: StartSessionUseCase,
+    private val requestTimePassUseCase: RequestTimePassUseCase,
+    private val webSocketManager: WebSocketManager,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -93,6 +98,58 @@ class CafeDetailViewModel @Inject constructor(
     // 이미지 로딩 중복 방지
     private val loadingImageIds = mutableSetOf<String>()
     val isLoading: StateFlow<Boolean> = isAnyLoading
+    
+    // WebSocket 구독 IDs
+    private var studyCafeSubscriptionId: String? = null
+    private var seatEventsSubscriptionId: String? = null
+    private var timePassSubscriptionId: String? = null
+    
+    init {
+        // WebSocket 메시지 리스닝
+        viewModelScope.launch {
+            webSocketManager.messages.collect { message ->
+                when (message) {
+                    is WebSocketMessage.TimePassResponse -> {
+                        // 시간권 요청 응답 알림
+                        _events.send(message.message)
+                    }
+                    is WebSocketMessage.StudyCafeUpdate -> {
+                        // 스터디카페 업데이트 (좌석 현황 등)
+                        message.studyCafeId.let { cafeId ->
+                            loadCafeUsage(cafeId)
+                        }
+                    }
+                    is WebSocketMessage.SeatEvent -> {
+                        // 개인 좌석 이벤트
+                        _events.send(message.message)
+                    }
+                    else -> {
+                        // 다른 메시지 타입은 무시
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * WebSocket 연결 및 구독 시작
+     */
+    fun startWebSocketConnection(userId: Long, studyCafeId: Long, token: String) {
+        webSocketManager.connect(token)
+        studyCafeSubscriptionId = webSocketManager.subscribeToStudyCafe(studyCafeId)
+        seatEventsSubscriptionId = webSocketManager.subscribeToUserSeatEvents(userId)
+        timePassSubscriptionId = webSocketManager.subscribeToTimePassEvents(userId)
+    }
+    
+    /**
+     * WebSocket 연결 해제
+     */
+    fun stopWebSocketConnection() {
+        studyCafeSubscriptionId?.let { webSocketManager.unsubscribe(it) }
+        seatEventsSubscriptionId?.let { webSocketManager.unsubscribe(it) }
+        timePassSubscriptionId?.let { webSocketManager.unsubscribe(it) }
+        webSocketManager.disconnect()
+    }
 
 
     // =====================================================
@@ -318,6 +375,26 @@ class CafeDetailViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoadingAssignment = false) }
+                _events.send(e.message ?: "알 수 없는 오류")
+            }
+        }
+    }
+
+    /**
+     * 시간권 요청
+     */
+    fun requestTimePass(studyCafeId: Long, time: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                when (val result = requestTimePassUseCase(studyCafeId, time)) {
+                    is ApiResult.Success -> {
+                        _events.send("시간권 요청이 완료되었습니다. 관리자 승인 후 사용 가능합니다.")
+                    }
+                    is ApiResult.Failure -> {
+                        _events.send(result.message ?: "시간권 요청 실패")
+                    }
+                }
+            } catch (e: Exception) {
                 _events.send(e.message ?: "알 수 없는 오류")
             }
         }

@@ -198,7 +198,10 @@ private fun CafeDetailTabContent(
         )
         1 -> AdminCafeMembersTab(
             viewModel = viewModel,
-            cafeId = cafeId
+            cafeId = cafeId,
+            onNavigateToTimePassRequests = {
+                navController.navigate("admin/cafe/$cafeId/timepass-requests")
+            }
         )
         2 -> AdminCafeSeatInfoTab(
             viewModel = viewModel,

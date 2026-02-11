@@ -22,6 +22,7 @@ import kr.jiyeok.seatly.data.remote.response.SessionDto
 import kr.jiyeok.seatly.data.remote.response.StudyCafeDetailDto
 import kr.jiyeok.seatly.data.remote.response.UsageDto
 import kr.jiyeok.seatly.data.remote.response.UserTimePassInfo
+import kr.jiyeok.seatly.data.remote.response.UserInfoSummaryDto
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.di.IoDispatcher
 import kr.jiyeok.seatly.domain.usecase.AddUserTimePassUseCase
@@ -34,6 +35,13 @@ import kr.jiyeok.seatly.domain.usecase.GetImageUseCase
 import kr.jiyeok.seatly.domain.usecase.GetSessionsUseCase
 import kr.jiyeok.seatly.domain.usecase.GetUsersWithTimePassUseCase
 import kr.jiyeok.seatly.domain.usecase.UpdateSeatsUseCase
+import kr.jiyeok.seatly.domain.usecase.GetTimePassRequestsUseCase
+import kr.jiyeok.seatly.domain.usecase.AcceptTimePassRequestUseCase
+import kr.jiyeok.seatly.domain.usecase.RejectTimePassRequestUseCase
+import kr.jiyeok.seatly.domain.usecase.GetUserInfoAdminUseCase
+import kr.jiyeok.seatly.data.remote.response.TimePassRequestDto
+import kr.jiyeok.seatly.domain.websocket.WebSocketManager
+import kr.jiyeok.seatly.data.remote.response.WebSocketMessage
 import javax.inject.Inject
 
 @HiltViewModel
@@ -48,6 +56,11 @@ class AdminCafeDetailViewModel @Inject constructor(
     private val deleteSeatUseCase: DeleteSeatUseCase,
     private val getImageUseCase: GetImageUseCase,
     private val getSessionsUseCase: GetSessionsUseCase,
+    private val getTimePassRequestsUseCase: GetTimePassRequestsUseCase,
+    private val acceptTimePassRequestUseCase: AcceptTimePassRequestUseCase,
+    private val rejectTimePassRequestUseCase: RejectTimePassRequestUseCase,
+    private val getUserInfoAdminUseCase: GetUserInfoAdminUseCase,
+    private val webSocketManager: WebSocketManager,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -58,18 +71,30 @@ class AdminCafeDetailViewModel @Inject constructor(
     /**
      * 카페 상세 화면의 전체 UI 상태를 관리하는 데이터 클래스
      */
+    data class TimePassRequestWithUser(
+        val request: TimePassRequestDto,
+        val userName: String
+    )
+
+    data class MemberWithUserInfo(
+        val basicInfo: UserTimePassInfo,
+        val detailInfo: UserInfoSummaryDto?
+    )
+
     data class CafeDetailUiState(
         val cafeInfo: StudyCafeDetailDto? = null,
         val cafeUsage: UsageDto? = null,
-        val members: List<UserTimePassInfo> = emptyList(),
+        val members: List<MemberWithUserInfo> = emptyList(),
         val seats: List<SeatDto> = emptyList(),
         val sessions: List<SessionDto> = emptyList(),
+        val timePassRequests: List<TimePassRequestWithUser> = emptyList(),
         val images: Map<String, Bitmap> = emptyMap(),
         val isLoadingInfo: Boolean = false,
         val isLoadingUsage: Boolean = false,
         val isLoadingMembers: Boolean = false,
         val isLoadingSeats: Boolean = false,
         val isLoadingSessions: Boolean = false,
+        val isLoadingRequests: Boolean = false,
         val error: String? = null
     )
 
@@ -83,7 +108,8 @@ class AdminCafeDetailViewModel @Inject constructor(
                     state.isLoadingUsage ||
                     state.isLoadingMembers ||
                     state.isLoadingSeats ||
-                    state.isLoadingSessions
+                    state.isLoadingSessions ||
+                    state.isLoadingRequests
         }
         .stateIn(
             scope = viewModelScope,
@@ -97,6 +123,47 @@ class AdminCafeDetailViewModel @Inject constructor(
 
     // 이미지 로딩 중복 방지
     private val loadingImageIds = mutableSetOf<String>()
+    
+    // WebSocket 구독 ID
+    private var timePassSubscriptionId: String? = null
+    
+    init {
+        // WebSocket 메시지 리스닝
+        viewModelScope.launch {
+            webSocketManager.messages.collect { message ->
+                when (message) {
+                    is WebSocketMessage.TimePassRequest -> {
+                        // 새로운 시간권 요청 알림
+                        _events.send("새로운 시간권 요청: ${message.userName} (${message.requestedTime}분)")
+                        
+                        // 시간권 요청 목록 업데이트
+                        message.studyCafeId.let { cafeId ->
+                            loadTimePassRequests(cafeId)
+                        }
+                    }
+                    else -> {
+                        // 다른 메시지 타입은 무시
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * WebSocket 연결 및 구독 시작
+     */
+    fun startWebSocketConnection(adminUserId: Long, token: String) {
+        webSocketManager.connect(token)
+        timePassSubscriptionId = webSocketManager.subscribeToTimePassEvents(adminUserId)
+    }
+    
+    /**
+     * WebSocket 연결 해제
+     */
+    fun stopWebSocketConnection() {
+        timePassSubscriptionId?.let { webSocketManager.unsubscribe(it) }
+        webSocketManager.disconnect()
+    }
 
     // =====================================================
     // Public Methods
@@ -112,7 +179,8 @@ class AdminCafeDetailViewModel @Inject constructor(
                 async { loadCafeUsage(cafeId) },
                 async { loadCafeMembers(cafeId) },
                 async { loadSeatInfo(cafeId) },
-                async { loadSessions(cafeId) }
+                async { loadSessions(cafeId) },
+                async { loadTimePassRequests(cafeId) }
             )
         }
     }
@@ -171,6 +239,87 @@ class AdminCafeDetailViewModel @Inject constructor(
             } finally {
                 synchronized(loadingImageIds) {
                     loadingImageIds.remove(imageId)
+                }
+            }
+        }
+    }
+
+    /**
+     * 시간권 요청 목록 로드
+     */
+    fun loadTimePassRequests(cafeId: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            _uiState.update { it.copy(isLoadingRequests = true) }
+            try {
+                when (val result = getTimePassRequestsUseCase(cafeId)) {
+                    is ApiResult.Success -> {
+                        val requests = result.data ?: emptyList()
+                        
+                        // 각 요청에 대해 사용자 정보 조회 (병렬 처리)
+                        val requestsWithUser = requests.map { request ->
+                            async {
+                                val userResult = getUserInfoAdminUseCase(request.userId)
+                                val userName = if (userResult is ApiResult.Success) {
+                                    userResult.data?.name ?: "알 수 없음"
+                                } else {
+                                    "알 수 없음"
+                                }
+                                TimePassRequestWithUser(request, userName)
+                            }
+                        }.awaitAll()
+
+                        _uiState.update {
+                            it.copy(
+                                timePassRequests = requestsWithUser,
+                                isLoadingRequests = false
+                            )
+                        }
+                    }
+                    is ApiResult.Failure -> {
+                        _uiState.update { it.copy(isLoadingRequests = false) }
+                        _events.send(result.message ?: "시간권 요청 조회 실패")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoadingRequests = false) }
+                _events.send(e.message ?: "알 수 없는 오류")
+            }
+        }
+    }
+
+    /**
+     * 시간권 요청 수락
+     */
+    fun acceptTimePassRequest(requestId: Long, cafeId: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            when (val result = acceptTimePassRequestUseCase(requestId)) {
+                is ApiResult.Success -> {
+                    _events.send("시간권 요청을 수락했습니다.")
+                    // 요청 목록 새로고침
+                    loadTimePassRequests(cafeId)
+                    // 멤버 목록도 새로고침 (시간권이 추가되었으므로)
+                    loadCafeMembers(cafeId)
+                }
+                is ApiResult.Failure -> {
+                    _events.send(result.message ?: "요청 수락 실패")
+                }
+            }
+        }
+    }
+
+    /**
+     * 시간권 요청 거절
+     */
+    fun rejectTimePassRequest(requestId: Long, cafeId: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            when (val result = rejectTimePassRequestUseCase(requestId)) {
+                is ApiResult.Success -> {
+                    _events.send("시간권 요청을 거절했습니다.")
+                    // 요청 목록 새로고침
+                    loadTimePassRequests(cafeId)
+                }
+                is ApiResult.Failure -> {
+                    _events.send(result.message ?: "요청 거절 실패")
                 }
             }
         }
@@ -285,9 +434,23 @@ class AdminCafeDetailViewModel @Inject constructor(
             try {
                 when (val result = getCafeMembersUseCase(cafeId)) {
                     is ApiResult.Success -> {
+                        val members = result.data ?: emptyList()
+                        // 각 멤버의 상세 정보 조회 (병렬 처리)
+                        val membersWithInfo = members.map { member ->
+                            async {
+                                val userResult = getUserInfoAdminUseCase(member.id)
+                                val userInfo = if (userResult is ApiResult.Success) {
+                                    userResult.data
+                                } else {
+                                    null
+                                }
+                                MemberWithUserInfo(member, userInfo)
+                            }
+                        }.awaitAll()
+
                         _uiState.update {
                             it.copy(
-                                members = result.data ?: emptyList(),
+                                members = membersWithInfo,
                                 isLoadingMembers = false
                             )
                         }

@@ -179,6 +179,47 @@ interface ApiService {
     ): SessionDto
 
     // =====================================================
+    // TimePassRequestController - /api/time-passes/request
+    // =====================================================
+
+    /**
+     * POST /api/time-passes/request
+     * 사용자가 시간권 요청
+     */
+    @POST("time-passes/request")
+    suspend fun requestTimePass(
+        @Query("studyCafeId") studyCafeId: Long,
+        @Query("time") time: Long
+    ): Unit
+
+    /**
+     * GET /api/time-passes/request
+     * 관리자가 요청 목록 조회
+     */
+    @GET("time-passes/request")
+    suspend fun getTimePassRequests(
+        @Query("studyCafeId") studyCafeId: Long
+    ): List<TimePassRequestDto>
+
+    /**
+     * POST /api/time-passes/request/accept
+     * 관리자가 요청 수락
+     */
+    @POST("time-passes/request/accept")
+    suspend fun acceptTimePassRequest(
+        @Query("requestId") requestId: Long
+    ): Unit
+
+    /**
+     * POST /api/time-passes/request/reject
+     * 관리자가 요청 거절
+     */
+    @POST("time-passes/request/reject")
+    suspend fun rejectTimePassRequest(
+        @Query("requestId") requestId: Long
+    ): Unit
+
+    // =====================================================
     // StudyCafeController - /study-cafes
     // =====================================================
 
