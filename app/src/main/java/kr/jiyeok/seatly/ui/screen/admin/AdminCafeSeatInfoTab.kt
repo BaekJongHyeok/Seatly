@@ -17,9 +17,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -92,7 +97,8 @@ fun AdminCafeSeatInfoTab(
                         label = dto.name,
                         type = SeatType.NORMAL,
                         pos = mutableStateOf(pos),
-                        size = mutableStateOf(size)
+                        size = mutableStateOf(size),
+                        availabilityStatus = dto.status
                     )
                 )
             }
@@ -106,10 +112,23 @@ fun AdminCafeSeatInfoTab(
     val gridCellPx = with(density) { GridCellDp.toPx() }
 
     val selectedSeatId = remember { mutableStateOf<String?>(null) }
+    
+    // 사용자 정보 다이얼로그 상태
+    var showUserInfoDialog by remember { mutableStateOf(false) }
+    // Triple: MemberWithUserInfo?, seatLabel, EStatus
+    var selectedUserSession by remember { mutableStateOf<Triple<AdminCafeDetailViewModel.MemberWithUserInfo?, String, kr.jiyeok.seatly.data.remote.enums.EStatus?>?>(null) }
     val workspaceSize = remember { mutableStateOf(IntSize(0, 0)) }
 
     val isContentReady = remember(uiState.seats, uiState.isLoadingSeats) {
         !uiState.isLoadingSeats
+    }
+
+    // 편집 모드 진입 시 좌석 사용자 정보 패널 자동 좌기화
+    LaunchedEffect(isEditMode) {
+        if (isEditMode) {
+            showUserInfoDialog = false
+            selectedUserSession = null
+        }
     }
 
     val addItemAtCenter: (String) -> Unit = { prefix ->
@@ -160,7 +179,6 @@ fun AdminCafeSeatInfoTab(
 
                 val newLabel = when {
                     originalSeat.label.startsWith("WALL") -> {
-                        // ★ 복사할 때도 고유 번호 ★
                         val wallCount = seats.count { it.label.startsWith("WALL") }
                         "WALL_${wallCount + 1}"
                     }
@@ -193,35 +211,117 @@ fun AdminCafeSeatInfoTab(
         }
     }
 
+    val deleteSeat: () -> Unit = {
+        selectedSeatId.value?.let { id ->
+            seats.removeIf { it.id == id }
+            selectedSeatId.value = null
+        }
+    }
+
     Surface(
         color = ColorWhite,
         modifier = Modifier.fillMaxSize()
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTransformGestures { centroid, pan, zoom, _ ->
+                        val oldScale = scaleState.value
+                        val newScale = (oldScale * zoom).coerceIn(0.5f, 5f)
+                        translateX.value =
+                            (translateX.value - centroid.x) * (newScale / oldScale) + centroid.x + pan.x
+                        translateY.value =
+                            (translateY.value - centroid.y) * (newScale / oldScale) + centroid.y + pan.y
+                        scaleState.value = newScale
+                    }
+                }
+        ) {
             when {
                 !isContentReady -> {
                     LoadingView()
                 }
+                seats.isEmpty() && !isEditMode -> {
+                    // 좌석이 없을 때 안내 가이드
+                    EmptySeatGuide(
+                        onEditClick = { isEditMode = true },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 else -> {
                     SeatMapContent(
                         seats = seats,
-                        scaleState = scaleState,
-                        scaleAnimated = scaleAnimated,
+                        uiState = uiState,
+                        isEditMode = isEditMode,
+                        gridCellPx = gridCellPx,
+                        scale = scaleAnimated,
                         translateX = translateX,
                         translateY = translateY,
-                        workspaceSize = workspaceSize,
-                        gridCellPx = gridCellPx,
                         selectedSeatId = selectedSeatId,
-                        isEditMode = isEditMode,
-                        uiState = uiState,
-                        onEditModeToggle = { isEditMode = !isEditMode },
-                        onSave = {
-                            viewModel.saveSeatConfig(cafeId, seats)
-                            isEditMode = false
+                        onSeatClick = { seat, session, member, isOccupied ->
+                            if (!isEditMode && session != null) {
+                                selectedUserSession = Triple(member, seat.label, session.status)
+                                showUserInfoDialog = true
+                            } else if (isEditMode && !isOccupied) {
+                                selectedSeatId.value = seat.id
+                            }
                         },
-                        addItemAtCenter = addItemAtCenter,
-                        copySeat = copySeat
+                        copySeat = copySeat,
+                        onDelete = deleteSeat
                     )
+
+                    // 사용자 정보 패널 (뷰 모드 - 상단 슬라이드)
+                    AnimatedVisibility(
+                        visible = showUserInfoDialog && selectedUserSession != null,
+                        enter = slideInVertically(initialOffsetY = { -it }),
+                        exit = slideOutVertically(targetOffsetY = { -it }),
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    ) {
+                        if (selectedUserSession != null) {
+                            val (member, seatLabel, sessionStatus) = selectedUserSession!!
+                            SeatOccupantInfoPanel(
+                                seatLabel = seatLabel,
+                                member = member,
+                                sessionStatus = sessionStatus,
+                                onClose = { showUserInfoDialog = false }
+                            )
+                        }
+                    }
+
+                    // 편집 모드 제어
+                    if (isEditMode) {
+                        EditControlBar(
+                            selectedSeatId = selectedSeatId,
+                            seats = seats,
+                            isSaving = uiState.isLoadingSeats,
+                            addItemAtCenter = addItemAtCenter,
+                            onSave = {
+                                viewModel.saveSeatConfig(cafeId, seats)
+                                isEditMode = false
+                            }
+                        )
+                    } else {
+                        // 줌 컨트롤 (뷰 모드)
+                        ZoomControls(
+                            scaleState = scaleState,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = 16.dp, bottom = 90.dp)
+                        )
+                        FloatingActionButton(
+                            onClick = { isEditMode = true },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = 20.dp, bottom = 20.dp),
+                            containerColor = ColorPrimaryOrange,
+                            contentColor = ColorWhite
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "공간 편집"
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -257,35 +357,88 @@ private fun LoadingView() {
 }
 
 @Composable
+private fun EmptySeatGuide(
+    onEditClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.background(ColorWhite),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MaterialSymbol(
+                name = "chair",
+                size = 56.sp,
+                tint = ColorBorderLight
+            )
+
+            Text(
+                text = "등록된 좌석이 없습니다",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = ColorTextBlack
+            )
+
+            Text(
+                text = "편집 버튼을 눌러 좌석을 추가해보세요",
+                fontSize = 14.sp,
+                color = ColorTextGray
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = onEditClick,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ColorPrimaryOrange,
+                    contentColor = ColorWhite
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("좌석 편집 시작", fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
 private fun BoxScope.SeatMapContent(
-    seats: MutableList<Seat>,
-    scaleState: MutableState<Float>,
-    scaleAnimated: Float,
+    seats: List<Seat>,
+    uiState: AdminCafeDetailViewModel.CafeDetailUiState,
+    isEditMode: Boolean,
+    gridCellPx: Float,
+    scale: Float,
     translateX: MutableState<Float>,
     translateY: MutableState<Float>,
-    workspaceSize: MutableState<IntSize>,
-    gridCellPx: Float,
     selectedSeatId: MutableState<String?>,
-    isEditMode: Boolean,
-    uiState: AdminCafeDetailViewModel.CafeDetailUiState,
-    onEditModeToggle: () -> Unit,
-    onSave: () -> Unit,
-    addItemAtCenter: (String) -> Unit,
-    copySeat: () -> Unit
+    onSeatClick: (Seat, kr.jiyeok.seatly.data.remote.response.SessionDto?, AdminCafeDetailViewModel.MemberWithUserInfo?, Boolean) -> Unit,
+    copySeat: () -> Unit,
+    onDelete: () -> Unit
 ) {
+    val scaleAnimated by animateFloatAsState(targetValue = scale, label = "scale")
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .onSizeChanged { workspaceSize.value = it }
-            .pointerInput(Unit) {
-                detectTransformGestures { centroid, pan, zoom, _ ->
-                    val oldScale = scaleState.value
-                    val newScale = (oldScale * zoom).coerceIn(0.5f, 3f)
-                    translateX.value = (translateX.value - centroid.x) * (newScale / oldScale) + centroid.x + pan.x
-                    translateY.value = (translateY.value - centroid.y) * (newScale / oldScale) + centroid.y + pan.y
-                    scaleState.value = newScale
-                }
-            }
+            .then(
+                if (isEditMode) {
+                    Modifier.pointerInput(isEditMode) {
+                        detectTapGestures(onTap = {
+                            // 캔버스 빈 영역 탭 → 선택 해제
+                            selectedSeatId.value = null
+                        })
+                    }
+                } else Modifier
+            )
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val gridPx = gridCellPx * scaleAnimated
@@ -308,107 +461,70 @@ private fun BoxScope.SeatMapContent(
         seats.forEachIndexed { index, seat ->
             val isSelected = selectedSeatId.value == seat.id
 
-            // 실시간 상태 계산: 세션 정보 기반
-            val currentStatus = if (!isEditMode) {
-                // 편집 모드가 아닐 때만 실시간 상태 반영
-                val isOccupied = uiState.sessions.any { session ->
-                    session.seatId.toString() == seat.id
-                }
-                if (isOccupied) ESeatStatus.UNAVAILABLE else ESeatStatus.AVAILABLE
-            } else {
-                // 편집 모드일 때는 서버의 기본 상태 사용
-                uiState.seats
+            // 세션 기반 이용중 여부 — 편집 모드에서도 항상 계산
+            val matchingSession = uiState.sessions.find { session ->
+                session.seatId.toString() == seat.id
+            }
+            val isOccupied = matchingSession != null
+
+            val currentStatus = when {
+                isOccupied -> ESeatStatus.UNAVAILABLE
+                // 편집 모드: availabilityStatus 기반
+                isEditMode -> seat.availabilityStatus
+                // 뷰 모드: 서버 상태 기반
+                else -> uiState.seats
                     .find { it.id.toString() == seat.id }?.status
                     ?: ESeatStatus.AVAILABLE
             }
+
+            // 이용 중인 사용자 정보
+            val occupantMember = matchingSession?.let { session ->
+                uiState.members.find { it.basicInfo.userId == session.userId }
+            }
+            val occupantName = occupantMember?.let {
+                it.detailInfo?.name ?: it.basicInfo.name
+            }
+            val occupantLeftTime = occupantMember?.basicInfo?.leftTime
 
             SeatItem(
                 seat = seat,
                 scale = scaleAnimated,
                 translate = Offset(translateX.value, translateY.value),
-                isSelected = isSelected,
+                isSelected = isSelected && !isOccupied,
                 isEditMode = isEditMode,
-                status = currentStatus, // 계산된 상태 전달
+                isOccupied = isOccupied,
+                sessionStatus = matchingSession?.status,
+                status = currentStatus,
+                userName = occupantName,
+                leftTimeSeconds = occupantLeftTime,
                 gridSizePx = gridCellPx,
                 zIndex = if (isSelected) seats.size.toFloat() else index.toFloat(),
-                onSelect = { selectedSeatId.value = it }
+                onSelect = {
+                    onSeatClick(seat, matchingSession, occupantMember, isOccupied)
+                }
             )
         }
-
     }
 
     val selectedSeat = seats.find { it.id == selectedSeatId.value }
 
+    // ── 선택된 좌석 정보 패널 (하단 슬라이드) ───────────────────
     AnimatedVisibility(
         visible = isEditMode && selectedSeat != null,
-        enter = slideInVertically(initialOffsetY = { -it }),
-        exit = slideOutVertically(targetOffsetY = { -it }),
-        modifier = Modifier.align(Alignment.TopCenter)
+        enter = slideInVertically(initialOffsetY = { it }),
+        exit = slideOutVertically(targetOffsetY = { it }),
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .zIndex(2f)
     ) {
         selectedSeat?.let { seat ->
             SeatInfoPanel(
                 seat = seat,
                 gridCellPx = gridCellPx,
+                isOccupied = uiState.sessions.any { it.seatId.toString() == seat.id },
                 onClose = { selectedSeatId.value = null },
+                onDelete = onDelete,
                 onCopy = copySeat
-            )
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(
-                end = 16.dp,
-                bottom = if (isEditMode) 180.dp else 90.dp
-            ),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        FloatingActionButton(
-            onClick = {
-                scaleState.value = (scaleState.value + 0.2f).coerceAtMost(3f)
-            },
-            modifier = Modifier.size(ZoomButtonSize),
-            containerColor = ColorWhite,
-            contentColor = ColorTextBlack,
-            shape = CircleShape
-        ) {
-            MaterialSymbol("add")
-        }
-
-        FloatingActionButton(
-            onClick = {
-                scaleState.value = (scaleState.value - 0.2f).coerceAtLeast(0.5f)
-            },
-            modifier = Modifier.size(ZoomButtonSize),
-            containerColor = ColorWhite,
-            contentColor = ColorTextBlack,
-            shape = CircleShape
-        ) {
-            MaterialSymbol("remove")
-        }
-    }
-
-    if (isEditMode) {
-        EditControlBar(
-            selectedSeatId = selectedSeatId,
-            seats = seats,
-            isSaving = uiState.isLoadingSeats,
-            addItemAtCenter = addItemAtCenter,
-            onSave = onSave
-        )
-    } else {
-        FloatingActionButton(
-            onClick = onEditModeToggle,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 20.dp),
-            containerColor = ColorPrimaryOrange,
-            contentColor = ColorWhite
-        ) {
-            Icon(
-                imageVector = Icons.Default.Edit,
-                contentDescription = "공간 편집"
             )
         }
     }
@@ -418,9 +534,12 @@ private fun BoxScope.SeatMapContent(
 private fun SeatInfoPanel(
     seat: Seat,
     gridCellPx: Float,
+    isOccupied: Boolean,
     onClose: () -> Unit,
+    onDelete: () -> Unit,
     onCopy: () -> Unit
 ) {
+    var availabilityStatus by remember(seat.id) { mutableStateOf(seat.availabilityStatus) }
     var editingName by remember { mutableStateOf(seat.label) }
     var editingWidth by remember { mutableStateOf((seat.size.value.x / gridCellPx).roundToInt().toString()) }
     var editingHeight by remember { mutableStateOf((seat.size.value.y / gridCellPx).roundToInt().toString()) }
@@ -458,7 +577,7 @@ private fun SeatInfoPanel(
                 )
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
@@ -473,6 +592,20 @@ private fun SeatInfoPanel(
                         )
                     }
 
+                    // 삭제 버튼
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "삭제",
+                            tint = Color(0xFFE53935),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // X 버튼 — 패널 닫기만
                     IconButton(
                         onClick = onClose,
                         modifier = Modifier.size(32.dp)
@@ -484,6 +617,83 @@ private fun SeatInfoPanel(
                             modifier = Modifier.size(18.dp)
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 사용가능 / 사용불가 토글 (이용중 좌석은 수정 불가)
+            if (!isOccupied) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = ColorCardBg,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (availabilityStatus == ESeatStatus.AVAILABLE)
+                                ColorPrimaryOrange
+                            else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    availabilityStatus = ESeatStatus.AVAILABLE
+                                    seat.availabilityStatus = ESeatStatus.AVAILABLE
+                                }
+                        ) {
+                            Text(
+                                text = "사용 가능",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (availabilityStatus == ESeatStatus.AVAILABLE)
+                                    ColorWhite
+                                else ColorTextGray,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (availabilityStatus == ESeatStatus.UNAVAILABLE)
+                                Color(0xFFE53935)
+                            else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    availabilityStatus = ESeatStatus.UNAVAILABLE
+                                    seat.availabilityStatus = ESeatStatus.UNAVAILABLE
+                                }
+                        ) {
+                            Text(
+                                text = "사용 불가",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (availabilityStatus == ESeatStatus.UNAVAILABLE)
+                                    ColorWhite
+                                else ColorTextGray,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = ColorPrimaryOrange.copy(alpha = 0.1f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "🔒 현재 이용 중인 좌석입니다",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = ColorPrimaryOrange,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
                 }
             }
 
@@ -683,68 +893,7 @@ private fun EditableSizeRow(
     }
 }
 
-@Composable
-private fun BoxScope.EditControlBar(
-    selectedSeatId: MutableState<String?>,
-    seats: MutableList<Seat>,
-    addItemAtCenter: (String) -> Unit,
-    onSave: () -> Unit,
-    isSaving: Boolean = false
-) {
-    Box(
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(16.dp)
-            .fillMaxWidth()
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            elevation = CardDefaults.cardElevation(8.dp),
-            colors = CardDefaults.cardColors(ColorWhite)
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    ToolCircleWithLabel("chair", "좌석") {
-                        addItemAtCenter("")
-                    }
-                    ToolCircleWithLabel("rectangle", "벽") {
-                        addItemAtCenter("WALL")
-                    }
-                    ToolCircleWithLabel("delete", "삭제") {
-                        selectedSeatId.value?.let { id ->
-                            seats.removeIf { it.id == id }
-                            selectedSeatId.value = null
-                        }
-                    }
-                }
 
-                Button(
-                    onClick = onSave,
-                    enabled = !isSaving,
-                    colors = ButtonDefaults.buttonColors(ColorPrimaryOrange)
-                ) {
-                    if (isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = ColorWhite,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    Text("저장", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
 
 
 @Composable
@@ -754,7 +903,11 @@ private fun BoxScope.SeatItem(
     translate: Offset,
     isSelected: Boolean,
     isEditMode: Boolean,
+    isOccupied: Boolean = false,
+    sessionStatus: kr.jiyeok.seatly.data.remote.enums.EStatus? = null,
     status: ESeatStatus,
+    userName: String? = null,
+    leftTimeSeconds: Long? = null,
     gridSizePx: Float,
     zIndex: Float,
     onSelect: (String) -> Unit
@@ -766,6 +919,18 @@ private fun BoxScope.SeatItem(
         else -> seat.label
     }
 
+    // 남은 시간 포맷팅 (초 → 시간/분)
+    val formattedLeftTime = leftTimeSeconds?.let { seconds ->
+        val hours = seconds / 3600
+        val minutes = (seconds % 3600) / 60
+        when {
+            hours > 0 && minutes > 0 -> "${hours}h ${minutes}m"
+            hours > 0 -> "${hours}h"
+            minutes > 0 -> "${minutes}m"
+            else -> "0m"
+        }
+    }
+
     val pos by seat.pos
     val size by seat.size
     val screenX = pos.x * scale + translate.x
@@ -774,6 +939,25 @@ private fun BoxScope.SeatItem(
     val heightPx = size.y * scale
 
     val isResizing = remember { mutableStateOf(false) }
+
+    val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val seatTextSize = (12 * scale).sp
+    val seatTextLayout = if (displayText.isNotEmpty()) {
+        textMeasurer.measure(
+            text = displayText,
+            style = TextStyle(fontSize = seatTextSize, fontWeight = FontWeight.SemiBold)
+        )
+    } else null
+    val canShowSeatName = seatTextLayout == null || (widthPx >= seatTextLayout.size.width + (8 * scale) && heightPx >= seatTextLayout.size.height + (8 * scale))
+
+    val userTextSize = (10 * scale).sp
+    val userTextLayout = if (userName != null) {
+        textMeasurer.measure(
+            text = userName,
+            style = TextStyle(fontSize = userTextSize, fontWeight = FontWeight.SemiBold)
+        )
+    } else null
+    val canShowUserName = userTextLayout == null || (widthPx >= userTextLayout.size.width + (8 * scale) && heightPx >= (seatTextLayout?.size?.height?.toFloat() ?: 0f) + userTextLayout.size.height + (16 * scale))
 
     Box(
         modifier = Modifier
@@ -784,13 +968,15 @@ private fun BoxScope.SeatItem(
                 with(density) { heightPx.toDp() }
             )
     ) {
+        // 편집 모드에서 이용중인 좌석은 탭/드래그 모두 불가
+        val canEdit = isEditMode && !isOccupied
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .then(
-                    if (isEditMode && !isResizing.value) {
+                    if (!isResizing.value) {
                         Modifier
-                            .pointerInput(isSelected) {
+                            .pointerInput(isSelected, isEditMode, isOccupied) {
                                 detectTapGestures(
                                     onTap = {
                                         onSelect(seat.id)
@@ -798,7 +984,7 @@ private fun BoxScope.SeatItem(
                                 )
                             }
                             .then(
-                                if (isSelected) {
+                                if (canEdit && isSelected) {
                                     Modifier.pointerInput(Unit) {
                                         detectDragGestures(
                                             onDrag = { change, dragAmount ->
@@ -827,12 +1013,22 @@ private fun BoxScope.SeatItem(
         ) {
             val backgroundColor = when {
                 isWall -> if (isSelected && isEditMode) Color.DarkGray else Color.LightGray
-                !isEditMode && status == ESeatStatus.UNAVAILABLE -> ColorWarning
+                sessionStatus == kr.jiyeok.seatly.data.remote.enums.EStatus.ASSIGNED -> Color(0xFFF0F0F0)
+                sessionStatus == kr.jiyeok.seatly.data.remote.enums.EStatus.IN_USE -> Color(0xFFFFE0B2)
+                status == ESeatStatus.UNAVAILABLE -> ColorTextLightGray.copy(alpha = 0.5f)
                 else -> if (isSelected && isEditMode) {
                     ColorPrimaryOrange.copy(alpha = 0.2f)
                 } else {
                     ColorWhite
                 }
+            }
+            
+            val borderColor = when {
+                isWall -> if (isSelected && isEditMode) ColorPrimaryOrange else ColorBorderLight
+                sessionStatus == kr.jiyeok.seatly.data.remote.enums.EStatus.ASSIGNED -> ColorBorderLight.copy(alpha = 0.5f)
+                sessionStatus == kr.jiyeok.seatly.data.remote.enums.EStatus.IN_USE -> ColorPrimaryOrange
+                isSelected -> ColorPrimaryOrange
+                else -> ColorBorderLight
             }
 
             Card(
@@ -840,27 +1036,88 @@ private fun BoxScope.SeatItem(
                 modifier = Modifier
                     .fillMaxSize()
                     .border(
-                        width = if (isSelected && isEditMode) 3.dp else 1.dp,
-                        color = if (isSelected && isEditMode) ColorPrimaryOrange else ColorBorderLight,
+                        width = if (isSelected && isEditMode) 2.dp else 1.dp,
+                        color = borderColor,
                         shape = if (isWall) RoundedCornerShape(0.dp) else RoundedCornerShape(8.dp)
                     ),
-                colors = CardDefaults.cardColors(backgroundColor)
+                colors = CardDefaults.cardColors(backgroundColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = if (isOccupied) 1.dp else 2.dp)
             ) {
                 Box(
                     Modifier.fillMaxSize(),
                     Alignment.Center
                 ) {
-                    Text(
-                        text = displayText,
-                        fontSize = (12 * scale).sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
+                    if (!isWall) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            if (isOccupied && canShowUserName) {
+                                if (sessionStatus == kr.jiyeok.seatly.data.remote.enums.EStatus.ASSIGNED) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "점유중",
+                                        tint = ColorTextGray,
+                                        modifier = Modifier.size(with(density) { (12 * scale).dp })
+                                    )
+                                } else if (sessionStatus == kr.jiyeok.seatly.data.remote.enums.EStatus.IN_USE) {
+                                    Icon(
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = "이용중",
+                                        tint = ColorPrimaryOrange,
+                                        modifier = Modifier.size(with(density) { (12 * scale).dp })
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(with(density) { (2 * scale).dp }))
+                            }
+
+                            if (canShowSeatName && displayText.isNotEmpty()) {
+                                Text(
+                                    text = displayText,
+                                    fontSize = seatTextSize,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isOccupied) ColorTextGray else if (status == ESeatStatus.UNAVAILABLE) Color(0xFF757575) else ColorTextBlack,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            
+                            if (canShowUserName && userName != null && isOccupied) {
+                                Text(
+                                    text = userName,
+                                    fontSize = userTextSize,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (sessionStatus == kr.jiyeok.seatly.data.remote.enums.EStatus.IN_USE) ColorPrimaryOrange else ColorTextGray,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        if (isEditMode && isSelected) {
+        // 편집 모드 이용중 좌석: 오렌지/회색 테두리 + 자물쇠 아이콘
+        if (isEditMode && isOccupied) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(
+                        width = 2.dp,
+                        color = if (sessionStatus == kr.jiyeok.seatly.data.remote.enums.EStatus.IN_USE) ColorPrimaryOrange else ColorTextGray,
+                        shape = if (isWall) RoundedCornerShape(0.dp) else RoundedCornerShape(8.dp)
+                    )
+                    .background(Color.Transparent),
+                contentAlignment = Alignment.Center
+            ) {
+                kr.jiyeok.seatly.ui.component.common.MaterialSymbol(
+                    name = "lock",
+                    size = (with(density) { (minOf(widthPx, heightPx) * 0.35f).toDp().value }).coerceIn(10f, 24f).sp,
+                    tint = if (sessionStatus == kr.jiyeok.seatly.data.remote.enums.EStatus.IN_USE) ColorPrimaryOrange else ColorTextGray
+                )
+            }
+        }
+
+        if (canEdit && isSelected) {
             ResizeHandles(seat, scale, gridSizePx, isResizing)
         }
     }
@@ -1019,6 +1276,214 @@ private fun BoxScope.ResizeHandle(
                 )
             }
     )
+}
+
+@Composable
+private fun SeatOccupantInfoPanel(
+    seatLabel: String,
+    member: AdminCafeDetailViewModel.MemberWithUserInfo?,
+    sessionStatus: kr.jiyeok.seatly.data.remote.enums.EStatus?,
+    onClose: () -> Unit
+) {
+    val userName = member?.detailInfo?.name ?: member?.basicInfo?.name ?: "알 수 없음"
+    val leftTime = member?.basicInfo?.leftTime
+
+    Surface(
+        color = ColorWhite,
+        shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
+        shadowElevation = 8.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "좌석 정보",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ColorTextBlack
+                )
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = "닫기", tint = ColorTextGray)
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "좌석 번호",
+                        fontSize = 12.sp,
+                        color = ColorTextGray
+                    )
+                    Text(
+                        text = seatLabel,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = ColorTextBlack
+                    )
+                }
+                
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "사용자",
+                        fontSize = 12.sp,
+                        color = ColorTextGray
+                    )
+                    Text(
+                        text = userName,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = ColorTextBlack
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "남은 시간",
+                        fontSize = 12.sp,
+                        color = ColorTextGray
+                    )
+                    val formattedTime = leftTime?.let { seconds ->
+                        val hours = seconds / 3600
+                        val minutes = (seconds % 3600) / 60
+                        "${hours}시간 ${minutes}분"
+                    } ?: "-"
+                    Text(
+                        text = formattedTime,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorPrimaryOrange
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ZoomControls(
+    scaleState: MutableState<Float>,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        FloatingActionButton(
+            onClick = {
+                scaleState.value = (scaleState.value + 0.2f).coerceAtMost(3f)
+            },
+            modifier = Modifier.size(40.dp),
+            containerColor = ColorWhite,
+            contentColor = ColorTextBlack,
+            shape = CircleShape
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "확대")
+        }
+
+        FloatingActionButton(
+            onClick = {
+                scaleState.value = (scaleState.value - 0.2f).coerceAtLeast(0.5f)
+            },
+            modifier = Modifier.size(40.dp),
+            containerColor = ColorWhite,
+            contentColor = ColorTextBlack,
+            shape = CircleShape
+        ) {
+            Icon(Icons.Default.Remove, contentDescription = "축소")
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.EditControlBar(
+    selectedSeatId: MutableState<String?>,
+    seats: MutableList<Seat>,
+    isSaving: Boolean,
+    addItemAtCenter: (String) -> Unit,
+    onSave: () -> Unit
+) {
+    val selectedSeat = seats.find { it.id == selectedSeatId.value }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .align(Alignment.BottomCenter)
+            .zIndex(1f)
+            .shadow(16.dp, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        color = ColorWhite
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ToolCircleWithLabel(
+                    symbolName = "add_box", // Material Symbol needed, or Icon
+                    label = "좌석 추가"
+                ) { addItemAtCenter("SEAT") }
+
+                ToolCircleWithLabel(
+                    symbolName = "check_box_outline_blank",
+                    label = "벽 추가"
+                ) { addItemAtCenter("WALL") }
+
+
+                if (selectedSeat != null) {
+                    ToolCircleWithLabel(
+                        symbolName = "delete",
+                        label = "삭제"
+                    ) {
+                        seats.remove(selectedSeat)
+                        selectedSeatId.value = null
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = onSave,
+                enabled = !isSaving,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ColorPrimaryOrange,
+                    disabledContainerColor = ColorPrimaryOrange.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        color = ColorWhite,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Text(
+                        text = "변경사항 저장",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorWhite
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

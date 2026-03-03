@@ -194,9 +194,31 @@ private fun NavGraphBuilder.defineUserRoutes(navController: NavController, authV
         val cafeId = backStackEntry.arguments?.getString("cafeId")
 
         if (cafeId != null) {
-            UserCafeDetailScreen(navController, cafeId.toLong())
+            UserCafeDetailScreen(navController, cafeId.toLong(), authViewModel = authViewModel)
         } else {
             Text("잘못된 접근입니다.")
+        }
+    }
+
+    // 좌석 선택 화면 (상세 화면의 ViewModel 공유)
+    composable(
+        "user/cafe/{cafeId}/seats",
+        listOf(navArgument("cafeId") { type = NavType.StringType })
+    ) { backStackEntry ->
+        val cafeIdStr = backStackEntry.arguments?.getString("cafeId")
+        if (cafeIdStr != null) {
+            val cafeId = cafeIdStr.toLong()
+            // Parent entry (UserCafeDetailScreen)의 ViewModel 가져오기
+            val parentEntry = remember(backStackEntry) {
+                navController.getBackStackEntry("user/cafe/{cafeId}")
+            }
+            val sharedViewModel: kr.jiyeok.seatly.presentation.viewmodel.CafeDetailViewModel = hiltViewModel(parentEntry)
+
+            kr.jiyeok.seatly.ui.screen.user.UserCafeSeatSelectionScreen(
+                navController = navController,
+                viewModel = sharedViewModel,
+                cafeId = cafeId
+            )
         }
     }
 }

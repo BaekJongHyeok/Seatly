@@ -17,7 +17,7 @@ object StompProtocol {
             append("CONNECT\n")
             append("accept-version:1.1,1.2\n")
             append("heart-beat:10000,10000\n")
-            append("Authorization:Bearer $token\n")
+            append("Authorization: Bearer $token\n")
             append("\n")
             append(NULL_CHAR)
         }

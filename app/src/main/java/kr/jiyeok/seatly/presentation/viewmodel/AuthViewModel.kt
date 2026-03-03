@@ -12,6 +12,7 @@ import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.data.remote.response.UserInfoDetailDto
 import kr.jiyeok.seatly.data.remote.response.UserInfoSummaryDto
 import kr.jiyeok.seatly.domain.usecase.*
+import kr.jiyeok.seatly.domain.websocket.WebSocketManager
 import javax.inject.Inject
 
 /**
@@ -41,7 +42,8 @@ sealed interface AuthUiState {
 class AuthViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
     private val logoutUseCase: LogoutUseCase,
-    private val signUpUseCase: RegisterUseCase
+    private val signUpUseCase: RegisterUseCase,
+    private val webSocketManager: WebSocketManager
 ) : ViewModel() {
 
     // =====================================================
@@ -145,6 +147,9 @@ class AuthViewModel @Inject constructor(
                         _userData.value = null
                         _userRole.value = ERole.USER
 
+                        // Disconnect global WebSocket
+                        webSocketManager.disconnect()
+                        
                         _authState.value = AuthUiState.Idle
                         _events.send("로그아웃 되었습니다")
                     }

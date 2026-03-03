@@ -1,14 +1,17 @@
 package kr.jiyeok.seatly.ui.screen.admin
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,9 +19,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import kr.jiyeok.seatly.data.remote.response.UserTimePassInfo
 import kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel
 import kr.jiyeok.seatly.ui.theme.*
@@ -123,7 +129,9 @@ fun AdminCafeMembersTab(
                     }
                     else -> {
                         // 멤버 리스트
-                        MemberList(members = filteredMembers)
+                        MemberList(
+                            members = filteredMembers
+                        )
                     }
                 }
             }
@@ -293,7 +301,7 @@ private fun TimePassRequestItem(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "$userName (${request.userId})",
+                        text = userName,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = ColorTextBlack
@@ -530,17 +538,34 @@ private fun MemberListHeader(
  * 멤버 리스트
  */
 @Composable
-private fun MemberList(members: List<kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel.MemberWithUserInfo>) {
+private fun MemberList(
+    members: List<kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel.MemberWithUserInfo>
+) {
+    var selectedMember by remember {
+        mutableStateOf<kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel.MemberWithUserInfo?>(null)
+    }
+
+    // 멤버 상세 다이얼로그
+    selectedMember?.let { member ->
+        MemberDetailDialog(
+            member = member,
+            onDismiss = { selectedMember = null }
+        )
+    }
+
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 80.dp) // FAB 공간 확보
+        contentPadding = PaddingValues(bottom = 80.dp)
     ) {
         items(
             items = members,
-            key = { it.basicInfo.id }
+            key = { it.basicInfo.userId }
         ) { member ->
-            MemberItem(member = member)
+            MemberItem(
+                member = member,
+                onClick = { selectedMember = member }
+            )
         }
     }
 }
@@ -549,133 +574,346 @@ private fun MemberList(members: List<kr.jiyeok.seatly.presentation.viewmodel.Adm
  * 멤버 아이템
  */
 @Composable
-private fun MemberItem(member: kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel.MemberWithUserInfo) {
+private fun MemberItem(
+    member: kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel.MemberWithUserInfo,
+    onClick: () -> Unit
+) {
+    val leftTimeSeconds = member.basicInfo.leftTime
+    val hours = leftTimeSeconds / 3600
+    val minutes = (leftTimeSeconds % 3600) / 60
+    val formattedTime = when {
+        hours > 0 && minutes > 0 -> "${hours}시간 ${minutes}분"
+        hours > 0 -> "${hours}시간"
+        minutes > 0 -> "${minutes}분"
+        else -> "없음"
+    }
+    val hasTime = leftTimeSeconds > 0
+    val timeColor = when {
+        hours >= 1 -> ColorPrimaryOrange
+        hasTime   -> ColorWarning
+        else      -> ColorTextGray
+    }
+
+    val name = member.detailInfo?.name ?: member.basicInfo.name ?: "?"
+    val initial = name.firstOrNull()?.toString() ?: "?"
+    val phone = member.detailInfo?.phone
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(16.dp)),
+            .shadow(1.dp, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         color = ColorBgBeige
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
+            // ── 아바타 ──────────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(ColorPrimaryOrange),
+                contentAlignment = Alignment.Center
             ) {
-                // 프로필 이미지
-                val imageUrl = member.detailInfo?.imageUrl
-                val name = member.detailInfo?.name ?: member.basicInfo.name ?: "?"
-                
-                if (!imageUrl.isNullOrEmpty()) {
-                     coil.compose.AsyncImage(
-                        model = imageUrl,
-                        contentDescription = "Profile Image",
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(ColorPrimaryOrange.copy(alpha = 0.1f)),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(ColorPrimaryOrange.copy(alpha = 0.1f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = name.firstOrNull()?.toString() ?: "?",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = ColorPrimaryOrange
-                        )
-                    }
-                }
+                Text(
+                    text = initial,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ColorWhite
+                )
+            }
 
-                // 멤버 정보
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = member.detailInfo?.name ?: member.basicInfo.name ?: "이름 없음",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = ColorTextBlack
-                        )
-                        
-                        // 전화번호 표시
-                        member.detailInfo?.phone?.let { phone ->
-                            Text(
-                                text = phone,
-                                fontSize = 12.sp,
-                                color = ColorTextGray
-                            )
-                        }
+            Spacer(modifier = Modifier.width(14.dp))
 
-                        // 잔여 시간 표시
-                        if (member.basicInfo.leftTime > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        ColorPrimaryOrange.copy(alpha = 0.1f),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "${member.basicInfo.leftTime}분 남음",
-                                    fontSize = 10.sp,
-                                    color = ColorPrimaryOrange,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
-
-                    // 추가 정보 (이메일 등)
+            // ── 멤버 정보 ──────────────────────────────────────
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = ColorTextBlack
+                )
+                if (!phone.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = "ID: ${member.basicInfo.id}",
+                        text = phone,
                         fontSize = 12.sp,
                         color = ColorTextGray
                     )
                 }
             }
 
-            // 잔여 시간 큰 숫자로 표시
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
+            // ── 잔여 시간 ──────────────────────────────────────
+            Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "${member.basicInfo.leftTime}",
-                    fontSize = 20.sp,
+                    text = formattedTime,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (member.basicInfo.leftTime > 60) {
-                        ColorPrimaryOrange
-                    } else if (member.basicInfo.leftTime > 0) {
-                        ColorWarning
-                    } else {
-                        ColorTextGray
-                    }
+                    color = timeColor
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "분",
-                    fontSize = 12.sp,
+                    text = "잔여 시간",
+                    fontSize = 11.sp,
                     color = ColorTextGray
                 )
             }
+        }
+    }
+}
+
+// =====================================================
+// Member Detail Dialog
+// =====================================================
+
+/**
+ * 멤버 상세 정보 다이얼로그
+ */
+@Composable
+private fun MemberDetailDialog(
+    member: kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel.MemberWithUserInfo,
+    onDismiss: () -> Unit
+) {
+    val name    = member.detailInfo?.name  ?: member.basicInfo.name ?: "이름 없음"
+    val email   = member.detailInfo?.email
+    val phone   = member.detailInfo?.phone
+    val initial = name.firstOrNull()?.toString() ?: "?"
+
+    val leftSec   = member.basicInfo.leftTime
+    val totalSec  = member.basicInfo.totalTime
+    val leftHours = leftSec / 3600
+    val leftMins  = (leftSec % 3600) / 60
+    val formattedLeft = when {
+        leftHours > 0 && leftMins > 0 -> "${leftHours}시간 ${leftMins}분"
+        leftHours > 0                  -> "${leftHours}시간"
+        leftMins  > 0                  -> "${leftMins}분"
+        else                           -> "없음"
+    }
+    val totalHours = totalSec / 3600
+    val totalMins  = (totalSec % 3600) / 60
+    val formattedTotal = when {
+        totalHours > 0 && totalMins > 0 -> "${totalHours}시간 ${totalMins}분"
+        totalHours > 0                   -> "${totalHours}시간"
+        totalMins  > 0                   -> "${totalMins}분"
+        else                             -> "없음"
+    }
+    // 진행 비율 (0f ~ 1f)
+    val progress = if (totalSec > 0) (leftSec.toFloat() / totalSec).coerceIn(0f, 1f) else 0f
+    val timeColor = when {
+        leftHours >= 1  -> ColorPrimaryOrange
+        leftSec   > 0  -> ColorWarning
+        else            -> ColorTextGray
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = ColorWhite,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // ── 프로필 아바타 ──────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .size(76.dp)
+                        .clip(CircleShape)
+                        .background(ColorPrimaryOrange),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = initial,
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorWhite
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ── 이름 ──────────────────────────────────────
+                Text(
+                    text = name,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ColorTextBlack,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // ── 연락처 정보 섹션 ──────────────────────────
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = ColorBgBeige,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (!phone.isNullOrBlank()) {
+                            MemberInfoRow(
+                                icon = Icons.Default.Phone,
+                                label = "전화번호",
+                                value = phone
+                            )
+                        }
+                        if (!email.isNullOrBlank()) {
+                            if (!phone.isNullOrBlank()) {
+                                HorizontalDivider(color = ColorBorderLight)
+                            }
+                            MemberInfoRow(
+                                icon = Icons.Default.Email,
+                                label = "이메일",
+                                value = email
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ── 시간권 섹션 ───────────────────────────────
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = ColorBgBeige,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "시간권",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = ColorTextGray
+                            )
+                            Text(
+                                text = "총 $formattedTotal",
+                                fontSize = 12.sp,
+                                color = ColorTextGray
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 잔여 시간 강조 표시
+                        Text(
+                            text = formattedLeft,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = timeColor
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // 프로그레스 바
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(ColorBorderLight)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction = progress)
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(timeColor)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = "잔여 ${(progress * 100).toInt()}%",
+                            fontSize = 11.sp,
+                            color = ColorTextGray,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(22.dp))
+
+                // ── 닫기 버튼 ─────────────────────────────────
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ColorPrimaryOrange,
+                        contentColor = ColorWhite
+                    )
+                ) {
+                    Text(
+                        text = "닫기",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 다이얼로그 내 정보 행 (아이콘 + 레이블 + 값)
+ */
+@Composable
+private fun MemberInfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(ColorPrimaryOrange.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = ColorPrimaryOrange,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Column {
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                color = ColorTextGray
+            )
+            Text(
+                text = value,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = ColorTextBlack
+            )
         }
     }
 }

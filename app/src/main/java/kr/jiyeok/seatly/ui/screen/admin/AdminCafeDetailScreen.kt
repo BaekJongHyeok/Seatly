@@ -1,8 +1,10 @@
 package kr.jiyeok.seatly.ui.screen.admin
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -10,6 +12,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,11 +42,19 @@ fun AdminCafeDetailScreen(
 
     // 탭 상태
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("상세 정보", "카페 유저", "좌석 현황")
+    val tabs = listOf("좌석 현황", "카페 사용자", "카페 정보")
+
+    // 삭제 확인 다이얼로그 상태
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     // 초기 데이터 로드
     LaunchedEffect(cafeId) {
         viewModel.loadCafeDetailInfos(cafeId)
+    }
+
+    // WebSocket 구독 관리
+    LaunchedEffect(cafeId) {
+        viewModel.subscribeToCafeEvents(cafeId)
     }
 
     // 이벤트 처리 (Toast 메시지)
@@ -53,11 +64,66 @@ fun AdminCafeDetailScreen(
         }
     }
 
+    // 카페 삭제 완료 시 뒤로가기
+    LaunchedEffect(Unit) {
+        viewModel.cafeDeleted.collect { deleted ->
+            if (deleted) {
+                navController.popBackStack()
+            }
+        }
+    }
+
+    // 삭제 확인 다이얼로그
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            containerColor = ColorWhite,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(
+                    text = "카페 삭제",
+                    fontWeight = FontWeight.Bold,
+                    color = ColorTextBlack
+                )
+            },
+            text = {
+                Text(
+                    text = "이 카페를 정말 삭제하시겠습니까?\n삭제된 카페는 복구할 수 없습니다.",
+                    color = ColorTextGray,
+                    lineHeight = 22.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        viewModel.deleteCafe(cafeId)
+                    }
+                ) {
+                    Text(
+                        text = "삭제",
+                        color = Color(0xFFE53935),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(
+                        text = "취소",
+                        color = ColorTextGray
+                    )
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             AdminCafeDetailTopBar(
                 title = uiState.cafeInfo?.name ?: "카페 관리",
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onDeleteClick = { showDeleteDialog = true }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -109,8 +175,11 @@ fun AdminCafeDetailScreen(
 @Composable
 private fun AdminCafeDetailTopBar(
     title: String,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     AppTopBar(
         title = title,
         leftContent = {
@@ -123,6 +192,45 @@ private fun AdminCafeDetailTopBar(
                     .clickable { onBackClick() }
             )
         },
+        rightContent = {
+            Box {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "더보기",
+                    tint = ColorTextBlack,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable { menuExpanded = true }
+                )
+
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    containerColor = ColorWhite
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = "카페 삭제",
+                                color = Color(0xFFE53935),
+                                fontWeight = FontWeight.Medium
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onDeleteClick()
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = Color(0xFFE53935)
+                            )
+                        }
+                    )
+                }
+            }
+        }
     )
 }
 
@@ -192,9 +300,9 @@ private fun CafeDetailTabContent(
     cafeId: Long
 ) {
     when (selectedTabIndex) {
-        0 -> AdminCafeInfoTab(
+        0 -> AdminCafeSeatInfoTab(
             viewModel = viewModel,
-            navController = navController
+            cafeId = cafeId
         )
         1 -> AdminCafeMembersTab(
             viewModel = viewModel,
@@ -203,9 +311,9 @@ private fun CafeDetailTabContent(
                 navController.navigate("admin/cafe/$cafeId/timepass-requests")
             }
         )
-        2 -> AdminCafeSeatInfoTab(
+        2 -> AdminCafeInfoTab(
             viewModel = viewModel,
-            cafeId = cafeId
+            navController = navController
         )
     }
 }

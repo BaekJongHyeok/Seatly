@@ -22,7 +22,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavController
+import kr.jiyeok.seatly.R
 
 private val ColorPrimaryOrange = Color(0xFFFFA500)
 private val ColorTextBlack = Color(0xFF000000)
@@ -45,16 +47,40 @@ private val ColorText = Color(0xFF666666)
 fun AppSettings(
     navController: NavController
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var isDarkMode by remember { mutableStateOf(false) }
-    var selectedLanguage by remember { mutableStateOf("한국어") }
+    
+    // Load saved language
+    val savedLanguageCode = remember { 
+        kr.jiyeok.seatly.util.LocaleHelper.getLanguage(context) 
+    }
+    
+    // Map code to display name
+    val codeToNameMap = mapOf(
+        "ko" to "한국어",
+        "en" to "English",
+        "ja" to "日本語",
+        "zh" to "中文"
+    )
+    val nameToCodeMap = codeToNameMap.entries.associate { (k, v) -> v to k }
+    
+    var selectedLanguage by remember { mutableStateOf(codeToNameMap[savedLanguageCode] ?: "한국어") }
     var showLanguageDialog by remember { mutableStateOf(false) }
-    val languageOptions = listOf("한국어", "English", "日本語", "中文")
+    val languageOptions = codeToNameMap.values.toList()
 
     if (showLanguageDialog) {
         LanguageSelectionDialog(
             selectedLanguage = selectedLanguage,
             languages = languageOptions,
-            onLanguageSelected = { selectedLanguage = it },
+            onLanguageSelected = { displayName ->
+                selectedLanguage = displayName
+                showLanguageDialog = false
+                
+                // Save and Restart
+                val code = nameToCodeMap[displayName] ?: "ko"
+                kr.jiyeok.seatly.util.LocaleHelper.setLocale(context, code)
+                (context as? android.app.Activity)?.recreate()
+            },
             onDismiss = { showLanguageDialog = false }
         )
     }
@@ -80,7 +106,7 @@ fun AppSettings(
                     .align(Alignment.CenterStart)
             )
             Text(
-                text = "앱 설정",
+                text = stringResource(R.string.settings_title),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = ColorTextBlack,
@@ -122,7 +148,7 @@ fun AppSettings(
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        text = "테마 설정",
+                        text = stringResource(R.string.settings_theme),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = ColorTextBlack
@@ -179,7 +205,7 @@ fun AppSettings(
                     )
 
                     Text(
-                        text = "언어 설정",
+                        text = stringResource(R.string.settings_language),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = ColorTextBlack
@@ -216,7 +242,7 @@ fun AppSettings(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = "앱 버전",
+                    text = stringResource(R.string.settings_version),
                     fontSize = 12.sp,
                     color = ColorTextLightGray
                 )
@@ -263,7 +289,7 @@ private fun LanguageSelectionDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "언어 선택",
+                    text = stringResource(R.string.settings_language_select_title),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = ColorTextBlack
@@ -339,7 +365,7 @@ private fun LanguageSelectionDialog(
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text(
-                        text = "닫기",
+                        text = stringResource(R.string.settings_close),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = ColorWhite

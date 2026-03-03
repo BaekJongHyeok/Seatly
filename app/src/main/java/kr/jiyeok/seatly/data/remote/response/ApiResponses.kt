@@ -23,6 +23,7 @@ data class ApiResponse<T>(
  * 로그인한 사용자 정보 조회
  */
 data class UserInfoDetailDto(
+    val userId: Long = 0,
     val email: String,
     val name: String,
     val phone: String?,
@@ -38,7 +39,7 @@ data class UserInfoDetailDto(
  * 시간권이 남아있는 사용자 정보
  */
 data class UserTimePassInfo(
-    val id: Long,
+    val userId: Long,
     val name: String?,
     val cafeId: Long,
     val leftTime: Long,
@@ -50,6 +51,8 @@ data class UserTimePassInfo(
  * 사용자 정보 조회
  */
 data class UserInfoSummaryDto(
+    val id: Long = 0,
+    val userId: Long = 0,
     val email: String,
     val name: String,
     val phone: String?,
@@ -71,7 +74,9 @@ data class SessionDto(
     val studyCafeId: Long,
     val seatId: Long,
     val status: EStatus,
-    val startTime: String // "2026-01-02T02:35:42Z” 형태의 UTC 타임 문자열
+    val startTime: String, // "2026-01-02T02:35:42Z” 형태의 UTC 타임 문자열
+    val userName: String? = null,
+    val endTime: String? = null
 )
 
 /**

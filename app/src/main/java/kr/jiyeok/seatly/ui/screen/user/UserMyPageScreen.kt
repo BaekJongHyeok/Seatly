@@ -14,8 +14,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import androidx.compose.ui.res.stringResource
 import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
@@ -106,7 +107,7 @@ fun UserMyPageScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             // 상단 헤더 (제목)
-            AppTopBar(title = "마이페이지")
+            AppTopBar(title = stringResource(R.string.mypage_title))
 
             when {
                 uiState.isLoading -> {
@@ -132,7 +133,7 @@ fun UserMyPageScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = uiState.error ?: "알 수 없는 오류",
+                            text = uiState.error ?: stringResource(R.string.mypage_unknown_error),
                             fontSize = 14.sp,
                             color = ColorTextDarkGray
                         )
@@ -150,11 +151,10 @@ fun UserMyPageScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // 즐겨찾기 섹션
-                    FavoritesSection(
-                        onViewAll = { navigator.navigateToFavorites() },
-                        favoriteCafes = uiState.favoriteCafes,
-                        cafeImages = uiState.cafeImages,
+                    // 시간권 섹션
+                    TimePassesSection(
+                        timePasses = uiState.myTimePasses,
+                        allCafes = uiState.allCafes,
                         navigator = navigator
                     )
 
@@ -278,7 +278,7 @@ fun ProfileCardSection(
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = "프로필 수정",
+                    contentDescription = stringResource(R.string.mypage_edit_profile_desc),
                     tint = ColorTextBlack,
                     modifier = Modifier.size(20.dp)
                 )
@@ -288,58 +288,79 @@ fun ProfileCardSection(
 }
 
 /**
- * 즐겨찾기 헤더 섹션
+ * 내 시간권 헤더 섹션
  */
 @Composable
-fun FavoritesSection(
-    onViewAll: () -> Unit,
-    favoriteCafes: List<StudyCafeSummaryDto>,
-    cafeImages: Map<Long, Bitmap>,
+fun TimePassesSection(
+    timePasses: List<kr.jiyeok.seatly.data.remote.response.UserTimePass>,
+    allCafes: List<kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto>,
     navigator: UserMyPageNavigator
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 12.dp)
     ) {
-        Text(
-            text = "찜한 목록",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = ColorTextBlack
-        )
-        Text(
-            text = "더보기",
-            fontSize = 12.sp,
-            color = ColorPrimaryOrange,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.clickable { onViewAll() }
-        )
-    }
+        // 섹션 헤더
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.mypage_time_passes),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = ColorTextBlack
+            )
 
-    if (favoriteCafes.isEmpty()) {
-        EmptyFavoritesCard(
-            modifier = Modifier.padding(horizontal = 20.dp)
-        )
-    } else {
-        FavoriteCafesListSection(
-            cafes = favoriteCafes,
-            cafeImages = cafeImages,
-            onCafeClick = { cafe ->
-                navigator.navigateToCafeDetail(cafe.id)
+            if (timePasses.size > 2) {
+                Text(
+                    text = stringResource(R.string.mypage_see_more),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = ColorTextDarkGray,
+                    modifier = Modifier.clickable { navigator.navigateToTimePasses() }
+                )
             }
-        )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (timePasses.isEmpty()) {
+            EmptyTimePassCard(
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+        } else {
+            // 시간권 목록 (최대 2개)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                timePasses.take(2).forEach { pass ->
+                    val cafe = allCafes.find { it.id == pass.studyCafeId }
+                    if (cafe != null) {
+                        TimePassCard(
+                            cafe = cafe,
+                            timePass = pass,
+                            onClick = { navigator.navigateToCafeDetail(cafe.id) }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
 /**
- * 빈 즐겨찾기 카드
- * 아직 찜한 카페가 없을 때 표시
+ * 빈 시간권 카드
  */
 @Composable
-fun EmptyFavoritesCard(modifier: Modifier = Modifier) {
+fun EmptyTimePassCard(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -354,141 +375,127 @@ fun EmptyFavoritesCard(modifier: Modifier = Modifier) {
             .background(ColorCardBg),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "아직 찜한 카페가 없어요",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = ColorTextDarkGray
-        )
-    }
-}
-
-/**
- * 즐겨찾기 카페 리스트 섹션
- * LazyRow로 최적화 - 화면에 보이는 아이템만 렌더링
- */
-@Composable
-fun FavoriteCafesListSection(
-    cafes: List<StudyCafeSummaryDto>,
-    cafeImages: Map<Long, Bitmap>,
-    onCafeClick: (StudyCafeSummaryDto) -> Unit
-) {
-    LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(
-            items = cafes,
-            key = { cafe -> cafe.id } // 성능 최적화를 위한 key 지정
-        ) { cafe ->
-            FavoritesCafeCard(
-                cafe = cafe,
-                cafeBitmap = cafeImages[cafe.id],
-                onClick = { onCafeClick(cafe) }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Edit, // Or a more appropriate icon like Receipt or Schedule
+                contentDescription = stringResource(R.string.mypage_no_time_pass_desc),
+                tint = ColorTextVeryLightGray,
+                modifier = Modifier.size(32.dp)
+            )
+            Text(
+                text = stringResource(R.string.mypage_no_time_pass_message),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = ColorTextDarkGray
             )
         }
     }
 }
 
 /**
- * 즐겨찾기 카페 카드
- * StudyCafeSummaryDto로 이름과 주소 표시
+ * 시간권 카드
  */
 @Composable
-fun FavoritesCafeCard(
-    cafe: StudyCafeSummaryDto,
-    cafeBitmap: Bitmap?,
+fun TimePassCard(
+    cafe: kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto,
+    timePass: kr.jiyeok.seatly.data.remote.response.UserTimePass,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
-            .width(150.dp)
+            .fillMaxWidth()
             .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(12.dp),
-                ambientColor = ColorTextBlack.copy(alpha = 0.15f),
-                spotColor = ColorTextBlack.copy(alpha = 0.08f)
+                elevation = 4.dp,
+                shape = RoundedCornerShape(16.dp),
+                ambientColor = ColorTextBlack.copy(alpha = 0.1f),
+                spotColor = ColorTextBlack.copy(alpha = 0.05f)
             )
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(ColorCardBg)
             .clickable { onClick() }
+            .padding(16.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 카페 이미지
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .padding(top = 12.dp)
-                    .height(110.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ColorBrownBg)
+            // 카페 이름 및 아이콘
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
             ) {
-                if (cafeBitmap != null) {
-                    Image(
-                        bitmap = cafeBitmap.asImageBitmap(),
-                        contentDescription = cafe.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Image(
-                        painter = painterResource(R.drawable.img_default_cafe),
-                        contentDescription = cafe.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-
-                // 찜 배지
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .size(28.dp)
-                        .shadow(
-                            elevation = 4.dp,
-                            shape = RoundedCornerShape(50),
-                            ambientColor = ColorTextBlack.copy(alpha = 0.15f),
-                            spotColor = ColorTextBlack.copy(alpha = 0.08f)
-                        )
-                        .clip(RoundedCornerShape(50))
-                        .background(ColorWhite),
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(ColorWhite)
+                        .border(1.dp, ColorBorderLight, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Favorite,
-                        contentDescription = "찜함",
+                        imageVector = Icons.Default.ConfirmationNumber,
+                        contentDescription = null,
                         tint = ColorPrimaryOrange,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
-            }
 
-            // 카페 정보 (실제 이름과 주소)
-            Column(
-                modifier = Modifier.padding(10.dp)
-            ) {
                 Text(
                     text = cafe.name,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
                     color = ColorTextBlack,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = cafe.address,
-                    fontSize = 10.sp,
-                    color = ColorTextDarkGray,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            }
+
+            // 남은 시간 표시
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                // 남은 시간 계산 (초 단위)
+                val hours = timePass.leftTime / (60 * 60)
+                val minutes = (timePass.leftTime / 60) % 60
+                
+                Row(verticalAlignment = Alignment.Bottom) {
+                    if (hours > 0) {
+                        Text(
+                            text = "${hours}",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ColorPrimaryOrange
+                        )
+                        Text(
+                            text = stringResource(R.string.mypage_suffix_hours),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = ColorTextGray,
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        )
+                    }
+                    Text(
+                        text = "${minutes}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorPrimaryOrange
+                    )
+                    Text(
+                        text = stringResource(R.string.mypage_suffix_minutes),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = ColorTextGray,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                }
+                
+
             }
         }
     }
@@ -513,7 +520,7 @@ fun ManagementSection(
     ) {
         // 섹션 제목
         Text(
-            text = "관리 및 설정",
+            text = stringResource(R.string.mypage_management_title),
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = ColorTextBlack,
@@ -658,7 +665,7 @@ fun LogoutButton(
             )
         } else {
             Text(
-                text = "로그아웃",
+                text = stringResource(R.string.mypage_logout),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = ColorPrimaryOrange

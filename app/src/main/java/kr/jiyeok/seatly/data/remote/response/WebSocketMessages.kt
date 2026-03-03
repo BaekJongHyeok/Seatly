@@ -7,45 +7,19 @@ import com.google.gson.annotations.SerializedName
  */
 sealed class WebSocketMessage {
     /**
-     * 스터디카페 전체 업데이트 (좌석 현황 등)
-     */
-    data class StudyCafeUpdate(
-        val studyCafeId: Long,
-        val totalSeats: Int,
-        val availableSeats: Int,
-        val message: String?
-    ) : WebSocketMessage()
-
-    /**
-     * 사용자 개인 좌석 이벤트
+     * 좌석 이벤트 (ASSIGNED, USAGE_STARTED, USAGE_FINISHED, HOLD_RELEASED)
      */
     data class SeatEvent(
-        val userId: Long,
-        val seatId: String,
-        val eventType: SeatEventType,
-        val message: String
+        val type: SeatEventType,
+        val seatId: Long
     ) : WebSocketMessage()
 
     /**
-     * 시간권 요청 이벤트 (관리자용)
+     * 시간권 이벤트 (TIMEPASS_REQUEST, TIMEPASS_REQUEST_ACCEPTED, TIMEPASS_REQUEST_REJECTED)
      */
-    data class TimePassRequest(
-        val requestId: Long,
-        val studyCafeId: Long,
-        val userId: Long,
-        val userName: String,
-        val requestedTime: Long,
-        val requestedAt: String
-    ) : WebSocketMessage()
-
-    /**
-     * 시간권 응답 이벤트 (사용자용)
-     */
-    data class TimePassResponse(
-        val requestId: Long,
-        val studyCafeId: Long,
-        val status: TimePassStatus,
-        val message: String
+    data class TimePassEvent(
+        val type: TimePassEventType,
+        val request: TimePassRequestDto
     ) : WebSocketMessage()
 }
 
@@ -53,23 +27,29 @@ sealed class WebSocketMessage {
  * 좌석 이벤트 타입
  */
 enum class SeatEventType {
-    @SerializedName("ASSIGNED")
+    @SerializedName("SEAT_ASSIGNED")
     ASSIGNED,
     
-    @SerializedName("RELEASED")
-    RELEASED,
+    @SerializedName("SEAT_USAGE_STARTED")
+    USAGE_STARTED,
     
-    @SerializedName("EXTENDED")
-    EXTENDED
+    @SerializedName("SEAT_USAGE_FINISHED")
+    USAGE_FINISHED,
+    
+    @SerializedName("SEAT_HOLD_RELEASED")
+    HOLD_RELEASED
 }
 
 /**
- * 시간권 상태
+ * 시간권 이벤트 타입
  */
-enum class TimePassStatus {
-    @SerializedName("APPROVED")
-    APPROVED,
+enum class TimePassEventType {
+    @SerializedName("TIMEPASS_REQUEST")
+    TIMEPASS_REQUEST,
     
-    @SerializedName("REJECTED")
-    REJECTED
+    @SerializedName("TIMEPASS_REQUEST_ACCEPTED")
+    TIMEPASS_REQUEST_ACCEPTED,
+    
+    @SerializedName("TIMEPASS_REQUEST_REJECTED")
+    TIMEPASS_REQUEST_REJECTED
 }

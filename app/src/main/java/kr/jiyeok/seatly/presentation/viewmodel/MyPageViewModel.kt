@@ -18,10 +18,11 @@ import kotlinx.coroutines.withContext
 import kr.jiyeok.seatly.data.remote.enums.ERole
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.data.remote.response.UserInfoSummaryDto
+import kr.jiyeok.seatly.data.remote.response.UserTimePass
 import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.di.IoDispatcher
 import kr.jiyeok.seatly.domain.usecase.GetAdminCafesUseCase
-import kr.jiyeok.seatly.domain.usecase.GetFavoriteCafesUseCase
+import kr.jiyeok.seatly.domain.usecase.GetMyTimePassesUseCase
 import kr.jiyeok.seatly.domain.usecase.GetImageUseCase
 import kr.jiyeok.seatly.domain.usecase.GetStudyCafesUseCase
 import kr.jiyeok.seatly.domain.usecase.GetUserInfoUseCase
@@ -35,9 +36,8 @@ data class MyPageUiState(
     val isLoading: Boolean = true,
     val userInfo: UserInfoSummaryDto? = null,
     val userProfileImage: Bitmap? = null,
-    val favoriteCafeIds: List<Long> = emptyList(),
-    val favoriteCafes: List<StudyCafeSummaryDto> = emptyList(),
-    val registeredCafes: List<StudyCafeSummaryDto> = emptyList(),
+    val myTimePasses: List<UserTimePass> = emptyList(), // Changed from favoriteCafeIds
+    val allCafes: List<StudyCafeSummaryDto> = emptyList(), // Added for name mapping
     val cafeImages: Map<Long, Bitmap> = emptyMap(),
     val error: String? = null
 )
@@ -57,7 +57,7 @@ class MyPageViewModel @Inject constructor(
     private val getUserInfoUseCase: GetUserInfoUseCase,
     private val getImageUseCase: GetImageUseCase,
     private val logoutUseCase: LogoutUseCase,
-    private val getFavoriteCafeUseCase: GetFavoriteCafesUseCase,
+    private val getMyTimePassesUseCase: GetMyTimePassesUseCase, // Added
     private val getAdminCafesUseCase: GetAdminCafesUseCase,
     private val getStudyCafesUseCase: GetStudyCafesUseCase,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
@@ -114,31 +114,26 @@ class MyPageViewModel @Inject constructor(
         try {
             when (role) {
                 ERole.USER -> {
-                    // 1. 즐겨찾기 ID 목록 가져오기
-                    val favoriteIdsResult = getFavoriteCafeUseCase()
+                    // 1. 내 시간권 목록 가져오기
+                    val timePassResult = getMyTimePassesUseCase()
 
-                    when (favoriteIdsResult) {
+                    when (timePassResult) {
                         is ApiResult.Success -> {
-                            val favoriteIds = favoriteIdsResult.data ?: emptyList()
-                            _uiState.update { it.copy(favoriteCafeIds = favoriteIds) }
+                            val timePasses = timePassResult.data ?: emptyList()
+                            _uiState.update { it.copy(myTimePasses = timePasses) }
 
-                            // 2. 전체 카페 목록 가져오기
+                            // 2. 전체 카페 목록 가져오기 (카페 이름 매핑용)
                             val allCafesResult = getStudyCafesUseCase()
 
                             when (allCafesResult) {
                                 is ApiResult.Success -> {
                                     val allCafes = allCafesResult.data ?: emptyList()
+                                    _uiState.update { it.copy(allCafes = allCafes) }
 
-                                    // 3. 즐겨찾기 ID로 필터링
-                                    val favoriteCafes = allCafes.filter { cafe ->
-                                        cafe.id in favoriteIds
-                                    }
-
-                                    _uiState.update { it.copy(favoriteCafes = favoriteCafes) }
-
-                                    // 4. 즐겨찾기 카페 이미지 로드
-                                    favoriteCafes.forEach { cafe ->
-                                        cafe.mainImageUrl?.let { imageId ->
+                                    // 3. 시간권 있는 카페 이미지 로드
+                                    timePasses.forEach { timePass ->
+                                        val cafe = allCafes.find { it.id == timePass.studyCafeId }
+                                        cafe?.mainImageUrl?.let { imageId ->
                                             loadCafeImage(cafe.id, imageId)
                                         }
                                     }
@@ -149,7 +144,7 @@ class MyPageViewModel @Inject constructor(
                             }
                         }
                         is ApiResult.Failure -> {
-                            _events.send(favoriteIdsResult.message ?: "즐겨찾기 카페 조회 실패")
+                            _events.send(timePassResult.message ?: "시간권 조회 실패")
                         }
                     }
                 }
@@ -157,7 +152,7 @@ class MyPageViewModel @Inject constructor(
                     when (val result = getAdminCafesUseCase()) {
                         is ApiResult.Success -> {
                             result.data?.let { cafes ->
-                                _uiState.update { it.copy(registeredCafes = cafes) }
+                                _uiState.update { it.copy(allCafes = cafes) } // Admin logic reuse registeredCafes as allCafes logic for now or specific field
 
                                 // 모든 카페 이미지 로드
                                 cafes.forEach { cafe ->

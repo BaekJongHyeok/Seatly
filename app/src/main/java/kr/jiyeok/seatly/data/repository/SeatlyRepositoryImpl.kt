@@ -217,12 +217,33 @@ class SeatlyRepositoryImpl @Inject constructor(
                     is IOException -> "네트워크 오류: ${e.localizedMessage ?: "연결할 수 없습니다"}"
                     is HttpException -> {
                         val code = e.code()
-                        when (code) {
-                            401 -> "인증이 필요합니다"
-                            403 -> "권한이 없습니다"
-                            404 -> "요청한 리소스를 찾을 수 없습니다"
-                            500 -> "서버 오류가 발생했습니다"
-                            else -> "HTTP $code: ${e.message()}"
+                        
+                        // 서버에서 보내는 JSON 에러 메시지 추출 시도
+                        var serverMessage: String? = null
+                        try {
+                            val errorBody = e.response()?.errorBody()?.string()
+                            if (!errorBody.isNullOrEmpty()) {
+                                // 간단한 JSON 파싱 (Gson 등을 사용할 수도 있지만, 직접 파싱)
+                                val msgMatch = "\"message\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(errorBody)
+                                if (msgMatch != null) {
+                                    serverMessage = msgMatch.groupValues[1]
+                                }
+                            }
+                        } catch (parseException: Exception) {
+                            Log.e("SeatlyRepository", "Error parsing errorBody", parseException)
+                        }
+
+                        if (serverMessage != null) {
+                            serverMessage
+                        } else {
+                            when (code) {
+                                401 -> "인증이 필요합니다"
+                                403 -> "권한이 없습니다"
+                                404 -> "요청한 리소스를 찾을 수 없습니다"
+                                500 -> "서버 오류가 발생했습니다"
+                                409 -> "이미 처리된 요청입니다"
+                                else -> "HTTP $code: ${e.message()}"
+                            }
                         }
                     }
                     else -> e.localizedMessage ?: "알 수 없는 오류가 발생했습니다"

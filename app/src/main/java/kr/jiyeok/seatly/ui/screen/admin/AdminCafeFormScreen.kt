@@ -17,18 +17,22 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -56,7 +60,7 @@ import kr.jiyeok.seatly.data.remote.request.CreateCafeRequest
 import kr.jiyeok.seatly.data.remote.request.UpdateCafeRequest
 import kr.jiyeok.seatly.presentation.viewmodel.CafeFormViewModel
 import kr.jiyeok.seatly.ui.component.common.MaterialSymbol
-import kr.jiyeok.seatly.ui.screen.manager.RegisterCafeTopBar
+import kr.jiyeok.seatly.ui.component.common.AppTopBar
 import kr.jiyeok.seatly.ui.theme.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -74,7 +78,8 @@ enum class DayOfWeek(val displayName: String, val shortName: String) {
     THURSDAY("목요일", "목"),
     FRIDAY("금요일", "금"),
     SATURDAY("토요일", "토"),
-    SUNDAY("일요일", "일")
+    SUNDAY("일요일", "일"),
+    HOLIDAY("공휴일", "공휴")
 }
 
 // 요일별 영업시간 데이터 클래스
@@ -141,7 +146,8 @@ fun AdminCafeFormScreen(
             DailyOperatingHours(DayOfWeek.THURSDAY.name, false, "0900", "2200"),
             DailyOperatingHours(DayOfWeek.FRIDAY.name, false, "0900", "2200"),
             DailyOperatingHours(DayOfWeek.SATURDAY.name, false, "0900", "2200"),
-            DailyOperatingHours(DayOfWeek.SUNDAY.name, false, "0900", "2200")
+            DailyOperatingHours(DayOfWeek.SUNDAY.name, false, "0900", "2200"),
+            DailyOperatingHours(DayOfWeek.HOLIDAY.name, true, "0900", "2200")
         )
     }
 
@@ -156,9 +162,16 @@ fun AdminCafeFormScreen(
     var selectedDayForTimePicker by remember { mutableStateOf<DayOfWeek?>(null) }
     var isSelectingStartTime by remember { mutableStateOf(true) }
 
-    val holidays = listOf("월", "화", "수", "목", "금", "토", "일", "명절", "연중무휴")
-    var selectedHolidays by remember { mutableStateOf(setOf<String>("연중무휴")) }
-    var showAllHolidays by remember { mutableStateOf(false) }
+
+    // 시간권 상태
+    data class TimePlan(val label: String)
+    val timePlans = remember {
+        mutableStateListOf(
+            TimePlan("1시간"),
+            TimePlan("4시간"),
+            TimePlan("8시간")
+        )
+    }
 
     val selectedFacilities = remember { mutableStateListOf<EFacility>() }
     val images = remember { mutableStateListOf<Uri>() }
@@ -258,40 +271,44 @@ fun AdminCafeFormScreen(
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetMultipleContents()
     ) { uris ->
-        uris.forEach { uri ->
-            if (totalImageCount < 5) {
-                images.add(uri)
-                coroutineScope.launch(Dispatchers.IO) {
-                    var compressedFile: File? = null
-                    try {
-                        compressedFile = compressImage(uri)
-                        if (compressedFile != null) {
-                            val requestFile = compressedFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
-                            val body = MultipartBody.Part.createFormData("file", compressedFile.name, requestFile)
-                            val fileToDelete = compressedFile
-                            viewModel.uploadImage(body) {
-                                try {
-                                    fileToDelete.delete()
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }
-                        } else {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "이미지 처리 실패", Toast.LENGTH_SHORT).show()
-                                images.remove(uri)
+        var currentCount = serverImageUrls.size + images.size
+        val remaining = 5 - currentCount
+        val urisToAdd = uris.take(remaining)
+
+        if (uris.size > remaining) {
+            Toast.makeText(context, "최대 5장까지 등록 가능합니다. ${remaining}장만 추가됩니다.", Toast.LENGTH_SHORT).show()
+        }
+
+        urisToAdd.forEach { uri ->
+            images.add(uri)
+            coroutineScope.launch(Dispatchers.IO) {
+                var compressedFile: File? = null
+                try {
+                    compressedFile = compressImage(uri)
+                    if (compressedFile != null) {
+                        val requestFile = compressedFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
+                        val body = MultipartBody.Part.createFormData("file", compressedFile.name, requestFile)
+                        val fileToDelete = compressedFile
+                        viewModel.uploadImage(body) {
+                            try {
+                                fileToDelete.delete()
+                            } catch (e: Exception) {
+                                e.printStackTrace()
                             }
                         }
-                    } catch (e: Exception) {
-                        compressedFile?.delete()
+                    } else {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "이미지 업로드 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "이미지 처리 실패", Toast.LENGTH_SHORT).show()
                             images.remove(uri)
                         }
                     }
+                } catch (e: Exception) {
+                    compressedFile?.delete()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "이미지 업로드 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                        images.remove(uri)
+                    }
                 }
-            } else {
-                Toast.makeText(context, "최대 5장까지 등록 가능합니다", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -321,58 +338,109 @@ fun AdminCafeFormScreen(
             // 영업시간 파싱
             data.openingHours?.let { hoursStr ->
                 try {
-                    if (hoursStr.contains(",") && hoursStr.contains("=")) {
-                        // 새로운 형식: "MONDAY=09:00-22:00,TUESDAY=Closed,..."
+                    // 전체 요일 적용 여부 확인 (ALL= 키워드가 포함되어 있거나, 기존 단순 시간 범위 형식인 경우)
+                    val isBulkFormat = hoursStr.contains("ALL=") || (hoursStr.contains("-") && !hoursStr.contains(","))
+                    
+                    if (isBulkFormat) {
+                        // 전체 요일 적용 모드
+                        bulkEditMode = true
+                        
+                        // 기본값 설정
+                        var bStartTime = "0900"
+                        var bEndTime = "2200"
+                        var isHolidayClosed = true // 기본값 휴무
+
+                        if (hoursStr.contains("ALL=")) {
+                            // 신규 형식: "ALL=09:00-22:00,HOLIDAY=Closed"
+                            val parts = hoursStr.split(",")
+                            parts.forEach { part ->
+                                val keyValue = part.split("=")
+                                if (keyValue.size == 2) {
+                                    val key = keyValue[0].trim()
+                                    val value = keyValue[1].trim()
+                                    
+                                    when (key) {
+                                        "ALL" -> {
+                                            val times = value.split("-")
+                                            if (times.size == 2) {
+                                                bStartTime = times[0].replace(":", "")
+                                                bEndTime = times[1].replace(":", "")
+                                            }
+                                        }
+                                        "HOLIDAY" -> {
+                                            isHolidayClosed = (value == "Closed")
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // 구버전 형식: "09:00-22:00" (공휴일 정보 없음 -> 기본 휴무)
+                            val times = hoursStr.split("-")
+                            if (times.size == 2) {
+                                bStartTime = times[0].replace(":", "").trim()
+                                bEndTime = times[1].replace(":", "").trim()
+                            }
+                        }
+
+                        // UI 상태 업데이트
+                        bulkStartTime = bStartTime
+                        bulkEndTime = bEndTime
+                        
+                        // weeklyHours 리스트도 전체 적용 시간으로 동기화 (나중에 요일별 모드로 전환 시 데이터 유지 위해)
+                        weeklyHours.clear()
+                        DayOfWeek.values().forEach { day ->
+                            if (day == DayOfWeek.HOLIDAY) {
+                                weeklyHours.add(DailyOperatingHours(day.name, isHolidayClosed, "0900", "2200"))
+                            } else {
+                                weeklyHours.add(DailyOperatingHours(day.name, false, bStartTime, bEndTime))
+                            }
+                        }
+                    } else {
+                        // 요일별 설정 모드: "MONDAY=09:00-22:00,HOLIDAY=Closed,..."
+                        bulkEditMode = false
+                        
                         val dayHoursList = hoursStr.split(",")
                         weeklyHours.clear()
-
+                        
+                        // 파싱된 데이터 임시 저장용 맵
+                        val parsedHours = mutableMapOf<String, DailyOperatingHours>()
+                        
                         dayHoursList.forEach { dayHours ->
                             val parts = dayHours.split("=")
                             if (parts.size == 2) {
-                                val dayOfWeek = parts[0]
-                                val timeInfo = parts[1]
+                                val dayOfWeek = parts[0].trim()
+                                val timeInfo = parts[1].trim()
 
                                 if (timeInfo == "Closed") {
-                                    weeklyHours.add(
-                                        DailyOperatingHours(
-                                            dayOfWeek = dayOfWeek,
-                                            isClosed = true,
-                                            openTime = "0900",
-                                            closeTime = "2200"
-                                        )
-                                    )
+                                    parsedHours[dayOfWeek] = DailyOperatingHours(dayOfWeek, true, "0900", "2200")
+                                } else if (timeInfo == "Open") {
+                                    // 공휴일 등 Open만 있는 경우
+                                    parsedHours[dayOfWeek] = DailyOperatingHours(dayOfWeek, false, "0900", "2200")
                                 } else {
                                     val times = timeInfo.split("-")
                                     if (times.size == 2) {
-                                        // "09:00" -> "0900" 변환
                                         val openTime = times[0].replace(":", "")
                                         val closeTime = times[1].replace(":", "")
-                                        weeklyHours.add(
-                                            DailyOperatingHours(
-                                                dayOfWeek = dayOfWeek,
-                                                isClosed = false,
-                                                openTime = openTime,
-                                                closeTime = closeTime
-                                            )
-                                        )
+                                        parsedHours[dayOfWeek] = DailyOperatingHours(dayOfWeek, false, openTime, closeTime)
                                     }
                                 }
                             }
                         }
-                        bulkEditMode = false
-                    } else if (hoursStr.contains("-")) {
-                        // 기존 형식: "09:00-24:00" 또는 "0900-2400"
-                        val hours = hoursStr.split("-")
-                        if (hours.size == 2) {
-                            // "09:00" -> "0900" 변환
-                            bulkStartTime = hours[0].trim().replace(":", "")
-                            bulkEndTime = hours[1].trim().replace(":", "")
-                            bulkEditMode = true
+
+                        // 모든 요일에 대해 데이터 채우기 (없으면 기본값)
+                        DayOfWeek.values().forEach { day ->
+                            val existing = parsedHours[day.name]
+                            if (existing != null) {
+                                weeklyHours.add(existing)
+                            } else {
+                                // 데이터 없으면 기본 휴무(공휴일) 또는 운영(평일) ? -> 안전하게 기본값 09:00-22:00 운영으로
+                                weeklyHours.add(DailyOperatingHours(day.name, false, "0900", "2200"))
+                            }
                         }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    // 파싱 실패 시 기본값
+                    // 파싱 실패 시 기본값 (전체 적용 모드)
                     bulkEditMode = true
                 }
             }
@@ -389,6 +457,13 @@ fun AdminCafeFormScreen(
         }
     }
 
+    val createCafeSuccess by viewModel.createCafeSuccess.collectAsState()
+    LaunchedEffect(createCafeSuccess) {
+        if (createCafeSuccess) {
+            navController.popBackStack()
+        }
+    }
+
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -399,28 +474,19 @@ fun AdminCafeFormScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Header
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(ColorWhite)
-                        .padding(top = 20.dp, bottom = 6.dp)
-                ) {
-                    RegisterCafeTopBar(
-                        navController = navController,
-                        title = if (isEditMode) "카페 정보 수정" else "카페 등록",
-                        titleFontSize = 20.sp,
-                        titleColor = ColorTextBlack,
-                        onBack = { navController.popBackStack() },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(ColorBorderLight)
-                    )
-                }
+                AppTopBar(
+                    title = if (isEditMode) "카페 정보 수정" else "카페 등록",
+                    leftContent = {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "뒤로가기",
+                            tint = ColorTextBlack,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable { navController.popBackStack() }
+                        )
+                    }
+                )
 
                 // Body - scrollable
                 Column(
@@ -511,7 +577,7 @@ fun AdminCafeFormScreen(
                         },
                         placeholder = "010-1234-5678",
                         leading = { MaterialSymbol(name = "phone", size = 18.sp, tint = ColorTextGray) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                         isErrorBorder = phoneError != null
                     )
                     phoneError?.let {
@@ -524,7 +590,22 @@ fun AdminCafeFormScreen(
                     OperatingHoursSection(
                         weeklyHours = weeklyHours,
                         bulkEditMode = bulkEditMode,
-                        onBulkEditModeChange = { bulkEditMode = it },
+                        onBulkEditModeChange = { isBulk ->
+                            bulkEditMode = isBulk
+                            if (!isBulk) {
+                                // 일괄 -> 요일별 전환 시, 현재 설정된 일괄 시간을 평일에 적용
+                                // (공휴일 제외, 공휴일은 별도 설정 유지)
+                                weeklyHours.forEachIndexed { index, hours ->
+                                    if (hours.dayOfWeek != DayOfWeek.HOLIDAY.name) {
+                                        weeklyHours[index] = hours.copy(
+                                            openTime = bulkStartTime,
+                                            closeTime = bulkEndTime,
+                                            isClosed = false
+                                        )
+                                    }
+                                }
+                            }
+                        },
                         bulkStartTime = bulkStartTime,
                         bulkEndTime = bulkEndTime,
                         onBulkStartTimeChange = { showBulkStartTimePicker = true },
@@ -533,156 +614,8 @@ fun AdminCafeFormScreen(
                             selectedDayForTimePicker = dayOfWeek
                             isSelectingStartTime = isStart
                             showWeeklyTimePicker = true
-                        },
-                        onApplyBulkTime = {
-                            weeklyHours.forEachIndexed { index, _ ->
-                                weeklyHours[index] = weeklyHours[index].copy(
-                                    openTime = bulkStartTime,
-                                    closeTime = bulkEndTime,
-                                    isClosed = false
-                                )
-                            }
                         }
                     )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 5. Holiday Selection
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("휴무일", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ColorTextBlack)
-                        Button(
-                            onClick = { showAllHolidays = !showAllHolidays },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Transparent,
-                                contentColor = ColorPrimaryOrange
-                            ),
-                            modifier = Modifier
-                                .defaultMinSize(minWidth = 0.dp, minHeight = 0.dp)
-                                .rotate(if (showAllHolidays) 180f else 0f),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            MaterialSymbol(name = "expand_more", size = 20.sp, tint = ColorPrimaryOrange)
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (selectedHolidays.isNotEmpty()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .wrapContentHeight(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                selectedHolidays.forEach { holiday ->
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(Color(0xFFFFF0EB))
-                                            .border(
-                                                BorderStroke(1.dp, ColorPrimaryOrange),
-                                                RoundedCornerShape(16.dp)
-                                            )
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Text(
-                                                text = holiday,
-                                                color = ColorPrimaryOrange,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            if (holiday != "연중무휴") {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(16.dp)
-                                                        .clip(RoundedCornerShape(8.dp))
-                                                        .background(ColorPrimaryOrange)
-                                                        .clickable(
-                                                            indication = null,
-                                                            interactionSource = remember { MutableInteractionSource() }
-                                                        ) {
-                                                            selectedHolidays = if (holiday == "연중무휴") {
-                                                                setOf("연중무휴")
-                                                            } else {
-                                                                val mutable = selectedHolidays.toMutableSet()
-                                                                mutable.remove(holiday)
-                                                                if (mutable.isEmpty()) mutable.add("연중무휴")
-                                                                mutable.toSet()
-                                                            }
-                                                        },
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    MaterialSymbol(name = "close", size = 10.sp, tint = ColorWhite)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if (showAllHolidays) {
-                            val unselectedHolidays = holidays.filter { !selectedHolidays.contains(it) }
-                            val holidayRows: List<List<String>> = unselectedHolidays.chunked(3)
-                            holidayRows.forEach { row ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    row.forEach { holiday ->
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .defaultMinSize(minHeight = 40.dp)
-                                                .clip(RoundedCornerShape(20.dp))
-                                                .background(ColorInputBg)
-                                                .border(
-                                                    BorderStroke(1.dp, ColorBorderLight),
-                                                    RoundedCornerShape(20.dp)
-                                                )
-                                                .clickable(
-                                                    indication = null,
-                                                    interactionSource = remember { MutableInteractionSource() }
-                                                ) {
-                                                    selectedHolidays = if (holiday == "연중무휴") {
-                                                        setOf("연중무휴")
-                                                    } else {
-                                                        val mutable = selectedHolidays.toMutableSet()
-                                                        if (mutable.contains("연중무휴")) mutable.remove("연중무휴")
-                                                        if (mutable.contains(holiday)) mutable.remove(holiday)
-                                                        else mutable.add(holiday)
-                                                        if (mutable.isEmpty()) mutable.add("연중무휴")
-                                                        mutable.toSet()
-                                                    }
-                                                }
-                                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = holiday,
-                                                color = ColorTextBlack,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Normal
-                                            )
-                                        }
-                                    }
-                                    repeat(3 - row.size) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-                    }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
@@ -761,6 +694,68 @@ fun AdminCafeFormScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
+                    // 8. 시간권
+                    Text("시간권 설정", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ColorTextBlack)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    timePlans.forEachIndexed { index, plan ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // 시간 라벨 입력
+                            AppTextField(
+                                value = plan.label,
+                                onValueChange = { newLabel ->
+                                    timePlans[index] = plan.copy(label = newLabel)
+                                },
+                                placeholder = "예: 1시간",
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            // 삭제 버튼
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFFF5252))
+                                    .clickable { timePlans.removeAt(index) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                MaterialSymbol(name = "close", size = 14.sp, tint = ColorWhite)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 시간권 추가 버튼
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(BorderStroke(1.dp, ColorBorderLight), RoundedCornerShape(12.dp))
+                            .background(ColorInputBg)
+                            .clickable {
+                                timePlans.add(TimePlan(""))
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            MaterialSymbol(name = "add", size = 16.sp, tint = ColorTextGray)
+                            Text("시간권 추가", fontSize = 13.sp, color = ColorTextGray)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
                     // 8. Photos
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -799,7 +794,10 @@ fun AdminCafeFormScreen(
 
                         // 서버에서 로드한 기존 이미지들 (수정 모드일 때만)
                         if (isEditMode) {
-                            items(serverImageUrls) { imageUrl ->
+                            items(
+                                items = serverImageUrls,
+                                key = { it }
+                            ) { imageUrl ->
                                 ServerImageItem(
                                     imageUrl = imageUrl,
                                     viewModel = viewModel,
@@ -811,7 +809,10 @@ fun AdminCafeFormScreen(
                         }
 
                         // 새로 선택한 이미지들
-                        items(images) { uri ->
+                        itemsIndexed(
+                            items = images,
+                            key = { index, uri -> "${index}_${uri}" }
+                        ) { index, uri ->
                             val bmp = rememberBitmapForUri(uri)
                             Box(
                                 modifier = Modifier
@@ -829,14 +830,19 @@ fun AdminCafeFormScreen(
                                         contentScale = ContentScale.Crop
                                     )
                                 }
-                                IconButton(
-                                    onClick = { images.remove(uri) },
+                                Box(
                                     modifier = Modifier
-                                        .size(24.dp)
                                         .padding(4.dp)
-                                        .background(Color(0x66000000), RoundedCornerShape(12.dp))
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xAA000000))
+                                        .clickable(
+                                            indication = null,
+                                            interactionSource = remember { MutableInteractionSource() }
+                                        ) { images.removeAt(index) },
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    MaterialSymbol(name = "close", size = 12.sp, tint = ColorWhite)
+                                    MaterialSymbol(name = "close", size = 10.sp, tint = ColorWhite)
                                 }
                             }
                         }
@@ -923,13 +929,17 @@ fun AdminCafeFormScreen(
 
                                 // 요일별 영업시간을 커스텀 String 형식으로 변환
                                 val openingHoursStr = if (bulkEditMode) {
-                                    // 일괄 적용 모드: 기존 형식 유지
-                                    "${formatTimeToHHMM(bulkStartTime)}-${formatTimeToHHMM(bulkEndTime)}"
+                                    // 전체 요일 적용 모드: "ALL=09:00-22:00,HOLIDAY=Closed" 형식
+                                    val holidayStatus = weeklyHours.find { it.dayOfWeek == DayOfWeek.HOLIDAY.name }
+                                    val holidayStr = if (holidayStatus?.isClosed == false) "HOLIDAY=Open" else "HOLIDAY=Closed"
+                                    "ALL=${formatTimeToHHMM(bulkStartTime)}-${formatTimeToHHMM(bulkEndTime)},$holidayStr"
                                 } else {
                                     // 요일별 설정: "MONDAY=09:00-22:00,TUESDAY=Closed,..."
                                     weeklyHours.joinToString(",") { hours ->
                                         if (hours.isClosed) {
                                             "${hours.dayOfWeek}=Closed"
+                                        } else if (hours.dayOfWeek == DayOfWeek.HOLIDAY.name) {
+                                            "${hours.dayOfWeek}=Open"
                                         } else {
                                             "${hours.dayOfWeek}=${formatTimeToHHMM(hours.openTime)}-${formatTimeToHHMM(hours.closeTime)}"
                                         }
@@ -993,8 +1003,12 @@ fun AdminCafeFormScreen(
                 ScrollableTimePickerDialog(
                     initialTime = bulkStartTime,
                     onConfirm = { time ->
-                        bulkStartTime = time
-                        showBulkStartTimePicker = false
+                        if (time >= bulkEndTime) {
+                            Toast.makeText(context, "시작 시간은 종료 시간보다 이전이어야 합니다", Toast.LENGTH_SHORT).show()
+                        } else {
+                            bulkStartTime = time
+                            showBulkStartTimePicker = false
+                        }
                     },
                     onDismiss = { showBulkStartTimePicker = false }
                 )
@@ -1004,8 +1018,12 @@ fun AdminCafeFormScreen(
                 ScrollableTimePickerDialog(
                     initialTime = bulkEndTime,
                     onConfirm = { time ->
-                        bulkEndTime = time
-                        showBulkEndTimePicker = false
+                        if (time <= bulkStartTime) {
+                            Toast.makeText(context, "종료 시간은 시작 시간보다 이후이어야 합니다", Toast.LENGTH_SHORT).show()
+                        } else {
+                            bulkEndTime = time
+                            showBulkEndTimePicker = false
+                        }
                     },
                     onDismiss = { showBulkEndTimePicker = false }
                 )
@@ -1025,12 +1043,23 @@ fun AdminCafeFormScreen(
                     ScrollableTimePickerDialog(
                         initialTime = currentTime,
                         onConfirm = { time ->
-                            weeklyHours[dayIndex] = if (isSelectingStartTime) {
-                                weeklyHours[dayIndex].copy(openTime = time)
+                            if (isSelectingStartTime) {
+                                val endTime = weeklyHours[dayIndex].closeTime
+                                if (time >= endTime) {
+                                    Toast.makeText(context, "시작 시간은 종료 시간보다 이전이어야 합니다", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    weeklyHours[dayIndex] = weeklyHours[dayIndex].copy(openTime = time)
+                                    showWeeklyTimePicker = false
+                                }
                             } else {
-                                weeklyHours[dayIndex].copy(closeTime = time)
+                                val startTime = weeklyHours[dayIndex].openTime
+                                if (time <= startTime) {
+                                    Toast.makeText(context, "종료 시간은 시작 시간보다 이후이어야 합니다", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    weeklyHours[dayIndex] = weeklyHours[dayIndex].copy(closeTime = time)
+                                    showWeeklyTimePicker = false
+                                }
                             }
-                            showWeeklyTimePicker = false
                         },
                         onDismiss = { showWeeklyTimePicker = false }
                     )
@@ -1060,8 +1089,7 @@ fun OperatingHoursSection(
     bulkEndTime: String,
     onBulkStartTimeChange: () -> Unit,
     onBulkEndTimeChange: () -> Unit,
-    onShowTimePicker: (DayOfWeek, Boolean) -> Unit,
-    onApplyBulkTime: () -> Unit
+    onShowTimePicker: (DayOfWeek, Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1085,7 +1113,7 @@ fun OperatingHoursSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    if (bulkEditMode) "일괄 적용" else "요일별 설정",
+                    if (bulkEditMode) "전체 요일 적용" else "요일별 설정",
                     fontSize = 12.sp,
                     color = ColorTextGray
                 )
@@ -1137,36 +1165,46 @@ fun OperatingHoursSection(
                 )
             }
 
-            // 일괄 적용 버튼
-            Button(
-                onClick = onApplyBulkTime,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ColorBgBeige,
-                    contentColor = ColorPrimaryOrange
-                ),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text("전체 요일에 적용", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            // 공휴일 휴무 설정 (전체 요일 적용 모드에서도 표시)
+            weeklyHours.forEachIndexed { index, hours ->
+                if (hours.dayOfWeek == DayOfWeek.HOLIDAY.name) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    HolidayClosedRow(
+                        isClosed = hours.isClosed,
+                        onClosedChange = { isClosed ->
+                            weeklyHours[index] = hours.copy(isClosed = isClosed)
+                        }
+                    )
+                }
             }
         } else {
             // 요일별 설정 모드
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 weeklyHours.forEachIndexed { index, hours ->
                     val dayOfWeek = DayOfWeek.valueOf(hours.dayOfWeek)
-                    DailyHoursRow(
-                        dailyHours = hours,
-                        dayDisplayName = dayOfWeek.displayName,
-                        onClosedChange = { isClosed ->
-                            weeklyHours[index] = hours.copy(isClosed = isClosed)
-                        },
-                        onStartTimeClick = {
-                            onShowTimePicker(dayOfWeek, true)
-                        },
-                        onEndTimeClick = {
-                            onShowTimePicker(dayOfWeek, false)
-                        }
-                    )
+                    if (dayOfWeek == DayOfWeek.HOLIDAY) {
+                        // 공휴일은 휴무 여부만 토글
+                        HolidayClosedRow(
+                            isClosed = hours.isClosed,
+                            onClosedChange = { isClosed ->
+                                weeklyHours[index] = hours.copy(isClosed = isClosed)
+                            }
+                        )
+                    } else {
+                        DailyHoursRow(
+                            dailyHours = hours,
+                            dayDisplayName = dayOfWeek.displayName,
+                            onClosedChange = { isClosed ->
+                                weeklyHours[index] = hours.copy(isClosed = isClosed)
+                            },
+                            onStartTimeClick = {
+                                onShowTimePicker(dayOfWeek, true)
+                            },
+                            onEndTimeClick = {
+                                onShowTimePicker(dayOfWeek, false)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1194,15 +1232,15 @@ fun DailyHoursRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 요일 및 휴무 체크박스
+        // 요일 및 운영 체크박스 (체크 = 운영중, 해제 = 휴무)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.width(100.dp)
         ) {
             Checkbox(
-                checked = dailyHours.isClosed,
-                onCheckedChange = onClosedChange,
+                checked = !dailyHours.isClosed,
+                onCheckedChange = { isChecked -> onClosedChange(!isChecked) },
                 colors = CheckboxDefaults.colors(
                     checkedColor = ColorPrimaryOrange,
                     uncheckedColor = ColorBorderLight
@@ -1284,6 +1322,66 @@ fun DailyHoursRow(
     }
 }
 
+@Composable
+fun HolidayClosedRow(
+    isClosed: Boolean,
+    onClosedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isClosed) ColorInputBg else Color(0xFFFFF9F6))
+            .border(
+                BorderStroke(1.dp, ColorBorderLight),
+                RoundedCornerShape(12.dp)
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            MaterialSymbol(
+                name = "celebration",
+                size = 18.sp,
+                tint = if (isClosed) ColorTextGray else ColorPrimaryOrange
+            )
+            Text(
+                text = "공휴일",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isClosed) ColorTextGray else ColorTextBlack
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = if (isClosed) "휴무" else "운영",
+                fontSize = 13.sp,
+                color = if (isClosed) ColorTextGray else ColorPrimaryOrange,
+                fontWeight = FontWeight.Medium
+            )
+            Switch(
+                checked = !isClosed,
+                onCheckedChange = { isChecked -> onClosedChange(!isChecked) },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = ColorWhite,
+                    checkedTrackColor = ColorPrimaryOrange,
+                    uncheckedThumbColor = ColorWhite,
+                    uncheckedTrackColor = ColorBorderLight
+                ),
+                modifier = Modifier.height(24.dp)
+            )
+        }
+    }
+}
+
 // 시간 포맷 헬퍼 함수
 fun formatTimeDisplay(time: String): String {
     if (time.length != 4) return time
@@ -1358,17 +1456,17 @@ fun ServerImageItem(
 
         Box(
             modifier = Modifier
-                .size(24.dp)
                 .padding(4.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0x66000000))
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(Color(0xAA000000))
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }
                 ) { onRemove() },
             contentAlignment = Alignment.Center
         ) {
-            MaterialSymbol(name = "close", size = 12.sp, tint = ColorWhite)
+            MaterialSymbol(name = "close", size = 10.sp, tint = ColorWhite)
         }
     }
 }
@@ -1380,9 +1478,29 @@ fun rememberBitmapForUri(uri: Uri): ImageBitmap? {
     LaunchedEffect(uri) {
         val bmp = try {
             withContext(Dispatchers.IO) {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
+                var decodedBitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
                     BitmapFactory.decodeStream(stream)
                 }
+
+                // EXIF 회전 처리 - 썸네일도 정방향으로 표시
+                if (decodedBitmap != null) {
+                    val exifStream = context.contentResolver.openInputStream(uri)
+                    val orientation = exifStream?.use { stream ->
+                        val exif = ExifInterface(stream)
+                        exif.getAttributeInt(
+                            ExifInterface.TAG_ORIENTATION,
+                            ExifInterface.ORIENTATION_NORMAL
+                        )
+                    } ?: ExifInterface.ORIENTATION_NORMAL
+
+                    decodedBitmap = when (orientation) {
+                        ExifInterface.ORIENTATION_ROTATE_90 -> rotateBitmap(decodedBitmap, 90f)
+                        ExifInterface.ORIENTATION_ROTATE_180 -> rotateBitmap(decodedBitmap, 180f)
+                        ExifInterface.ORIENTATION_ROTATE_270 -> rotateBitmap(decodedBitmap, 270f)
+                        else -> decodedBitmap
+                    }
+                }
+                decodedBitmap
             }
         } catch (e: Exception) {
             null
@@ -1782,6 +1900,61 @@ private fun ScrollableTimePickerDialog(
     val hours = (0..23).toList()
     val minutes = (0..59).filter { it % 5 == 0 }
 
+    val itemHeightDp = 44.dp
+    val visibleItems = 3 // 보이는 아이템 수 (위/중앙/아래)
+    val coroutineScope = rememberCoroutineScope()
+
+    // Hour LazyListState
+    val hourListState = rememberLazyListState()
+    // Minute LazyListState
+    val minuteListState = rememberLazyListState()
+
+    // 초기 스크롤 위치 설정
+    LaunchedEffect(Unit) {
+        val hourIndex = hours.indexOf(selectedHour).coerceAtLeast(0)
+        hourListState.scrollToItem(hourIndex)
+        val minuteIndex = minutes.indexOf(selectedMinute).coerceAtLeast(0)
+        minuteListState.scrollToItem(minuteIndex)
+    }
+
+    // Hour 스냅 처리 - 스크롤 멈추면 가장 가까운 아이템으로 스냅
+    LaunchedEffect(hourListState) {
+        snapshotFlow { hourListState.isScrollInProgress }
+            .collect { isScrolling ->
+                if (!isScrolling) {
+                    val firstVisibleIndex = hourListState.firstVisibleItemIndex
+                    val firstVisibleOffset = hourListState.firstVisibleItemScrollOffset
+                    // 중앙에 가장 가까운 아이템 계산
+                    val snapIndex = if (firstVisibleOffset > 0) {
+                        // 오프셋이 아이템 높이의 절반보다 크면 다음 아이템으로
+                        firstVisibleIndex + 1
+                    } else {
+                        firstVisibleIndex
+                    }.coerceIn(0, hours.size - 1)
+                    selectedHour = hours[snapIndex]
+                    hourListState.animateScrollToItem(snapIndex)
+                }
+            }
+    }
+
+    // Minute 스냅 처리
+    LaunchedEffect(minuteListState) {
+        snapshotFlow { minuteListState.isScrollInProgress }
+            .collect { isScrolling ->
+                if (!isScrolling) {
+                    val firstVisibleIndex = minuteListState.firstVisibleItemIndex
+                    val firstVisibleOffset = minuteListState.firstVisibleItemScrollOffset
+                    val snapIndex = if (firstVisibleOffset > 0) {
+                        firstVisibleIndex + 1
+                    } else {
+                        firstVisibleIndex
+                    }.coerceIn(0, minutes.size - 1)
+                    selectedMinute = minutes[snapIndex]
+                    minuteListState.animateScrollToItem(snapIndex)
+                }
+            }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1817,68 +1990,134 @@ private fun ScrollableTimePickerDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp),
+                        .height(itemHeightDp * visibleItems),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                    // Hour spinner
+                    Box(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxSize()
+                            .fillMaxHeight()
                     ) {
-                        val hourScrollState = rememberScrollState()
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .verticalScroll(hourScrollState),
+                        LazyColumn(
+                            state = hourListState,
+                            modifier = Modifier.fillMaxSize(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Spacer(modifier = Modifier.height(40.dp))
-                            hours.forEach { hour ->
-                                Text(
-                                    text = hour.toString().padStart(2, '0'),
-                                    fontSize = if (hour == selectedHour) 28.sp else 16.sp,
-                                    fontWeight = if (hour == selectedHour) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (hour == selectedHour) ColorPrimaryOrange else ColorTextGray,
-                                    modifier = Modifier
-                                        .padding(8.dp)
-                                        .clickable { selectedHour = hour }
-                                )
+                            // 상단 패딩 아이템 (중앙 정렬용)
+                            item {
+                                Spacer(modifier = Modifier.height(itemHeightDp))
                             }
-                            Spacer(modifier = Modifier.height(40.dp))
+                            items(hours.size) { index ->
+                                val hour = hours[index]
+                                val isSelected = hour == selectedHour
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(itemHeightDp)
+                                        .clickable(
+                                            indication = null,
+                                            interactionSource = remember { MutableInteractionSource() }
+                                        ) {
+                                            selectedHour = hour
+                                            coroutineScope.launch {
+                                                hourListState.animateScrollToItem(index)
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = hour.toString().padStart(2, '0'),
+                                        fontSize = if (isSelected) 28.sp else 16.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) ColorPrimaryOrange else ColorTextGray
+                                    )
+                                }
+                            }
+                            // 하단 패딩 아이템
+                            item {
+                                Spacer(modifier = Modifier.height(itemHeightDp))
+                            }
                         }
+                        // 중앙 선택 영역 표시
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(itemHeightDp)
+                                .align(Alignment.Center)
+                                .background(
+                                    Color(0x0DFF6B35),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                    BorderStroke(1.dp, ColorPrimaryOrange.copy(alpha = 0.3f)),
+                                    RoundedCornerShape(8.dp)
+                                )
+                        )
                     }
 
                     Text(":", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = ColorTextBlack)
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                    // Minute spinner
+                    Box(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxSize()
+                            .fillMaxHeight()
                     ) {
-                        val minuteScrollState = rememberScrollState()
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .verticalScroll(minuteScrollState),
+                        LazyColumn(
+                            state = minuteListState,
+                            modifier = Modifier.fillMaxSize(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Spacer(modifier = Modifier.height(40.dp))
-                            minutes.forEach { minute ->
-                                Text(
-                                    text = minute.toString().padStart(2, '0'),
-                                    fontSize = if (minute == selectedMinute) 28.sp else 16.sp,
-                                    fontWeight = if (minute == selectedMinute) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (minute == selectedMinute) ColorPrimaryOrange else ColorTextGray,
-                                    modifier = Modifier
-                                        .padding(8.dp)
-                                        .clickable { selectedMinute = minute }
-                                )
+                            item {
+                                Spacer(modifier = Modifier.height(itemHeightDp))
                             }
-                            Spacer(modifier = Modifier.height(40.dp))
+                            items(minutes.size) { index ->
+                                val minute = minutes[index]
+                                val isSelected = minute == selectedMinute
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(itemHeightDp)
+                                        .clickable(
+                                            indication = null,
+                                            interactionSource = remember { MutableInteractionSource() }
+                                        ) {
+                                            selectedMinute = minute
+                                            coroutineScope.launch {
+                                                minuteListState.animateScrollToItem(index)
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = minute.toString().padStart(2, '0'),
+                                        fontSize = if (isSelected) 28.sp else 16.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) ColorPrimaryOrange else ColorTextGray
+                                    )
+                                }
+                            }
+                            item {
+                                Spacer(modifier = Modifier.height(itemHeightDp))
+                            }
                         }
+                        // 중앙 선택 영역 표시
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(itemHeightDp)
+                                .align(Alignment.Center)
+                                .background(
+                                    Color(0x0DFF6B35),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                    BorderStroke(1.dp, ColorPrimaryOrange.copy(alpha = 0.3f)),
+                                    RoundedCornerShape(8.dp)
+                                )
+                        )
                     }
                 }
 

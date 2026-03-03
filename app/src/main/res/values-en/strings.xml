@@ -1,0 +1,84 @@
+<resources>
+    <string name="app_name">Seatly</string>
+    
+    <!-- Login Screen -->
+    <string name="login_app_name">Seatly</string>
+    <string name="login_tagline">Space for your focus</string>
+    <string name="login_email_label">Email</string>
+    <string name="login_email_placeholder">email@example.com</string>
+    <string name="login_password_label">Password</string>
+    <string name="login_password_placeholder">••••••••</string>
+    <string name="login_auto_login">Auto Login</string>
+    <string name="login_forgot_password">Forgot Password</string>
+    <string name="login_button">Login</string>
+    <string name="login_loading">Logging in…</string>
+    <string name="login_divider_or">OR</string>
+    <string name="login_no_account">Don\'t have an account? </string>
+    <string name="login_signup">Sign up</string>
+    <string name="login_google_content_desc">Google</string>
+    <string name="login_kakao_content_desc">Kakao</string>
+    <string name="login_naver_text">N</string>
+    <string name="login_logo_content_desc">Seatly Logo</string>
+
+    <!-- App Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_language_select_title">Select Language</string>
+    <string name="settings_close">Close</string>
+
+    <!-- Cafe Detail -->
+    <string name="cafe_detail_title">Cafe Detail</string>
+    <string name="cafe_detail_back_desc">Back</string>
+    <string name="cafe_detail_select_seat">Select Seat</string>
+    <string name="cafe_detail_closed">Closed</string>
+
+    <!-- Home Screen -->
+    <string name="home_hello_user_format">Hello, %s!</string>
+    <string name="home_hello_guest">Hello!</string>
+    <string name="home_subtitle">Study passionately today!</string>
+    <string name="home_notification_desc">Notifications</string>
+    <string name="home_loading_cafe_name">Loading cafe name…</string>
+    <string name="home_loading_location">Loading location…</string>
+    <string name="home_no_seat_info">No seat info</string>
+    <string name="home_seat_suffix">Seat</string>
+    <string name="home_active_seat">Active Session</string>
+    <string name="home_end_usage">End Usage</string>
+    <string name="home_no_active_session">No active session.</string>
+    <string name="home_search_cafe_hint">Search for a cafe to start</string>
+    <string name="home_no_session_desc">No session</string>
+    <string name="home_favorite_cafes">Favorite Cafes</string>
+    <string name="home_see_all">See All</string>
+    <string name="home_no_favorites_desc">No favorites</string>
+    <string name="home_no_favorites_message">No favorite cafes yet</string>
+
+    <!-- My Page -->
+    <string name="mypage_title">My Page</string>
+    <string name="mypage_unknown_error">Unknown Error</string>
+    <string name="mypage_edit_profile_desc">Edit Profile</string>
+    <string name="mypage_time_passes">My Time Passes</string>
+    <string name="mypage_see_more">More</string>
+    <string name="mypage_no_time_pass_desc">No time passes</string>
+    <string name="mypage_no_time_pass_message">No time passes owned</string>
+    <string name="mypage_suffix_hours">h </string>
+    <string name="mypage_suffix_minutes">m</string>
+    <string name="mypage_management_title">Management &amp; Settings</string>
+    <string name="mypage_notification_settings">Notification Settings</string>
+    <string name="mypage_logout">Logout</string>
+
+    <!-- Seat Selection Screen -->
+    <string name="seat_selection_title">Select Seat</string>
+    <string name="seat_loading_info">Loading seat information…</string>
+    <string name="seat_label_format">Seat %s</string>
+    <string name="seat_occupied_message">Occupied by another user</string>
+    <string name="seat_available_message">Available seat</string>
+    <string name="seat_close_desc">Close</string>
+    <string name="seat_unavailable_button">Unavailable</string>
+    <string name="seat_start_button">Start Using</string>
+    <string name="seat_my_seat_message">This is your seat</string>
+    <string name="seat_end_button">End Usage</string>
+    <string name="seat_warning_occupied_title">Active session exists</string>
+    <string name="seat_warning_occupied_message">You must end your current session before selecting another seat.</string>
+    <string name="seat_confirm_button">OK</string>
+</resources>

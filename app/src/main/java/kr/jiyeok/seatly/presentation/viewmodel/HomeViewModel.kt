@@ -2,11 +2,14 @@ package kr.jiyeok.seatly.presentation.viewmodel
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -14,8 +17,13 @@ import kr.jiyeok.seatly.data.remote.enums.EStatus
 import kr.jiyeok.seatly.data.remote.request.UpdateUserInfoRequest
 import kr.jiyeok.seatly.data.remote.response.*
 import kr.jiyeok.seatly.data.repository.ApiResult
+import kr.jiyeok.seatly.data.repository.NotificationRepository
 import kr.jiyeok.seatly.di.IoDispatcher
+import kr.jiyeok.seatly.di.TokenProvider
 import kr.jiyeok.seatly.domain.usecase.*
+import kr.jiyeok.seatly.domain.websocket.WebSocketManager
+import kr.jiyeok.seatly.util.NotificationHelper
+import kr.jiyeok.seatly.data.remote.enums.ERole
 import javax.inject.Inject
 
 /**
@@ -40,16 +48,26 @@ class HomeViewModel @Inject constructor(
 
     // Cafe 관련 UseCase
     private val getStudyCafesUseCase: GetStudyCafesUseCase,
-    private val getAdminCafesUseCase: GetAdminCafesUseCase,
     private val addFavoriteCafeUseCase: AddFavoriteCafeUseCase,
     private val removeFavoriteCafeUseCase: RemoveFavoriteCafeUseCase,
 
-    // Session 관련 UseCase
+    // Seat 관련 UseCase
+    private val getCafeSeatsUseCase: GetCafeSeatsUseCase,
     private val getSessionsUseCase: GetSessionsUseCase,
     private val endSessionUseCase: EndSessionUseCase,
 
+    // WebSocket & 알림
+    private val webSocketManager: WebSocketManager,
+    private val notificationRepository: NotificationRepository,
+    private val tokenProvider: TokenProvider,
+    private val notificationHelper: NotificationHelper,
+
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "HomeViewModel"
+    }
 
     // =====================================================
     // State
@@ -67,6 +85,9 @@ class HomeViewModel @Inject constructor(
     private val _userTimePasses = MutableStateFlow<List<UserTimePass>?>(null)
     val userTimePasses: StateFlow<List<UserTimePass>?> = _userTimePasses.asStateFlow()
 
+    private val _seatNames = MutableStateFlow<Map<Long, String>>(emptyMap())
+    val seatNames: StateFlow<Map<Long, String>> = _seatNames.asStateFlow()
+
     // =====================================================
     // State Management - Cafes
     // =====================================================
@@ -74,8 +95,7 @@ class HomeViewModel @Inject constructor(
     private val _cafes = MutableStateFlow<List<StudyCafeSummaryDto>>(emptyList())
     val cafes: StateFlow<List<StudyCafeSummaryDto>> = _cafes.asStateFlow()
 
-    private val _adminCafes = MutableStateFlow<List<StudyCafeSummaryDto>>(emptyList())
-    val adminCafes: StateFlow<List<StudyCafeSummaryDto>> = _adminCafes.asStateFlow()
+
 
     private val _favoriteCafeIds = MutableStateFlow<List<Long>>(emptyList())
     val favoriteCafeIds: StateFlow<List<Long>> = _favoriteCafeIds.asStateFlow()
@@ -93,10 +113,59 @@ class HomeViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    private val _events = Channel<String>(Channel.BUFFERED)
-    val events = _events.receiveAsFlow()
+    private val _events = MutableSharedFlow<String>(
+        replay = 0,
+        extraBufferCapacity = 1,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    val events: kotlinx.coroutines.flow.SharedFlow<String> = _events.asSharedFlow()
 
     private val loadingImageIds = mutableSetOf<String>()
+
+    // WebSocket 구독 ID
+    private var timePassSubscriptionId: String? = null
+    private var isWebSocketConnected = false
+
+    init {
+        // WebSocket 메시지 리스닝
+        viewModelScope.launch {
+            webSocketManager.messages.collect { message ->
+                when (message) {
+                    is WebSocketMessage.TimePassEvent -> {
+                        when (message.type) {
+                            TimePassEventType.TIMEPASS_REQUEST_ACCEPTED,
+                            TimePassEventType.TIMEPASS_REQUEST_REJECTED -> {
+                                val approved = message.type == TimePassEventType.TIMEPASS_REQUEST_ACCEPTED
+                                val msg = if (approved) "시간권 요청이 수락되었습니다." else "시간권 요청이 거절되었습니다."
+                                notificationRepository.addTimePassNotification(
+                                    approved = approved,
+                                    message = msg
+                                )
+                                _events.tryEmit(msg)
+                                Log.d(TAG, "TimePassResponse received: ${message.type}")
+                            }
+                            TimePassEventType.TIMEPASS_REQUEST -> {
+                                // 관리자에게 온 시간권 요청 알림
+                                if (userData.value?.role == ERole.ADMIN) {
+                                    val hours = message.request.time / 3600
+                                    val minutes = (message.request.time % 3600) / 60
+                                    val timeString = if (minutes > 0) "${hours}시간 ${minutes}분" else "${hours}시간"
+                                    
+                                    notificationHelper.showTimePassRequestNotification(
+                                        title = "시간권 요청",
+                                        message = "새로운 유저가 ${timeString} 이용권을 요청했습니다."
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        // 다른 메시지 타입은 무시
+                    }
+                }
+            }
+        }
+    }
 
     // =====================================================
     // Public Methods
@@ -123,8 +192,6 @@ class HomeViewModel @Inject constructor(
                 // 전체 카페 목록 조회
                 loadCafes()
 
-                // 관리자 카페 정보 조회
-                loadAdminCafes()
                 if (studyCafeId != null) {
                     loadCurrentSession(studyCafeId)
                 }
@@ -143,15 +210,43 @@ class HomeViewModel @Inject constructor(
                         val userData = result.data
                         if (userData != null) {
                             _userData.value = userData
+                            // 유저 정보 로드 성공 후 WebSocket 연결
+                            connectWebSocket(userData.id)
                         }
                     }
                     is ApiResult.Failure -> {
-                        _events.send(result.message ?: "사용자 정보 조회 실패")
+                        _events.tryEmit(result.message ?: "사용자 정보 조회 실패")
                     }
                 }
             } catch (e: Exception) {
-                _events.send(e.message ?: "알 수 없는 오류")
+                _events.tryEmit(e.message ?: "알 수 없는 오류")
             }
+        }
+    }
+
+    /**
+     * WebSocket 연결 및 시간권 이벤트 구독
+     */
+    private fun connectWebSocket(userId: Long) {
+        if (isWebSocketConnected) return
+
+        val token = tokenProvider.getAccessToken()
+        if (token.isNullOrEmpty()) {
+            Log.w(TAG, "No access token available for WebSocket connection")
+            return
+        }
+
+        try {
+            webSocketManager.connect(token)
+            timePassSubscriptionId = webSocketManager.subscribeToTimePassEvents(userId)
+            
+            // 사용자 좌석 이벤트 구독 추가
+            webSocketManager.subscribeToUserSeatEvents(userId)
+            
+            isWebSocketConnected = true
+            Log.d(TAG, "WebSocket connected and subscribed to events for userId=$userId")
+        } catch (e: Exception) {
+            Log.e(TAG, "WebSocket connection failed", e)
         }
     }
 
@@ -166,11 +261,11 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                     is ApiResult.Failure -> {
-                        _events.send(result.message ?: "즐겨찾기 카페 조회 실패")
+                        _events.tryEmit(result.message ?: "즐겨찾기 카페 조회 실패")
                     }
                 }
             } catch (e: Exception) {
-                _events.send(e.message ?: "알 수 없는 오류")
+                _events.tryEmit(e.message ?: "알 수 없는 오류")
             }
         }
     }
@@ -183,14 +278,40 @@ class HomeViewModel @Inject constructor(
                         val session = result.data
                         if (session != null) {
                             _userSessions.value = session
+                            // 세션에 해당하는 좌석 이름 로드
+                            session.forEach { sessionDto ->
+                                loadSeatName(sessionDto.studyCafeId, sessionDto.id, sessionDto.seatId)
+                            }
                         }
                     }
                     is ApiResult.Failure -> {
-                        _events.send(result.message ?: "현재 세션 정보 조회 실패")
+                        _events.tryEmit(result.message ?: "현재 세션 정보 조회 실패")
                     }
                 }
             } catch (e: Exception) {
-                _events.send(e.message ?: "알 수 없는 오류")
+                _events.tryEmit(e.message ?: "알 수 없는 오류")
+            }
+        }
+    }
+
+    private fun loadSeatName(studyCafeId: Long, sessionId: Long, seatId: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                // 해당 카페의 모든 좌석 정보를 가져옴
+                when (val result = getCafeSeatsUseCase(studyCafeId)) {
+                    is ApiResult.Success -> {
+                        val seats = result.data ?: emptyList()
+                        val seat = seats.find { it.id == seatId }
+                        if (seat != null) {
+                            _seatNames.update { it + (sessionId to seat.name) }
+                        }
+                    }
+                    is ApiResult.Failure -> {
+                        // 좌석 정보 로드 실패 시 무시하거나 로깅
+                    }
+                }
+            } catch (e: Exception) {
+                // 예외 발생 시 무시
             }
         }
     }
@@ -206,11 +327,11 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                     is ApiResult.Failure -> {
-                        _events.send(result.message ?: "현재 세션 정보 조회 실패")
+                        _events.tryEmit(result.message ?: "현재 세션 정보 조회 실패")
                     }
                 }
             } catch (e: Exception) {
-                _events.send(e.message ?: "알 수 없는 오류")
+                _events.tryEmit(e.message ?: "알 수 없는 오류")
             }
         }
     }
@@ -222,46 +343,27 @@ class HomeViewModel @Inject constructor(
                     is ApiResult.Success -> {
                         val cafeList = result.data ?: emptyList()
                         _cafes.value = cafeList
-                        // 이미지 로드 트리거
-                        cafeList.forEach { cafe ->
-                            cafe.mainImageUrl?.let { url -> loadImage(url) }
+                        // 이미지 병렬 배치 로드 (3개씩 동시 로드)
+                        val imageIds = cafeList.mapNotNull { it.mainImageUrl }
+                        imageIds.chunked(3).forEach { batch ->
+                            batch.map { imageId ->
+                                async { loadImage(imageId) }
+                            }.awaitAll()
                         }
                     }
                     is ApiResult.Failure -> {
                         _cafes.value = emptyList()
-                        _events.send(result.message ?: "카페 목록 조회 실패")
+                        _events.tryEmit(result.message ?: "카페 목록 조회 실패")
                     }
                 }
             } catch (e: Exception) {
                 _cafes.value = emptyList()
-                _events.send(e.message ?: "알 수 없는 오류")
+                _events.tryEmit(e.message ?: "알 수 없는 오류")
             }
         }
     }
 
-    fun loadAdminCafes() {
-        viewModelScope.launch(ioDispatcher) {
-            try {
-                when (val result = getAdminCafesUseCase()) {
-                    is ApiResult.Success -> {
-                        val cafeList = result.data ?: emptyList()
-                        _adminCafes.value = cafeList
-                        // 이미지 로드 트리거
-                        cafeList.forEach { cafe ->
-                            cafe.mainImageUrl?.let { url -> loadImage(url) }
-                        }
-                    }
-                    is ApiResult.Failure -> {
-                        _adminCafes.value = emptyList()
-                        _events.send(result.message ?: "카페 목록 조회 실패")
-                    }
-                }
-            } catch (e: Exception) {
-                _adminCafes.value = emptyList()
-                _events.send(e.message ?: "알 수 없는 오류")
-            }
-        }
-    }
+
 
     // =====================================================
     // Public Methods - 세션 관리
@@ -289,23 +391,21 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun endCurrentSession() {
+    fun endCurrentSession(sessionId: Long) {
         viewModelScope.launch(ioDispatcher) {
             _isLoading.value = true
             try {
-                val session = _currentSession.value
-                if (session == null) {
-                    _events.send("종료할 세션이 없습니다")
-                    return@launch
-                }
-
-                when (val result = endSessionUseCase(session.id)) {
+                when (val result = endSessionUseCase(sessionId)) {
                     is ApiResult.Success -> {
                         _currentSession.value = null
-                        _events.send("이용이 종료되었습니다")
+                        _events.tryEmit("이용이 종료되었습니다")
+                        // 세션 목록 갱신
+                        loadCurrentSessionsInfo()
+                        // 시간권 목록도 갱신 (시간 차감 반영)
+                        loadMyTimePasses()
                     }
                     is ApiResult.Failure -> {
-                        _events.send(result.message ?: "세션 종료 실패")
+                        _events.tryEmit(result.message ?: "세션 종료 실패")
                     }
                 }
             } finally {
@@ -334,14 +434,14 @@ class HomeViewModel @Inject constructor(
                             newFavorites.add(cafeId)
                             _favoriteCafeIds.value = newFavorites
                         }
-                        _events.send("즐겨찾기에 추가되었습니다")
+                        _events.tryEmit("즐겨찾기에 추가되었습니다")
                     }
                     is ApiResult.Failure -> {
-                        _events.send(result.message ?: "즐겨찾기 추가 실패")
+                        _events.tryEmit(result.message ?: "즐겨찾기 추가 실패")
                     }
                 }
             } catch (e: Exception) {
-                _events.send(e.message ?: "알 수 없는 오류")
+                _events.tryEmit(e.message ?: "알 수 없는 오류")
             }
         }
     }
@@ -354,14 +454,14 @@ class HomeViewModel @Inject constructor(
                         val newFavorites = _favoriteCafeIds.value.toMutableList()
                         newFavorites.remove(cafeId)
                         _favoriteCafeIds.value = newFavorites
-                        _events.send("즐겨찾기에서 제거되었습니다")
+                        _events.tryEmit("즐겨찾기에서 제거되었습니다")
                     }
                     is ApiResult.Failure -> {
-                        _events.send(result.message ?: "즐겨찾기 제거 실패")
+                        _events.tryEmit(result.message ?: "즐겨찾기 제거 실패")
                     }
                 }
             } catch (e: Exception) {
-                _events.send(e.message ?: "알 수 없는 오류")
+                _events.tryEmit(e.message ?: "알 수 없는 오류")
             }
         }
     }
@@ -448,5 +548,12 @@ class HomeViewModel @Inject constructor(
             }
         }
         return inSampleSize
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // 웹소켓 연결은 전역(로그아웃 시)으로 관리되므로, 여기서는 끊지 않고 유지합니다.
+        // 다만 해당 화면에 특화된 구독이 있다면 해제(unsubscribe)만 수행합니다.
+        // timePassSubscriptionId는 전역 알림을 위해 유지합니다.
     }
 }

@@ -151,7 +151,7 @@ fun AdminMyPageScreen(
 
                     // 등록한 카페
                     RegisteredCafesSection(
-                        registeredCafes = uiState.registeredCafes,
+                        registeredCafes = uiState.allCafes,
                         cafeImages = uiState.cafeImages,
                         navigator = navigator
                     )

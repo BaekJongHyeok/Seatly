@@ -148,7 +148,7 @@ private fun TimePassRequestCard(
             ) {
                 Column {
                     Text(
-                        text = "$userName (${request.userId})",
+                        text = userName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = ColorTextBlack
@@ -161,12 +161,13 @@ private fun TimePassRequestCard(
                 }
                 
                 // 시간 표시
+                val timeInMinutes = request.time / 60
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = ColorPrimaryOrange.copy(alpha = 0.1f)
                 ) {
                     Text(
-                        text = "${request.time}분",
+                        text = "${timeInMinutes}분",
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,

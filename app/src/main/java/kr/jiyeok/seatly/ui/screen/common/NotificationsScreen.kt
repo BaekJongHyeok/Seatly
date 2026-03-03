@@ -17,22 +17,31 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import kr.jiyeok.seatly.data.repository.NotificationEntity
+import kr.jiyeok.seatly.data.repository.NotificationType
+import kr.jiyeok.seatly.presentation.viewmodel.NotificationsViewModel
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 import kr.jiyeok.seatly.ui.theme.ColorBgBeige
+import kr.jiyeok.seatly.ui.theme.ColorCheckCircle
 import kr.jiyeok.seatly.ui.theme.ColorDarkGray
 import kr.jiyeok.seatly.ui.theme.ColorPrimaryOrange
 import kr.jiyeok.seatly.ui.theme.ColorRedBadge
@@ -41,28 +50,22 @@ import kr.jiyeok.seatly.ui.theme.ColorTextDarkGray
 import kr.jiyeok.seatly.ui.theme.ColorTextGray
 import kr.jiyeok.seatly.ui.theme.ColorTextVeryLightGray
 import kr.jiyeok.seatly.ui.theme.ColorWhite
-import kotlin.collections.forEach
-import kotlin.collections.isNotEmpty
-import kotlin.to
+import java.time.Duration
+import java.time.LocalDateTime
 
 /**
- * 알림 화면 진입 시 사용할 메인 Composable
+ * 알림 화면
  *
  * - 상단 바: 뒤로가기 + "알림" 타이틀
  * - 오늘 / 이전 알림 섹션
  * - 알림이 없을 때 Empty 상태
- *
- * 실제 데이터 연동 시에는 notificationsToday / notificationsPast 를
- * ViewModel에서 가져오도록 교체하면 됨.
  */
 @Composable
 fun NotificationsScreen(
-    navController: NavController
+    navController: NavController,
+    viewModel: NotificationsViewModel = hiltViewModel()
 ) {
-    // TODO: ViewModel 연동 시 이 부분을 교체
-    val (notificationsToday, notificationsPast) = remember {
-        mockNotifications()
-    }
+    val uiState by viewModel.uiState.collectAsState()
 
     Column(
         modifier = Modifier
@@ -84,21 +87,23 @@ fun NotificationsScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        if (notificationsToday.isEmpty() && notificationsPast.isEmpty()) {
+        if (uiState.todayNotifications.isEmpty() && uiState.pastNotifications.isEmpty()) {
             EmptyNotificationState()
         } else {
-            if (notificationsToday.isNotEmpty()) {
+            if (uiState.todayNotifications.isNotEmpty()) {
                 NotificationSection(
                     title = "오늘",
-                    notifications = notificationsToday
+                    notifications = uiState.todayNotifications,
+                    onNotificationClick = { viewModel.markAsRead(it.id) }
                 )
             }
 
-            if (notificationsPast.isNotEmpty()) {
+            if (uiState.pastNotifications.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 NotificationSection(
                     title = "지난 알림",
-                    notifications = notificationsPast
+                    notifications = uiState.pastNotifications,
+                    onNotificationClick = { viewModel.markAsRead(it.id) }
                 )
             }
 
@@ -116,7 +121,8 @@ fun NotificationsScreen(
 @Composable
 private fun NotificationSection(
     title: String,
-    notifications: List<NotificationItem>
+    notifications: List<NotificationEntity>,
+    onNotificationClick: (NotificationEntity) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -135,7 +141,10 @@ private fun NotificationSection(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             notifications.forEach { item ->
-                NotificationCard(item = item)
+                NotificationCard(
+                    item = item,
+                    onClick = { onNotificationClick(item) }
+                )
             }
         }
     }
@@ -144,24 +153,35 @@ private fun NotificationSection(
 /**
  * 개별 알림 카드
  *
- * - 읽지 않은 알림: 배경 살짝 진하게 / 오른쪽 상단 빨간 뱃지
- * - 아이콘 + 제목 + 내용 + 시간
+ * - 읽지 않은 알림: 오른쪽 상단 빨간 뱃지
+ * - 타입별 아이콘 + 제목 + 내용 + 시간
  */
 @Composable
 private fun NotificationCard(
-    item: NotificationItem,
+    item: NotificationEntity,
     onClick: () -> Unit = {}
 ) {
+    val icon = when (item.type) {
+        NotificationType.TIME_PASS_APPROVED -> Icons.Filled.CheckCircle
+        NotificationType.TIME_PASS_REJECTED -> Icons.Filled.Cancel
+        else -> Icons.Filled.Notifications
+    }
+    val iconTint = when (item.type) {
+        NotificationType.TIME_PASS_APPROVED -> ColorCheckCircle
+        NotificationType.TIME_PASS_REJECTED -> Color(0xFFE53935)
+        else -> ColorPrimaryOrange
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
                 elevation = 8.dp,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(16.dp),
                 ambientColor = ColorTextBlack.copy(alpha = 0.15f),
                 spotColor = ColorTextBlack.copy(alpha = 0.08f)
             )
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(
                 if (item.isRead) ColorBgBeige
                 else ColorBgBeige.copy(alpha = 0.95f)
@@ -177,14 +197,14 @@ private fun NotificationCard(
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(ColorWhite),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Notifications,
+                    imageVector = icon,
                     contentDescription = "알림",
-                    tint = ColorPrimaryOrange,
+                    tint = iconTint,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -204,11 +224,12 @@ private fun NotificationCard(
                         fontWeight = if (item.isRead) FontWeight.SemiBold else FontWeight.Bold,
                         color = ColorTextBlack,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
 
                     Text(
-                        text = item.timeText,
+                        text = formatTimeAgo(item.createdAt),
                         fontSize = 11.sp,
                         color = ColorTextDarkGray
                     )
@@ -232,7 +253,7 @@ private fun NotificationCard(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .size(10.dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+                    .clip(RoundedCornerShape(50))
                     .background(ColorRedBadge)
             )
         }
@@ -241,7 +262,6 @@ private fun NotificationCard(
 
 /**
  * 알림이 하나도 없을 때 표시되는 Empty 상태
- * (UserHomeScreen의 NoActiveSessionCard 톤을 맞춤)
  */
 @Composable
 private fun EmptyNotificationState() {
@@ -251,11 +271,11 @@ private fun EmptyNotificationState() {
             .padding(horizontal = 20.dp, vertical = 24.dp)
             .shadow(
                 elevation = 8.dp,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(16.dp),
                 ambientColor = ColorTextBlack.copy(alpha = 0.15f),
                 spotColor = ColorTextBlack.copy(alpha = 0.08f)
             )
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(ColorBgBeige)
             .padding(vertical = 32.dp, horizontal = 20.dp),
         contentAlignment = Alignment.Center
@@ -279,7 +299,7 @@ private fun EmptyNotificationState() {
             )
 
             Text(
-                text = "중요한 소식이 있으면 여기에서 알려드릴게요",
+                text = "시간권을 요청하면 관리자의 응답을 여기서 확인할 수 있어요",
                 fontSize = 11.sp,
                 color = ColorTextDarkGray
             )
@@ -288,56 +308,18 @@ private fun EmptyNotificationState() {
 }
 
 /**
- * UI에서 사용할 알림 아이템 모델
- * (서버 / ViewModel 모델과는 분리된 UI 용 DTO)
+ * 시간 포맷 (상대 시간)
  */
-data class NotificationItem(
-    val id: String,
-    val title: String,
-    val message: String,
-    val timeText: String,   // "5분 전", "어제", "3일 전" 등
-    val isRead: Boolean
-)
+private fun formatTimeAgo(dateTime: LocalDateTime): String {
+    val now = LocalDateTime.now()
+    val duration = Duration.between(dateTime, now)
 
-/**
- * UI 확인용 Mock 데이터
- * 실제 사용 시에는 ViewModel에서 알림 리스트를 내려주고
- * NotificationsScreen에 전달하면 됨.
- */
-private fun mockNotifications(): Pair<List<NotificationItem>, List<NotificationItem>> {
-    val today = listOf(
-        NotificationItem(
-            id = "1",
-            title = "예약 시간이 곧 시작돼요",
-            message = "홍대 스터디카페 A 지점 예약 시작 10분 전입니다.",
-            timeText = "5분 전",
-            isRead = false
-        ),
-        NotificationItem(
-            id = "2",
-            title = "이용 종료 알림",
-            message = "강남 스터디카페 B 지점 이용이 곧 종료됩니다.",
-            timeText = "30분 전",
-            isRead = false
-        )
-    )
-
-    val past = listOf(
-        NotificationItem(
-            id = "3",
-            title = "이용이 정상 종료되었어요",
-            message = "어제 이용하신 스터디카페 C 지점 이용이 정상적으로 종료되었습니다.",
-            timeText = "어제",
-            isRead = true
-        ),
-        NotificationItem(
-            id = "4",
-            title = "예약이 완료되었어요",
-            message = "내일 오후 2시에 이용하실 강남 스터디카페 B 지점 예약이 완료되었습니다.",
-            timeText = "2일 전",
-            isRead = true
-        )
-    )
-
-    return today to past
+    return when {
+        duration.toMinutes() < 1 -> "방금 전"
+        duration.toMinutes() < 60 -> "${duration.toMinutes()}분 전"
+        duration.toHours() < 24 -> "${duration.toHours()}시간 전"
+        duration.toDays() == 1L -> "어제"
+        duration.toDays() < 7 -> "${duration.toDays()}일 전"
+        else -> "${dateTime.monthValue}/${dateTime.dayOfMonth}"
+    }
 }

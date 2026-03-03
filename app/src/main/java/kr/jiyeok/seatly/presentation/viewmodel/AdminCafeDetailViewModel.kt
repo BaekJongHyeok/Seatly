@@ -27,7 +27,9 @@ import kr.jiyeok.seatly.data.repository.ApiResult
 import kr.jiyeok.seatly.di.IoDispatcher
 import kr.jiyeok.seatly.domain.usecase.AddUserTimePassUseCase
 import kr.jiyeok.seatly.domain.usecase.CreateSeatsUseCase
+import kr.jiyeok.seatly.domain.usecase.DeleteCafeUseCase
 import kr.jiyeok.seatly.domain.usecase.DeleteSeatUseCase
+import kr.jiyeok.seatly.domain.usecase.DeleteUserTimePassUseCase
 import kr.jiyeok.seatly.domain.usecase.GetCafeDetailUseCase
 import kr.jiyeok.seatly.domain.usecase.GetCafeSeatsUseCase
 import kr.jiyeok.seatly.domain.usecase.GetCafeUsageUseCase
@@ -42,6 +44,7 @@ import kr.jiyeok.seatly.domain.usecase.GetUserInfoAdminUseCase
 import kr.jiyeok.seatly.data.remote.response.TimePassRequestDto
 import kr.jiyeok.seatly.domain.websocket.WebSocketManager
 import kr.jiyeok.seatly.data.remote.response.WebSocketMessage
+import kr.jiyeok.seatly.data.remote.response.TimePassEventType
 import javax.inject.Inject
 
 @HiltViewModel
@@ -50,6 +53,7 @@ class AdminCafeDetailViewModel @Inject constructor(
     private val getCafeUsageUseCase: GetCafeUsageUseCase,
     private val getCafeMembersUseCase: GetUsersWithTimePassUseCase,
     private val addUserTimePassUseCase: AddUserTimePassUseCase,
+    private val deleteUserTimePassUseCase: DeleteUserTimePassUseCase,
     private val getCafeSeatsUseCase: GetCafeSeatsUseCase,
     private val createSeatsUseCase: CreateSeatsUseCase,
     private val updateSeatsUseCase: UpdateSeatsUseCase,
@@ -60,6 +64,7 @@ class AdminCafeDetailViewModel @Inject constructor(
     private val acceptTimePassRequestUseCase: AcceptTimePassRequestUseCase,
     private val rejectTimePassRequestUseCase: RejectTimePassRequestUseCase,
     private val getUserInfoAdminUseCase: GetUserInfoAdminUseCase,
+    private val deleteCafeUseCase: DeleteCafeUseCase,
     private val webSocketManager: WebSocketManager,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
@@ -121,28 +126,54 @@ class AdminCafeDetailViewModel @Inject constructor(
     private val _events = Channel<String>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
+    // 카페 삭제 결과 (UI에서 네비게이션에 사용)
+    private val _cafeDeleted = Channel<Boolean>(Channel.BUFFERED)
+    val cafeDeleted = _cafeDeleted.receiveAsFlow()
+
     // 이미지 로딩 중복 방지
     private val loadingImageIds = mutableSetOf<String>()
     
     // WebSocket 구독 ID
-    private var timePassSubscriptionId: String? = null
+    private var studyCafeSubscriptionId: String? = null
     
     init {
         // WebSocket 메시지 리스닝
         viewModelScope.launch {
             webSocketManager.messages.collect { message ->
-                when (message) {
-                    is WebSocketMessage.TimePassRequest -> {
-                        // 새로운 시간권 요청 알림
-                        _events.send("새로운 시간권 요청: ${message.userName} (${message.requestedTime}분)")
-                        
-                        // 시간권 요청 목록 업데이트
-                        message.studyCafeId.let { cafeId ->
-                            loadTimePassRequests(cafeId)
+                if (message is WebSocketMessage.SeatEvent) {
+                    // 좌석 이벤트 수신 시 상태 업데이트
+                    _uiState.update { state ->
+                        val updatedSeats = state.seats.map { seat ->
+                            if (seat.id == message.seatId) {
+                                val newStatus = when (message.type) {
+                                    kr.jiyeok.seatly.data.remote.response.SeatEventType.ASSIGNED,
+                                    kr.jiyeok.seatly.data.remote.response.SeatEventType.USAGE_STARTED -> kr.jiyeok.seatly.data.remote.enums.ESeatStatus.UNAVAILABLE
+                                    kr.jiyeok.seatly.data.remote.response.SeatEventType.USAGE_FINISHED,
+                                    kr.jiyeok.seatly.data.remote.response.SeatEventType.HOLD_RELEASED -> kr.jiyeok.seatly.data.remote.enums.ESeatStatus.AVAILABLE
+                                }
+                                seat.copy(status = newStatus)
+                            } else seat
+                        }
+                        state.copy(seats = updatedSeats)
+                    }
+
+                    // 세션 및 관련 데이터 재호출
+                    // 딜레이를 주어 서버 DB 반영 시간을 기다립니다.
+                    val currentCafeId = uiState.value.cafeInfo?.id
+                    if (currentCafeId != null) {
+                        viewModelScope.launch {
+                            kotlinx.coroutines.delay(500L)
+                            loadSessions(currentCafeId)
+                            loadCafeUsage(currentCafeId)
                         }
                     }
-                    else -> {
-                        // 다른 메시지 타입은 무시
+                } else if (message is WebSocketMessage.TimePassEvent) {
+                    if (message.type == kr.jiyeok.seatly.data.remote.response.TimePassEventType.TIMEPASS_REQUEST) {
+                        val hours = message.request.time / 3600
+                        val minutes = (message.request.time % 3600) / 60
+                        val timeString = if (minutes > 0) "${hours}시간 ${minutes}분" else "${hours}시간"
+                        
+                        _events.trySend("새로운 유저가 ${timeString} 이용권을 요청했습니다.")
                     }
                 }
             }
@@ -150,24 +181,44 @@ class AdminCafeDetailViewModel @Inject constructor(
     }
     
     /**
-     * WebSocket 연결 및 구독 시작
+     * 특정 카페의 좌석 이벤트를 구독합니다.
      */
-    fun startWebSocketConnection(adminUserId: Long, token: String) {
-        webSocketManager.connect(token)
-        timePassSubscriptionId = webSocketManager.subscribeToTimePassEvents(adminUserId)
+    fun subscribeToCafeEvents(cafeId: Long) {
+        if (studyCafeSubscriptionId == null) {
+            studyCafeSubscriptionId = webSocketManager.subscribeToStudyCafe(cafeId)
+        }
     }
     
     /**
-     * WebSocket 연결 해제
+     * 해당 카페 구독을 해제합니다.
      */
-    fun stopWebSocketConnection() {
-        timePassSubscriptionId?.let { webSocketManager.unsubscribe(it) }
-        webSocketManager.disconnect()
+    fun unsubscribeCafeEvents() {
+        studyCafeSubscriptionId?.let { 
+            webSocketManager.unsubscribe(it) 
+            studyCafeSubscriptionId = null
+        }
     }
 
     // =====================================================
     // Public Methods
     // =====================================================
+
+    /**
+     * 카페 삭제
+     */
+    fun deleteCafe(cafeId: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            when (val result = deleteCafeUseCase(cafeId)) {
+                is ApiResult.Success -> {
+                    _events.send("카페가 삭제되었습니다.")
+                    _cafeDeleted.send(true)
+                }
+                is ApiResult.Failure -> {
+                    _events.send(result.message ?: "카페 삭제 실패")
+                }
+            }
+        }
+    }
 
     /**
      * 카페 상세 정보를 병렬로 로드
@@ -187,10 +238,14 @@ class AdminCafeDetailViewModel @Inject constructor(
 
     /**
      * 시간권 추가
+     * time: 분 단위 입력 -> 초 단위로 변환하여 요청
      */
-    fun addUserTimePass(userId: Long, studyCafeId: Long, time: Long) {
+    fun addUserTimePass(userId: Long, studyCafeId: Long, timeInMinutes: Long) {
         viewModelScope.launch(ioDispatcher) {
-            when (val result = addUserTimePassUseCase(userId, studyCafeId, time)) {
+            // 분 -> 초 변환
+            val timeInSeconds = timeInMinutes * 60
+            
+            when (val result = addUserTimePassUseCase(userId, studyCafeId, timeInSeconds)) {
                 is ApiResult.Success -> {
                     _events.send("시간권이 추가되었습니다.")
                     // 멤버 목록 다시 로드
@@ -198,6 +253,26 @@ class AdminCafeDetailViewModel @Inject constructor(
                 }
                 is ApiResult.Failure -> {
                     _events.send(result.message ?: "시간권 추가 실패")
+                }
+            }
+        }
+    }
+
+    /**
+     * 시간권 삭제
+     */
+    fun deleteUserTimePass(userId: Long, studyCafeId: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            when (val result = deleteUserTimePassUseCase(studyCafeId, userId)) {
+                is ApiResult.Success -> {
+                    _events.send("시간권이 삭제되었습니다.")
+                    // 멤버 목록 다시 로드
+                    loadCafeMembers(studyCafeId)
+                    // 관련 요청 목록도 갱신 필요할 수 있음
+                    loadTimePassRequests(studyCafeId)
+                }
+                is ApiResult.Failure -> {
+                    _events.send(result.message ?: "시간권 삭제 실패")
                 }
             }
         }
@@ -438,7 +513,7 @@ class AdminCafeDetailViewModel @Inject constructor(
                         // 각 멤버의 상세 정보 조회 (병렬 처리)
                         val membersWithInfo = members.map { member ->
                             async {
-                                val userResult = getUserInfoAdminUseCase(member.id)
+                                val userResult = getUserInfoAdminUseCase(member.userId)
                                 val userInfo = if (userResult is ApiResult.Success) {
                                     userResult.data
                                 } else {
@@ -555,7 +630,7 @@ class AdminCafeDetailViewModel @Inject constructor(
                         SeatUpdate(
                             id = seat.id.toLong(),
                             name = seat.label,
-                            status = ESeatStatus.AVAILABLE,
+                            status = seat.availabilityStatus,
                             position = buildPositionString(seat)
                         )
                     }
@@ -576,7 +651,7 @@ class AdminCafeDetailViewModel @Inject constructor(
                     val createRequest = newSeats.map { seat ->
                         SeatCreate(
                             name = seat.label,
-                            status = ESeatStatus.AVAILABLE,
+                            status = seat.availabilityStatus,
                             position = buildPositionString(seat)
                         )
                     }
@@ -675,10 +750,10 @@ class AdminCafeDetailViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         // Bitmap 메모리 해제
-        _uiState.value.images.values.forEach { bitmap ->
-            if (!bitmap.isRecycled) {
-                bitmap.recycle()
-            }
+        // Bitmap 메모리 해제는 GC에 맡김
+        _uiState.value.images.values.forEach { 
+             // 명시적 recycle() 제거: 화면 전환 애니메이션 중 크래시 방지
         }
+        unsubscribeCafeEvents()
     }
 }

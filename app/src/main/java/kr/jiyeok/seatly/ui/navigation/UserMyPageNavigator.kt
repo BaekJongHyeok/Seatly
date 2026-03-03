@@ -12,6 +12,7 @@ object MyPageRoutes {
     const val NOTIFICATIONS = "common/notifications"
     const val APP_SETTINGS = "common/settings"
     const val DASHBOARD = "common/dashboard"
+    const val TIME_PASSES = "common/dashboard" // TODO: 시간권 목록 전용 화면 추가 시 변경
     const val LOGIN = "auth/login"
 }
 
@@ -35,6 +36,11 @@ class UserMyPageNavigator(private val navController: NavController) {
     // 알림 화면으로 이동
     fun navigateToNotifications() {
         navController.navigate(MyPageRoutes.NOTIFICATIONS)
+    }
+
+    // 시간권 목록 화면으로 이동
+    fun navigateToTimePasses() {
+        navController.navigate(MyPageRoutes.TIME_PASSES)
     }
 
     // 앱 설정 화면으로 이동

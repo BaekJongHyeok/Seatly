@@ -23,6 +23,12 @@ import kr.jiyeok.seatly.di.IoDispatcher
 import kr.jiyeok.seatly.domain.usecase.GetAdminCafesUseCase
 import kr.jiyeok.seatly.domain.usecase.GetCafeUsageUseCase
 import kr.jiyeok.seatly.domain.usecase.GetImageUseCase
+import kr.jiyeok.seatly.domain.websocket.WebSocketManager
+import kr.jiyeok.seatly.di.TokenProvider
+import kr.jiyeok.seatly.util.NotificationHelper
+import kr.jiyeok.seatly.data.remote.response.WebSocketMessage
+import kr.jiyeok.seatly.data.remote.response.TimePassEventType
+import kr.jiyeok.seatly.domain.usecase.GetUserInfoUseCase
 import javax.inject.Inject
 
 @HiltViewModel
@@ -30,6 +36,10 @@ class AdminHomeViewModel @Inject constructor(
     private val getAdminCafesUseCase: GetAdminCafesUseCase,
     private val getCafeUsageUseCase: GetCafeUsageUseCase,
     private val getImageUseCase: GetImageUseCase,
+    private val getUserInfoUseCase: GetUserInfoUseCase,
+    private val webSocketManager: WebSocketManager,
+    private val tokenProvider: TokenProvider,
+    private val notificationHelper: NotificationHelper,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -54,6 +64,33 @@ class AdminHomeViewModel @Inject constructor(
 
     private val loadingImageIds = mutableSetOf<String>()
 
+    // WebSocket 구독 ID
+    private var timePassSubscriptionId: String? = null
+    private var isWebSocketConnected = false
+
+    init {
+        // 관리자용 시간권 이벤트 글로벌 수신
+        viewModelScope.launch {
+            webSocketManager.messages.collect { message ->
+                if (message is WebSocketMessage.TimePassEvent) {
+                    if (message.type == TimePassEventType.TIMEPASS_REQUEST) {
+                        val hours = message.request.time / 3600
+                        val minutes = (message.request.time % 3600) / 60
+                        val timeString = if (minutes > 0) "${hours}시간 ${minutes}분" else "${hours}시간"
+                        
+                        // 앱 내부 Toast 메시지 표시
+                        _events.trySend("새로운 유저가 ${timeString} 이용권을 요청했습니다.")
+
+                        notificationHelper.showTimePassRequestNotification(
+                            title = "시간권 요청",
+                            message = "새로운 유저가 ${timeString} 이용권을 요청했습니다."
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     // =====================================================
     // Public Methods
     // =====================================================
@@ -67,6 +104,9 @@ class AdminHomeViewModel @Inject constructor(
             _isLoading.update { true }
 
             try {
+                // 관리자 정보 먼저 로드하여 WebSocket 연결
+                loadUserInfo()
+                
                 when (val result = getAdminCafesUseCase()) {
                     is ApiResult.Success -> {
                         val cafes = result.data ?: emptyList()
@@ -90,10 +130,52 @@ class AdminHomeViewModel @Inject constructor(
     }
 
     /**
+     * 관리자 사용자 정보 로드 및 WebSocket 연결
+     */
+    private suspend fun loadUserInfo() {
+        try {
+            when (val result = getUserInfoUseCase()) {
+                is ApiResult.Success -> {
+                    result.data?.let { user ->
+                        connectWebSocket(user.id)
+                    }
+                }
+                is ApiResult.Failure -> {
+                    logWarning("관리자 로그인 정보 로드 실패: ${result.message}")
+                }
+            }
+        } catch (e: Exception) {
+            logError("관리자 정보 로드 중 예외 발생", e)
+        }
+    }
+
+    /**
      * 카페 목록 로드 재시도
      */
     fun retryLoadCafes() {
         loadRegisteredCafes()
+    }
+
+    /**
+     * WebSocket을 연결하고 시간권 이벤트를 구독합니다. (글로벌 구독)
+     */
+    fun connectWebSocket(adminUserId: Long) {
+        if (isWebSocketConnected) return
+
+        val token = tokenProvider.getAccessToken()
+        if (token.isNullOrEmpty()) {
+            logWarning("No access token available for WebSocket connection")
+            return
+        }
+
+        try {
+            webSocketManager.connect(token)
+            timePassSubscriptionId = webSocketManager.subscribeToTimePassEvents(adminUserId)
+            isWebSocketConnected = true
+            logDebug("WebSocket connected and subscribed to time pass events for adminUserId=$adminUserId")
+        } catch (e: Exception) {
+            logError("WebSocket connection failed", e)
+        }
     }
 
     // =====================================================
@@ -257,6 +339,8 @@ class AdminHomeViewModel @Inject constructor(
         super.onCleared()
         // Bitmap 메모리 해제
         _imageBitmapCache.value.values.forEach { it.recycle() }
+        
+        // 전역 연결이므로 여기서 disconnect는 부르지 않습니다.
     }
 
     companion object {

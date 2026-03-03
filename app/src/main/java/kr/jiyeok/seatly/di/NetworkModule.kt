@@ -24,7 +24,7 @@ import javax.inject.Singleton
 
 // ============ Configuration & Constants ============
 object NetworkConfig {
-    const val PRODUCTION_BASE_URL = "http://3.27.78.54:8080/api/"
+    const val PRODUCTION_BASE_URL = "http://52.65.135.106:8080/api/"
     const val DEBUG_BASE_URL = "http://localhost:8080/"
     const val CONNECT_TIMEOUT_SECONDS = 30L
     const val READ_TIMEOUT_SECONDS = 30L
@@ -125,18 +125,30 @@ interface TokenProvider {
 }
 
 class SharedPrefsTokenProvider(context: Context) : TokenProvider {
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = context.getSharedPreferences("seatly_cookies", Context.MODE_PRIVATE)
 
-    override fun getAccessToken(): String? = prefs.getString(KEY_ACCESS_TOKEN, null)
-    override fun getRefreshToken(): String? = prefs.getString(KEY_REFRESH_TOKEN, null)
+    override fun getAccessToken(): String? {
+        val allEntries = prefs.all
+        for ((key, value) in allEntries) {
+            if (key.endsWith("_accessToken") && value is String) {
+                return value
+            }
+        }
+        return null
+    }
+
+    override fun getRefreshToken(): String? {
+        val allEntries = prefs.all
+        for ((key, value) in allEntries) {
+            if (key.endsWith("_refreshToken") && value is String) {
+                return value
+            }
+        }
+        return null
+    }
 
     override fun saveTokens(accessToken: String?, refreshToken: String?) {
-        prefs.edit().apply {
-            putString(KEY_ACCESS_TOKEN, accessToken)
-            putString(KEY_REFRESH_TOKEN, refreshToken)
-            apply()
-        }
-        Log.d("TokenProvider", "Tokens saved: accessToken=${accessToken?.take(20)}...")
+        // Not used, as CookieJar handles it
     }
 
     override fun clearTokens() {
@@ -263,12 +275,19 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
+        @ApplicationContext context: Context,
         cookieJar: CookieJar,
         bearerTokenInterceptor: BearerTokenInterceptor,
         headerInterceptor: HeaderInterceptor,
         loggingInterceptor: HttpLoggingInterceptor
     ): OkHttpClient {
+        // 10MB 디스크 캐시 (이미지 등 HTTP 응답 캐싱)
+        val cacheDir = java.io.File(context.cacheDir, "http_cache")
+        val cacheSize = 10L * 1024L * 1024L // 10MB
+        val cache = okhttp3.Cache(cacheDir, cacheSize)
+
         return OkHttpClient.Builder()
+            .cache(cache)
             .cookieJar(cookieJar)
             .addInterceptor(bearerTokenInterceptor) // Bearer Token을 가장 먼저 추가
             .addInterceptor(headerInterceptor)

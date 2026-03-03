@@ -14,6 +14,7 @@ object SharedPreferencesHelper {
     private const val KEY_SAVED_EMAIL = "saved_email"
     private const val KEY_SAVED_PASSWORD = "saved_password"
     private const val KEY_NOTIFICATION_ENABLED = "notification_enabled"
+    private const val KEY_LANGUAGE = "language"
 
     /**
      * Get SharedPreferences instance
@@ -93,5 +94,23 @@ object SharedPreferencesHelper {
      */
     fun getNotificationEnabled(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_NOTIFICATION_ENABLED, true)
+    }
+
+    /**
+     * Save language code (e.g., "ko", "en")
+     */
+    fun saveLanguage(context: Context, languageCode: String) {
+        getPrefs(context).edit().apply {
+            putString(KEY_LANGUAGE, languageCode)
+            apply()
+        }
+    }
+
+    /**
+     * Get saved language code
+     * @return default "ko"
+     */
+    fun getLanguage(context: Context): String {
+        return getPrefs(context).getString(KEY_LANGUAGE, "ko") ?: "ko"
     }
 }

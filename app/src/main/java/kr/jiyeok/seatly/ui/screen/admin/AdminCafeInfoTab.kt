@@ -3,11 +3,12 @@ package kr.jiyeok.seatly.ui.screen.admin
 import android.content.Intent
 import android.location.Geocoder
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -20,12 +21,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -36,6 +38,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.size.Scale
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
@@ -52,6 +57,14 @@ import kr.jiyeok.seatly.presentation.viewmodel.AdminCafeDetailViewModel
 import kr.jiyeok.seatly.ui.theme.*
 import java.text.NumberFormat
 import java.util.Locale
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun AdminCafeInfoTab(
@@ -143,6 +156,7 @@ private fun BoxScope.CafeInfoContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(ColorBgBeige) // Fix: Add background color to prevent white flash
             .verticalScroll(scrollState)
             .padding(bottom = 100.dp)
     ) {
@@ -168,7 +182,9 @@ private fun BoxScope.CafeInfoContent(
             InfoMainCard(
                 name = uiState.cafeInfo?.name ?: "카페 이름",
                 address = uiState.cafeInfo?.address ?: "카페 주소",
-                phone = uiState.cafeInfo?.phone ?: "카페 대표 번호",
+                phone = formatKoreanPhoneFromDigits(
+                    (uiState.cafeInfo?.phone ?: "").filter { it.isDigit() }
+                ).ifEmpty { "카페 대표 번호" },
                 operatingHours = uiState.cafeInfo?.openingHours,
                 selectedTab = selectedTab,
                 onTabSelected = onTabSelected
@@ -176,15 +192,10 @@ private fun BoxScope.CafeInfoContent(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Crossfade(
-                targetState = selectedTab,
-                label = "tab_content_animation"
-            ) { tab ->
-                if (tab == 0) {
-                    FeeSection()
-                } else {
-                    SeatStatusSection(uiState.cafeUsage)
-                }
+            if (selectedTab == 0) {
+                FeeSection()
+            } else {
+                SeatStatusSection(uiState.cafeUsage)
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -228,50 +239,52 @@ private fun HeaderSection(
     val currentIndex = remember {
         derivedStateOf { listState.firstVisibleItemIndex + 1 }
     }
+    val context = LocalContext.current
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+
+    // 이미지 확대 다이얼로그 상태
+    var zoomedImageId by remember { mutableStateOf<String?>(null) }
+    
+    val pagerState = rememberPagerState(pageCount = { images.size })
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(240.dp)
     ) {
-        LazyRow(
-            state = listState,
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(bottomStart = 40.dp, bottomEnd = 40.dp))
-        ) {
-            items(images) { imageId ->
-                if (imageId.isNotEmpty()) {
-                    val bitmap = imageBitmapCache[imageId]
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap.asImageBitmap(),
-                            contentDescription = "카페 이미지",
-                            modifier = Modifier
-                                .width(LocalConfiguration.current.screenWidthDp.dp)
-                                .fillMaxHeight(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Image(
-                            painter = painterResource(R.drawable.img_default_cafe),
-                            contentDescription = "기본 카페 이미지",
-                            modifier = Modifier
-                                .width(LocalConfiguration.current.screenWidthDp.dp)
-                                .fillMaxHeight(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                } else {
-                    Image(
-                        painter = painterResource(R.drawable.img_default_cafe),
-                        contentDescription = "기본 카페 이미지",
-                        modifier = Modifier
-                            .width(LocalConfiguration.current.screenWidthDp.dp)
-                            .fillMaxHeight(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
+        ) { page ->
+            val imageId = images[page]
+            if (imageId.isNotEmpty()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(imageBitmapCache[imageId])
+                        .crossfade(true)
+                        .scale(Scale.FILL)
+                        .memoryCacheKey(imageId)
+                        .build(),
+                    contentDescription = "카페 이미지",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                        .clickable { zoomedImageId = imageId },
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(R.drawable.img_default_cafe),
+                    error = painterResource(R.drawable.img_default_cafe)
+                )
+            } else {
+                AsyncImage(
+                    model = R.drawable.img_default_cafe,
+                    contentDescription = "기본 카페 이미지",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(),
+                    contentScale = ContentScale.Crop
+                )
             }
         }
 
@@ -284,11 +297,105 @@ private fun HeaderSection(
                 .padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
             Text(
-                text = "${currentIndex.value} / ${images.size}",
+                text = "${pagerState.currentPage + 1} / ${images.size}",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = ColorTextBlack
             )
+        }
+    }
+
+    // 확대 다이얼로그
+    if (zoomedImageId != null) {
+        FullScreenImageDialog(
+            bitmap = imageBitmapCache[zoomedImageId],
+            onDismiss = { zoomedImageId = null }
+        )
+    }
+}
+
+@Composable
+private fun FullScreenImageDialog(
+    bitmap: android.graphics.Bitmap?,
+    onDismiss: () -> Unit
+) {
+    if (bitmap == null) {
+        onDismiss()
+        return
+    }
+
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
+        scale = (scale * zoomChange).coerceIn(1f, 5f)
+        offset = if (scale > 1f) {
+            Offset(
+                x = offset.x + panChange.x,
+                y = offset.y + panChange.y
+            )
+        } else {
+            Offset.Zero
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.9f))
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { onDismiss() },
+                        onDoubleTap = {
+                            if (scale > 1f) {
+                                scale = 1f
+                                offset = Offset.Zero
+                            } else {
+                                scale = 2.5f
+                            }
+                        }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = bitmap,
+                contentDescription = "확대 이미지",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offset.x
+                        translationY = offset.y
+                    }
+                    .transformable(state = transformableState),
+                contentScale = ContentScale.Fit
+            )
+
+            // 닫기 버튼
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(40.dp)
+                    .background(Color.White.copy(alpha = 0.3f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "닫기",
+                    tint = Color.White
+                )
+            }
         }
     }
 }
@@ -331,10 +438,8 @@ private fun InfoMainCard(
                 color = ColorBorderLight
             )
 
-            InfoRow(
-                icon = Icons.Filled.Schedule,
-                text = operatingHours ?: "운영시간 정보 없음"
-            )
+            // 운영시간 드롭다운 섹션
+            OperatingHoursSection(operatingHours)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -359,6 +464,209 @@ private fun InfoMainCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     onTabSelected(1)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 영업시간 파싱 및 표시 (드롭다운)
+ * 포맷: "MONDAY=09:00~21:00,TUESDAY=09:00~23:00,..."
+ */
+@Composable
+private fun OperatingHoursSection(operatingHours: String?) {
+    val dayOrder = listOf("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY")
+    val dayKorean = mapOf(
+        "MONDAY" to "월", "TUESDAY" to "화", "WEDNESDAY" to "수",
+        "THURSDAY" to "목", "FRIDAY" to "금", "SATURDAY" to "토", "SUNDAY" to "일"
+    )
+
+    val todayKey = remember {
+        java.time.LocalDate.now().dayOfWeek.name
+    }
+
+    // 파싱
+    val hoursMap = remember(operatingHours) {
+        if (operatingHours.isNullOrBlank()) {
+            emptyMap()
+        } else {
+            operatingHours.split(",").mapNotNull { entry ->
+                val parts = entry.trim().split("=")
+                if (parts.size == 2) parts[0].trim().uppercase() to parts[1].trim() else null
+            }.toMap()
+        }
+    }
+
+    val commonHours = hoursMap["ALL"]
+
+    // 오늘 영업시간
+    // 전체 요일 적용(ALL) 모드일 경우 각 요일별 데이터가 없으면 ALL 시간 사용
+    val todayHours = hoursMap[todayKey] ?: commonHours
+    val isTodayClosed = todayHours.equals("Closed", ignoreCase = true) || todayHours == null
+
+    // 현재 영업 상태 판단
+    val isOpen = remember(todayHours) {
+        if (todayHours == null || isTodayClosed || todayHours == "Open") return@remember false
+        // ... (existing implementation) ...
+        try {
+            val timePattern = Regex("(\\d{1,2}):(\\d{2})")
+            val matches = timePattern.findAll(todayHours).toList()
+            if (matches.size < 2) return@remember false
+
+            val openMinutes = matches[0].groupValues[1].toInt() * 60 + matches[0].groupValues[2].toInt()
+            val closeMinutes = matches[1].groupValues[1].toInt() * 60 + matches[1].groupValues[2].toInt()
+            val now = java.time.LocalTime.now()
+            val nowMinutes = now.hour * 60 + now.minute
+
+            nowMinutes in openMinutes..closeMinutes
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // 드롭다운 상태
+    var expanded by remember { mutableStateOf(false) }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        // 시계 아이콘
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .background(ColorWhite, RoundedCornerShape(12.dp))
+                .padding(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Schedule,
+                contentDescription = null,
+                tint = ColorPrimaryOrange,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        if (operatingHours.isNullOrBlank()) {
+            Text(
+                text = "운영시간 정보 없음",
+                fontSize = 14.sp,
+                color = ColorTextGray,
+                lineHeight = 20.sp
+            )
+        } else {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // 요약 행: 영업 상태 + 오늘 시간 + 드롭다운 버튼
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) { expanded = !expanded },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // 영업 상태
+                        Text(
+                            text = if (isTodayClosed) "휴무" else if (isOpen) "영업중" else "영업 종료",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isOpen) ColorCheckCircle else Color(0xFFE53935)
+                        )
+
+                        if (todayHours != null && !isTodayClosed) {
+                            Text(
+                                text = "  |  ",
+                                fontSize = 14.sp,
+                                color = ColorTextGray
+                            )
+                            Text(
+                                text = todayHours,
+                                fontSize = 14.sp,
+                                color = ColorTextGray,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    // 드롭다운 아이콘
+                    Icon(
+                        imageVector = if (expanded)
+                            Icons.Filled.KeyboardArrowUp
+                        else
+                            Icons.Filled.KeyboardArrowDown,
+                        contentDescription = if (expanded) "접기" else "펼치기",
+                        tint = ColorTextGray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                        // 확장 영역: 전체 요일 표시
+                AnimatedVisibility(visible = expanded) {
+                    Column(
+                        modifier = Modifier.padding(top = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        dayOrder.forEach { dayKey ->
+                            val koreanDay = dayKorean[dayKey] ?: dayKey
+                            // 요일 데이터 없으면 전체(ALL) 데이터 사용
+                            val hours = hoursMap[dayKey] ?: commonHours
+                            val isToday = dayKey == todayKey
+
+                            // 데이터가 없는 요일은 표시하지 않음
+                            if (hours == null) return@forEach
+
+                            val isClosed = hours.equals("Closed", ignoreCase = true)
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = koreanDay,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isToday) ColorPrimaryOrange else ColorTextBlack
+                                )
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Text(
+                                    text = if (isClosed) "휴무" else hours,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                    color = when {
+                                        isClosed -> Color(0xFFE53935)
+                                        isToday -> ColorPrimaryOrange
+                                        else -> ColorTextGray
+                                    }
+                                )
+                            }
+                        }
+
+                        // 공휴일 정보 추가
+                        val holidayHours = hoursMap["HOLIDAY"]
+                        if (holidayHours != null) {
+                             val isHolidayClosed = holidayHours.equals("Closed", ignoreCase = true)
+                             val displayHours = if (isHolidayClosed) "휴무" else if (commonHours != null) commonHours else "영업"
+                             
+                             Spacer(modifier = Modifier.height(8.dp))
+                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "공휴일",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = ColorTextBlack
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = displayHours,
+                                    fontSize = 13.sp,
+                                    color = if (isHolidayClosed) Color(0xFFE53935) else ColorTextGray
+                                )
+                             }
+                        }
+                    }
                 }
             }
         }
@@ -426,46 +734,69 @@ private fun FeeSection() {
         "회원권" to 80000
     )
 
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = 10.dp)
+    // 2열 그리드 레이아웃
+    val chunkedFees = fees.chunked(2)
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(fees) { (label, price) ->
-            Surface(
-                modifier = Modifier
-                    .size(160.dp, 130.dp)
-                    .shadow(1.dp, RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
-                color = ColorBgBeige
+        chunkedFees.forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(20.dp)
-                        .fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = label,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ColorTextBlack
-                    )
+                rowItems.forEach { (label, price) ->
+                    // 시간권 카드
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .shadow(2.dp, RoundedCornerShape(16.dp)),
+                        shape = RoundedCornerShape(16.dp),
+                        color = ColorWhite
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            // 상단: 타이틀 + 아이콘
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = ColorTextBlack
+                                )
 
-                    Column {
-                        Text(
-                            text = "₩${NumberFormat.getInstance().format(price)}",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = ColorPrimaryOrange
-                        )
+                                Icon(
+                                    imageVector = Icons.Filled.Schedule,
+                                    contentDescription = null,
+                                    tint = ColorPrimaryOrange,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
 
-                        Text(
-                            text = "₩${NumberFormat.getInstance().format(price + 1000)}",
-                            fontSize = 13.sp,
-                            color = ColorTextGray,
-                            textDecoration = TextDecoration.LineThrough
-                        )
+                            // 하단: 가격 정보 (삭제됨)
+                            /*
+                            Column {
+                                Text(
+                                    text = "₩${NumberFormat.getInstance().format(price)}",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ColorTextBlack
+                                )
+                            }
+                            */
+                        }
                     }
+                }
+                // 홀수 개수일 경우 빈 공간 채우기
+                if (rowItems.size < 2) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -477,70 +808,120 @@ private fun SeatStatusSection(cafeUsage: UsageDto?) {
     val total = cafeUsage?.totalCount ?: 0
     val used = cafeUsage?.useCount ?: 0
     val available = total - used
-    val usedRatio = if (total > 0) used.toFloat() / total else 0f
+    val availableRatio = if (total > 0) available.toFloat() / total else 0f
 
-    Column(
+    // 통합 대시보드 카드 (단일 카드 디자인)
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .background(ColorBgBeige, RoundedCornerShape(24.dp))
-            .padding(24.dp)
+            .shadow(2.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        color = ColorWhite
     ) {
-        SeatProgressRow(
-            label = "사용 중",
-            value = "$used / $total",
-            ratio = usedRatio,
-            color = ColorPrimaryOrange
-        )
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            // 헤더: 타이틀
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Inventory2,
+                    contentDescription = null,
+                    tint = ColorPrimaryOrange,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = "실시간 좌석 현황",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ColorTextBlack
+                )
+            }
 
-        Spacer(modifier = Modifier.height(20.dp))
+            // 메인 콘텐츠: 도넛 차트 + 요약 정보 (가로 배치)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                // 도넛 차트
+                Box(contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        progress = { 1f },
+                        modifier = Modifier.size(120.dp),
+                        color = ColorBgBeige,
+                        strokeWidth = 12.dp,
+                    )
+                    CircularProgressIndicator(
+                        progress = { availableRatio },
+                        modifier = Modifier.size(120.dp),
+                        color = ColorPrimaryOrange,
+                        strokeWidth = 12.dp,
+                        trackColor = ColorBgBeige,
+                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "잔여",
+                            fontSize = 12.sp,
+                            color = ColorTextGray,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "$available",
+                            fontSize = 32.sp, // 강조
+                            fontWeight = FontWeight.ExtraBold,
+                            color = ColorPrimaryOrange
+                        )
+                    }
+                }
 
-        SeatProgressRow(
-            label = "사용 가능",
-            value = "$available 석",
-            ratio = 1f - usedRatio,
-            color = Color(0xFFE0E0E0)
-        )
+                // 우측 요약 스탯
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    StatRow(label = "전체 좌석", value = "$total", icon = Icons.Filled.LocalCafe)
+                    StatRow(label = "사용 중", value = "$used", icon = Icons.Filled.Person)
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun SeatProgressRow(
-    label: String,
-    value: String,
-    ratio: Float,
-    color: Color
-) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+private fun StatRow(label: String, value: String, icon: ImageVector) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .background(ColorBgBeige, CircleShape)
+                .padding(6.dp)
         ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = ColorTextGray,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
             Text(
                 text = label,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = ColorTextBlack
+                fontSize = 11.sp,
+                color = ColorTextGray
             )
-
             Text(
                 text = value,
-                fontSize = 13.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = ColorTextBlack
             )
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        LinearProgressIndicator(
-            progress = { ratio },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(12.dp)
-                .clip(CircleShape),
-            color = color,
-            trackColor = ColorWhite
-        )
     }
 }
 

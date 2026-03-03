@@ -51,6 +51,7 @@ import kr.jiyeok.seatly.R
 import kr.jiyeok.seatly.data.remote.response.StudyCafeSummaryDto
 import kr.jiyeok.seatly.data.remote.response.UsageDto
 import kr.jiyeok.seatly.presentation.viewmodel.AdminHomeViewModel
+import kr.jiyeok.seatly.presentation.viewmodel.AuthViewModel
 import kr.jiyeok.seatly.ui.component.common.AppTopBar
 import kr.jiyeok.seatly.ui.theme.ColorBgBeige
 import kr.jiyeok.seatly.ui.theme.ColorBorderLight
@@ -66,7 +67,8 @@ import kr.jiyeok.seatly.ui.theme.ColorWhite
 @Composable
 fun AdminHomeScreen(
     navController: NavController,
-    viewModel: AdminHomeViewModel = hiltViewModel()
+    viewModel: AdminHomeViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -79,6 +81,8 @@ fun AdminHomeScreen(
     val cafeUsages by viewModel.cafeUsages.collectAsState()
     val imageBitmapCache by viewModel.imageBitmapCache.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    // Auth 정보 관리
+    val userData by authViewModel.userData.collectAsState()
 
     // 초기 데이터 로드 및 이벤트 처리
     LaunchedEffect(Unit) {

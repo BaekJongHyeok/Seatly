@@ -36,7 +36,7 @@ class WebSocketManagerImpl @Inject constructor(
     
     private companion object {
         const val TAG = "WebSocketManager"
-        const val WS_URL = "ws://3.27.78.54:8080/ws"  // WebSocket 엔드포인트
+        const val WS_URL = "ws://52.65.135.106:8080/ws/websocket"  // WebSocket 엔드포인트
         const val MAX_RECONNECT_ATTEMPTS = 5
         const val INITIAL_RECONNECT_DELAY = 1000L
     }
@@ -46,6 +46,7 @@ class WebSocketManagerImpl @Inject constructor(
     private var webSocket: WebSocket? = null
     private var currentToken: String? = null
     private var reconnectAttempts = 0
+    private var isStompConnected = false
     
     // 구독 관리
     private val subscriptions = mutableMapOf<String, String>() // subscriptionId -> destination
@@ -66,6 +67,7 @@ class WebSocketManagerImpl @Inject constructor(
         override fun onOpen(webSocket: WebSocket, response: Response) {
             Log.d(TAG, "WebSocket connected")
             _isConnected.value = true
+            isStompConnected = false
             reconnectAttempts = 0
             
             // STOMP CONNECT 전송
@@ -88,6 +90,7 @@ class WebSocketManagerImpl @Inject constructor(
             when (stompMessage.command) {
                 "CONNECTED" -> {
                     Log.d(TAG, "STOMP connection established")
+                    isStompConnected = true
                     // 재구독
                     resubscribeAll()
                 }
@@ -103,12 +106,14 @@ class WebSocketManagerImpl @Inject constructor(
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             Log.e(TAG, "WebSocket failure", t)
             _isConnected.value = false
+            isStompConnected = false
             attemptReconnect()
         }
         
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
             Log.d(TAG, "WebSocket closed: $code - $reason")
             _isConnected.value = false
+            isStompConnected = false
         }
     }
     
@@ -142,6 +147,7 @@ class WebSocketManagerImpl @Inject constructor(
         subscriptions.clear()
         
         _isConnected.value = false
+        isStompConnected = false
         Log.d(TAG, "WebSocket disconnected")
     }
     
@@ -171,27 +177,31 @@ class WebSocketManagerImpl @Inject constructor(
     }
     
     private fun subscribe(destination: String): String {
-        val ws = webSocket ?: throw IllegalStateException("WebSocket not connected")
-        
         val subscriptionId = java.util.UUID.randomUUID().toString()
-        val subscribeFrame = StompProtocol.buildSubscribeFrame(destination, subscriptionId)
-        
-        ws.send(subscribeFrame)
         subscriptions[subscriptionId] = destination
         
-        Log.d(TAG, "Subscribed to $destination with id: $subscriptionId")
+        val ws = webSocket
+        if (ws != null && isStompConnected) {
+            val subscribeFrame = StompProtocol.buildSubscribeFrame(destination, subscriptionId)
+            ws.send(subscribeFrame)
+            Log.d(TAG, "Subscribed to $destination with id: $subscriptionId")
+        } else {
+            Log.d(TAG, "Queued subscription for $destination (STOMP not connected yet)")
+        }
+        
         return subscriptionId
     }
     
     private fun resubscribeAll() {
-        val destinations = subscriptions.values.toList()
-        subscriptions.clear()
-        
-        destinations.forEach { destination ->
-            subscribe(destination)
+        val currentSubscriptions = subscriptions.toMap()
+        val ws = webSocket
+        if (ws != null && isStompConnected) {
+            currentSubscriptions.forEach { (subscriptionId, destination) ->
+                val subscribeFrame = StompProtocol.buildSubscribeFrame(destination, subscriptionId)
+                ws.send(subscribeFrame)
+            }
+            Log.d(TAG, "Resubscribed to ${currentSubscriptions.size} topics")
         }
-        
-        Log.d(TAG, "Resubscribed to ${destinations.size} topics")
     }
     
     private fun attemptReconnect() {
@@ -220,20 +230,11 @@ class WebSocketManagerImpl @Inject constructor(
         
         try {
             val message = when {
-                destination.contains("/study-cafe/") -> {
-                    gson.fromJson(body, WebSocketMessage.StudyCafeUpdate::class.java)
-                }
-                destination.contains("/seat-events") -> {
+                destination.contains("/study-cafe/") || destination.contains("/seat-events") -> {
                     gson.fromJson(body, WebSocketMessage.SeatEvent::class.java)
                 }
                 destination.contains("/time-pass-request-events") -> {
-                    // 메시지 내용에 따라 TimePassRequest 또는 TimePassResponse
-                    val jsonObject = gson.fromJson(body, Map::class.java) as Map<*, *>
-                    if (jsonObject.containsKey("requestId") && jsonObject.containsKey("userName")) {
-                        gson.fromJson(body, WebSocketMessage.TimePassRequest::class.java)
-                    } else {
-                        gson.fromJson(body, WebSocketMessage.TimePassResponse::class.java)
-                    }
+                    gson.fromJson(body, WebSocketMessage.TimePassEvent::class.java)
                 }
                 else -> {
                     Log.w(TAG, "Unknown destination: $destination")
